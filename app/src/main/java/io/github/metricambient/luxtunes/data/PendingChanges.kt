@@ -31,32 +31,40 @@ data class PendingEntry(
     /** The file now holds everything recorded so far. */
     fun markSent() = copy(sentPlays = plays, sentSkips = skips, sentRating = rating)
 
-    /** LuxTunes took what the file held: keep only what came after. */
-    fun delivered(): PendingEntry {
-        val leftPlays = (plays - sentPlays).coerceAtLeast(0)
-        val leftSkips = (skips - sentSkips).coerceAtLeast(0)
+    /**
+     * LuxTunes took what the file held: keep only what came after. If LuxTunes
+     * left part of it in the file (written by the phone while it synced), that
+     * part (`keptPlays`, `keptSkips`, `ratingKept`) hasn't arrived yet either.
+     */
+    fun delivered(keptPlays: Int = 0, keptSkips: Int = 0, ratingKept: Boolean = false): PendingEntry {
+        val leftPlays = (plays - sentPlays + keptPlays).coerceIn(0, plays)
+        val leftSkips = (skips - sentSkips + keptSkips).coerceIn(0, skips)
         return PendingEntry(
             id = id,
             plays = leftPlays,
             lastPlayed = if (leftPlays > 0) lastPlayed else 0,
             skips = leftSkips,
             lastSkipped = if (leftSkips > 0) lastSkipped else 0,
-            rating = if (rating == sentRating) null else rating,
+            rating = if (rating == sentRating && !ratingKept) null else rating,
         )
     }
 }
 
 object ChangesJson {
-    const val VERSION = 1
+    const val VERSION = 1           // plays, skips and ratings only (LuxTunes before 0.6.0)
+    const val VERSION_2 = 2         // plus playlists (library.db format_version 2)
 
     /** UTC "YYYY-MM-DDTHH:MM:SSZ", the format LuxTunes uses. */
     fun isoTime(unixMs: Long): String =
         DateTimeFormatter.ISO_INSTANT.format(Instant.ofEpochSecond(unixMs / 1000))
 
-    /** The whole file. Only songs with something to report are listed. */
-    fun build(entries: List<PendingEntry>, libraryId: String?): String {
+    /**
+     * The whole file. Only songs with something to report are listed. With
+     * `playlists` (one JSON object each, see playlistEntry) it's version 2.
+     */
+    fun build(entries: List<PendingEntry>, libraryId: String?, playlists: List<String>? = null): String {
         val sb = StringBuilder()
-        sb.append("{\"version\": ").append(VERSION)
+        sb.append("{\"version\": ").append(if (playlists != null) VERSION_2 else VERSION)
         if (!libraryId.isNullOrEmpty()) sb.append(", \"library_id\": \"").append(clean(libraryId)).append('"')
         sb.append(", \"tracks\": [")
         var first = true
@@ -76,8 +84,47 @@ object ChangesJson {
             if (e.rating != null) sb.append(", \"rating\": ").append(e.rating)
             sb.append('}')
         }
-        sb.append(if (first) "]}\n" else "\n]}\n")
+        sb.append(if (first) "]" else "\n]")
+        if (playlists != null) {
+            sb.append(", \"playlists\": [")
+            sb.append(playlists.joinToString(",") { "\n  $it" })
+            sb.append(if (playlists.isEmpty()) "]" else "\n]")
+        }
+        sb.append("}\n")
         return sb.toString()
+    }
+
+    /** One playlist change for format v2, as a JSON object. */
+    fun playlistEntry(e: PlaylistEdit): String {
+        val sb = StringBuilder()
+        sb.append("{\"id\": \"").append(clean(e.id)).append("\", \"action\": \"").append(e.action).append('"')
+        if (e.action != "delete") {
+            sb.append(", \"name\": ").append(quote(e.name))
+            sb.append(", \"is_smart\": ").append(if (e.isSmart) 1 else 0)
+            if (e.isSmart) {
+                val b64 = java.util.Base64.getEncoder()
+                sb.append(", \"smart_info\": \"").append(b64.encodeToString(e.smartInfo ?: ByteArray(0))).append('"')
+                sb.append(", \"smart_criteria\": \"").append(b64.encodeToString(e.smartCriteria ?: ByteArray(0))).append('"')
+            } else {
+                sb.append(", \"items\": [").append(e.items.joinToString(", ") { "\"" + clean(it) + "\"" }).append(']')
+            }
+        }
+        sb.append('}')
+        return sb.toString()
+    }
+
+    /** A JSON string (names can hold quotes, backslashes, anything). */
+    fun quote(text: String): String {
+        val sb = StringBuilder("\"")
+        for (ch in text) {
+            when {
+                ch == '"' -> sb.append("\\\"")
+                ch == '\\' -> sb.append("\\\\")
+                ch < ' ' -> sb.append("\\u%04x".format(ch.code))
+                else -> sb.append(ch)
+            }
+        }
+        return sb.append('"').toString()
     }
 
     /**

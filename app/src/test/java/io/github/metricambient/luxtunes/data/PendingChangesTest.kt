@@ -78,6 +78,31 @@ class PendingChangesTest {
     }
 
     @Test
+    fun remainderLeftByLuxTunesStaysPending() {
+        // Written with 3 plays; LuxTunes merged 2 of them and left 1 in the file.
+        val e = PendingEntry(id).played(t1).played(t1).played(t2).rated(80).markSent()
+        val after = e.delivered(keptPlays = 1, keptSkips = 0, ratingKept = true)
+        assertEquals(1, after.plays)
+        assertEquals(80, after.rating)
+    }
+
+    @Test
+    fun version2HasPlaylists() {
+        val create = PlaylistEdit("9F8E7D6C5B4A3921", "create", "Road \"Trip\"", false, listOf("1A2B3C4D5E6F7081"))
+        val delete = PlaylistEdit("1234123412341234", "delete")
+        val smart = PlaylistEdit("77AA77AA77AA77AA", "update", "Top", true,
+            smartInfo = byteArrayOf(1, 2), smartCriteria = byteArrayOf(3))
+        val text = ChangesJson.build(emptyList(), "ABCDEF0123456789",
+            listOf(create, delete, smart).map { ChangesJson.playlistEntry(it) })
+        assertTrue(text.startsWith("{\"version\": 2,"))
+        assertTrue(text.contains("{\"id\": \"9F8E7D6C5B4A3921\", \"action\": \"create\", \"name\": \"Road \\\"Trip\\\"\", " +
+            "\"is_smart\": 0, \"items\": [\"1A2B3C4D5E6F7081\"]}"))
+        assertTrue(text.contains("{\"id\": \"1234123412341234\", \"action\": \"delete\"}"))
+        assertTrue(text.contains("\"smart_info\": \"AQI=\", \"smart_criteria\": \"Aw==\""))
+        assertTrue(ChangesJson.isEmptied("{\"version\": 2, \"tracks\": [], \"playlists\": []}"))
+    }
+
+    @Test
     fun spreadShuffleKeepsEverySong() {
         val songs = (1..50).map { "artist${it % 5}" to it }
         val shuffled = spreadShuffle(songs, kotlin.random.Random(7)) { it.first }

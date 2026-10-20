@@ -27,8 +27,23 @@ data class Track(
     val sortAlbum: String,
     val startTime: Long,            // ms, 0 = from the start
     val stopTime: Long,             // ms, 0 = to the end
+    val mediaKind: String = "music",   // music, podcast, audiobook, movie, tvshow
+    val raw: Map<String, Any?> = emptyMap(),   // every library.db column, for smart playlist rules
 ) {
-    val albumKey: String get() = albumKeyOf(albumArtist, album)
+    /** Albums of different kinds (a podcast and an album with the same name) stay apart. */
+    val albumKey: String get() = (if (mediaKind == "music") "" else "$mediaKind\u0002") + albumKeyOf(albumArtist, album)
+
+    /** What smart playlist rules see: LuxTunes' values with the phone's plays and rating. */
+    fun smartValue(column: String): Any? = when (column) {
+        "play_count" -> playCount.toLong()
+        "play_date" -> playDate
+        "skip_count" -> skipCount.toLong()
+        "skip_date" -> skipDate
+        "rating" -> rating.toLong()
+        "rating_computed" -> if (ratingComputed) 1L else 0L
+        "media_kind" -> mediaKind
+        else -> raw[column]
+    }
 }
 
 fun albumKeyOf(albumArtist: String, album: String): String =
@@ -55,8 +70,16 @@ data class Playlist(
     val name: String,
     val isSmart: Boolean,
     val trackIds: List<String>,
-    val onPhone: Boolean = false,   // made on the phone (LuxTunes' own ones are read-only for now)
-)
+    val onPhone: Boolean = false,          // made on the phone, not in LuxTunes yet
+    val smartInfo: ByteArray? = null,      // smart playlists: LuxTunes' two rule blocks
+    val smartCriteria: ByteArray? = null,
+    val changed: Boolean = false,          // changed on the phone, not yet taken by LuxTunes
+) {
+    /** The rules, if the app can read them. */
+    val smart: Smart.Playlist? by lazy {
+        if (!isSmart) null else try { Smart.decode(smartInfo, smartCriteria) } catch (e: Exception) { null }
+    }
+}
 
 /** Text used for sorting: case-insensitive, ignoring a leading "The ". */
 fun sortText(text: String): String {

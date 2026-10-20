@@ -77,6 +77,8 @@ object Routes {
     fun album(key: String) = "album/${Uri.encode(key)}"
     fun artist(name: String) = "artist/${Uri.encode(name)}"
     fun playlist(id: String) = "playlist/${Uri.encode(id)}"
+    const val SMART_NEW = "smart/new"
+    fun smartEdit(id: String) = "smart/edit/${Uri.encode(id)}"
 }
 
 @Composable
@@ -126,6 +128,10 @@ private fun MainScreens() {
                 composable(Routes.NOW) { NowPlayingScreen(nav) }
                 composable(Routes.SETTINGS) { SettingsScreen(nav) }
                 composable(Routes.SETTINGS_TABS) { TabsSettingsScreen(nav) }
+                composable(Routes.SMART_NEW) { SmartEditorScreen(nav, null) }
+                composable("smart/edit/{id}", listOf(navArgument("id") { type = NavType.StringType })) {
+                    SmartEditorScreen(nav, it.arguments?.getString("id"))
+                }
                 composable(Routes.SETTINGS_ABOUT) { AboutScreen(nav) }
                 composable(Routes.SEARCH) { SearchScreen(nav) }
                 composable(Routes.QUEUE) { QueueScreen(nav) }
@@ -140,7 +146,7 @@ private fun MainScreens() {
                 }
             }
         }
-        if (route != Routes.NOW && route?.startsWith(Routes.SETTINGS) != true) {
+        if (route != Routes.NOW && route?.startsWith(Routes.SETTINGS) != true && route?.startsWith("smart/") != true) {
             MiniPlayer(nav, showMenu = route == Routes.HOME)
         }
     }

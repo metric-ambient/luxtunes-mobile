@@ -121,7 +121,10 @@ fun SettingsScreen(nav: NavHostController) {
                 "${library.libraryName.ifEmpty { "LuxTunes" }}: ${plural(library.tracks.size, "song")}\n" +
                     "Storage: $storage${if (canChoose) " (tap to change)" else ""}\n" +
                     "Folder: $folder\nLast synced: $synced\n" +
-                    "Waiting to go to LuxTunes: ${plural(library.pendingCount, "song")}\n" +
+                    "Waiting to go to LuxTunes: ${plural(library.pendingCount, "song")}, " +
+                    "${plural(library.pendingPlaylists, "playlist change")}\n" +
+                    "Sync format: ${library.formatVersion}" +
+                    (if (library.formatVersion < 2) " (playlists go back with LuxTunes 0.6.0+)" else "") + "\n" +
                     "changes.json: $written" + if (library.transferMode) "\nUSB file transfer: on" else "",
                 onClick = if (canChoose) { { Dialogs.show(DialogRequest.ChooseStorage(firstTime = false)) } } else null,
             )
@@ -334,6 +337,14 @@ fun TabsSettingsScreen(nav: NavHostController) {
         ChoiceRow("Default Artist Action", s.artistAction.label) {
             chooseGroup("Select Action", s.artistAction, allGroup) { cur, a -> cur.copy(artistAction = a) }
         }
+        HorizontalDivider(color = Lux.panel)
+
+        Heading("Podcasts")
+        CheckRow("Display podcasts tab", "Podcasts" in s.tabs) { showTab("Podcasts", it) }
+        HorizontalDivider(color = Lux.panel)
+
+        Heading("Audiobooks")
+        CheckRow("Display audiobooks tab", "Audiobooks" in s.tabs) { showTab("Audiobooks", it) }
         Spacer(Modifier.height(24.dp))
     }
 }

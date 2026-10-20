@@ -87,8 +87,11 @@ fun playlistMenu(p: Playlist, nav: NavHostController): Menu {
         "Shuffle" to { playGroup(app, nav, tracks, GroupAction.SHUFFLE) },
         "Add to Now Playing" to { app.player.addToQueue(tracks) },
     )
-    if (!p.onPhone) return base
-    return base + listOf(
+    if (!library.canEdit(p)) return base
+    val smart: Menu = if (p.isSmart && p.smart != null) {
+        listOf("Edit smart playlist" to { nav.go(Routes.smartEdit(p.id)) })
+    } else emptyList()
+    return base + smart + listOf(
         "Rename" to { Dialogs.show(DialogRequest.RenamePlaylist(p.id, p.name)) },
         "Delete playlist" to { Dialogs.show(DialogRequest.DeletePlaylist(p.id, p.name)) },
     )

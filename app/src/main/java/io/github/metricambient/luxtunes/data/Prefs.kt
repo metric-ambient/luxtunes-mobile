@@ -31,7 +31,7 @@ enum class SongSort(val label: String) {
 
 enum class GroupSort(val label: String) { NAME("Name"), ARTIST("Artist"), YEAR("Year"), SONGS("Number of songs") }
 
-val ALL_TABS = listOf("Artists", "Playlists", "Songs", "Albums")
+val ALL_TABS = listOf("Artists", "Playlists", "Songs", "Albums", "Podcasts", "Audiobooks")
 
 data class AppSettings(
     val storage: StorageChoice? = null,          // null: not chosen yet

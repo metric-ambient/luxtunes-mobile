@@ -170,9 +170,9 @@ fun PlaylistScreen(nav: NavHostController, id: String) {
                 Text(
                     playlist.name + when {
                         playlist.isSmart -> "  ·  Smart playlist"
-                        playlist.onPhone -> "  ·  On this phone"
+                        playlist.onPhone -> "  ·  Made on this phone"
                         else -> ""
-                    },
+                    } + if (playlist.changed) "  ·  Changes go to LuxTunes at the next sync" else "",
                     color = Lux.dim, fontSize = 15.sp,
                     modifier = Modifier.weight(1f).padding(start = 16.dp, top = 16.dp, bottom = 4.dp),
                 )
@@ -180,7 +180,7 @@ fun PlaylistScreen(nav: NavHostController, id: String) {
             }
         }
         itemsIndexed(entries, key = { _, e -> "${e.first}:${e.second.id}" }) { i, (pos, t) ->
-            val remove: Menu = if (playlist.onPhone) {
+            val remove: Menu = if (!playlist.isSmart && library.canEdit(playlist)) {
                 listOf("Remove from playlist" to { app.repository.removeFromPlaylist(playlist.id, pos) })
             } else emptyList()
             SongRow(

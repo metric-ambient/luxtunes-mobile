@@ -68,7 +68,7 @@ class PlayerConnection(private val context: Context) {
         val saved = PlaybackMemory(context).load() ?: return
         restoring?.cancel()
         restoring = scope.launch {
-            val library = repository.state.first { it.loaded && it.folder != null && it.tracks.isNotEmpty() }
+            val library = repository.state.first { it.loaded && it.folder != null && it.allTracks.isNotEmpty() }
             if (controller !== c || c.mediaItemCount > 0) return@launch      // something else started meanwhile
             val tracks = saved.queue.mapNotNull { library.byId[it] }
             if (tracks.isEmpty()) return@launch

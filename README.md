@@ -25,8 +25,11 @@ syncs to your phone. Plays, skips and ratings go back to LuxTunes at the next sy
 - Now Playing with album art, lyrics and star ratings; lock-screen, notification and
   Bluetooth controls.
 - Records plays, skips and ratings and hands them to LuxTunes at the next USB sync.
-- Playlists of your own on the phone, select mode, sorting, Get Info, and deleting songs
-  from the phone (LuxTunes puts them back at the next sync if they're still chosen there).
+- Playlists and smart playlists made or changed on the phone go back to LuxTunes at the
+  next sync (LuxTunes 0.6.0 or newer). Smart playlists use LuxTunes' own rules and stay
+  up to date on the phone.
+- Podcasts and audiobooks tabs, select mode, sorting, Get Info, and deleting songs from the
+  phone (LuxTunes puts them back at the next sync if they're still chosen there).
 - Picks up where you left off: the Now Playing list, the song and the position.
 - Goes online only when you ask it to (Settings → Check for Updates), and says so first.
   No Google services, so it also runs on de-Googled phones.
@@ -51,8 +54,9 @@ The folder format is described in the LuxTunes repo
 - `library.db` (written by LuxTunes) is read-only for the app. The app copies it into its
   own storage whenever a sync replaces it.
 - `changes.json` is the only file the app writes there: plays and skips since the last
-  sync, plus ratings changed on the phone. LuxTunes adds them to the library and empties
-  the file; the app then starts counting from zero again.
+  sync, ratings changed on the phone and (format 2) playlist changes. LuxTunes adds them to
+  the library and empties the file, keeping anything the phone wrote while it was reading;
+  the app then keeps only what hasn't arrived yet.
 - `changes.json` is updated as soon as something happens, and again when the phone is
   plugged in for file transfer, so it's current when LuxTunes reads it.
 - Lyrics come from LuxTunes when it has them, otherwise from the song file's own tags.

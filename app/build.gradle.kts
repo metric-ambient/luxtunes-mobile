@@ -25,7 +25,7 @@ android {
         versionName = System.getenv("GITHUB_REF_NAME")
             ?.takeIf { System.getenv("GITHUB_REF_TYPE") == "tag" }
             ?.removePrefix("v")
-            ?: "0.2.0"
+            ?: "0.3.0"
     }
 
     signingConfigs {

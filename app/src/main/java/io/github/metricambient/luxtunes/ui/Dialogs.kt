@@ -33,6 +33,7 @@ import java.io.File
 /** The pop-ups any screen can ask for. Only one shows at a time. */
 sealed interface DialogRequest {
     data class AddToPlaylist(val ids: List<String>) : DialogRequest
+    data class Duplicates(val playlistId: String, val name: String, val ids: List<String>, val count: Int) : DialogRequest
     data class NewPlaylist(val ids: List<String>) : DialogRequest
     data class RenamePlaylist(val id: String, val name: String) : DialogRequest
     data class DeletePlaylist(val id: String, val name: String) : DialogRequest
@@ -60,6 +61,7 @@ fun DialogHost() {
     when (val r = Dialogs.current) {
         null -> {}
         is DialogRequest.AddToPlaylist -> AddToPlaylistDialog(r.ids)
+        is DialogRequest.Duplicates -> DuplicatesDialog(r)
         is DialogRequest.NewPlaylist -> NameDialog("New playlist", "", "Create") { name ->
             app.repository.createPlaylist(name, r.ids)
         }
@@ -80,7 +82,7 @@ private fun AddToPlaylistDialog(ids: List<String>) {
     val app = app()
     val library by app.repository.state.collectAsState()
     val tracks = ids.mapNotNull { library.byId[it] }
-    val mine = library.playlists.filter { it.onPhone }
+    val mine = library.playlists.filter { !it.isSmart && library.canEdit(it) }
     AlertDialog(
         onDismissRequest = { Dialogs.close() },
         title = { Text("Add to Playlist") },
@@ -89,12 +91,17 @@ private fun AddToPlaylistDialog(ids: List<String>) {
                 item { PickRow("Now Playing") { app.player.addToQueue(tracks); Dialogs.close() } }
                 item { PickRow("New…") { Dialogs.show(DialogRequest.NewPlaylist(ids)) } }
                 items(mine, key = { it.id }) { p ->
-                    PickRow(p.name) { app.repository.addToPlaylist(p.id, ids); Dialogs.close() }
+                    PickRow(p.name) {
+                        // Like LuxTunes: ask before adding songs the playlist already has.
+                        val dupes = app.repository.duplicatesIn(p.id, ids)
+                        if (dupes > 0) Dialogs.show(DialogRequest.Duplicates(p.id, p.name, ids, dupes))
+                        else { app.repository.addToPlaylist(p.id, ids); Dialogs.close() }
+                    }
                 }
-                if (library.playlists.any { !it.onPhone }) {
+                if (library.formatVersion < 2 && library.playlists.any { !it.onPhone }) {
                     item {
                         Text(
-                            "Playlists from LuxTunes can be changed on the phone once LuxTunes supports it.",
+                            "Playlists from LuxTunes can be changed on the phone with LuxTunes 0.6.0 or newer.",
                             color = Lux.dim, fontSize = 13.sp, modifier = Modifier.padding(top = 12.dp),
                         )
                     }
@@ -102,6 +109,40 @@ private fun AddToPlaylistDialog(ids: List<String>) {
             }
         },
         confirmButton = { TextButton(onClick = { Dialogs.close() }) { Text("Cancel") } },
+    )
+}
+
+/** "Some of these songs are already in the playlist": Skip (add only the new ones) / Add / Cancel. */
+@Composable
+private fun DuplicatesDialog(r: DialogRequest.Duplicates) {
+    val app = app()
+    val all = r.count == r.ids.size
+    AlertDialog(
+        onDismissRequest = { Dialogs.close() },
+        title = { Text("Add to “${r.name}”") },
+        text = {
+            Text(
+                if (r.ids.size == 1) "This song is already in the playlist. Do you want to add it again?"
+                else if (all) "These songs are already in the playlist. Do you want to add them again?"
+                else "${plural(r.count, "song")} of ${r.ids.size} ${if (r.count == 1) "is" else "are"} already in the playlist. " +
+                    "Do you want to add ${if (r.count == 1) "it" else "them"} again, or skip ${if (r.count == 1) "it" else "them"}?"
+            )
+        },
+        confirmButton = {
+            TextButton(onClick = { app.repository.addToPlaylist(r.playlistId, r.ids); Dialogs.close() }) { Text("Add") }
+        },
+        dismissButton = {
+            Row {
+                TextButton(onClick = { Dialogs.close() }) { Text("Cancel") }
+                if (!all) {
+                    TextButton(onClick = {
+                        val have = app.repository.state.value.playlists.firstOrNull { it.id == r.playlistId }?.trackIds?.toSet().orEmpty()
+                        app.repository.addToPlaylist(r.playlistId, r.ids.filter { it !in have }.distinct())
+                        Dialogs.close()
+                    }) { Text("Skip") }
+                }
+            }
+        },
     )
 }
 
@@ -136,7 +177,12 @@ private fun DeletePlaylistDialog(r: DialogRequest.DeletePlaylist) {
     AlertDialog(
         onDismissRequest = { Dialogs.close() },
         title = { Text("Delete “${r.name}”?") },
-        text = { Text("The playlist is deleted from this phone. Its songs stay.") },
+        text = {
+            Text(
+                "The playlist is deleted on this phone. Its songs stay.\n\n" +
+                    "If it came from LuxTunes, LuxTunes asks you at the next sync before deleting it there too."
+            )
+        },
         confirmButton = {
             TextButton(onClick = { app.repository.deletePlaylist(r.id); Dialogs.close() }) { Text("Delete") }
         },

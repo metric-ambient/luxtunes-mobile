@@ -143,7 +143,7 @@ fun HomeScreen(nav: NavHostController) {
                 }
             }
         }
-        if (library.tracks.isEmpty()) {
+        if (library.allTracks.isEmpty()) {
             Empty(library)
             return@Column
         }
@@ -154,9 +154,11 @@ fun HomeScreen(nav: NavHostController) {
                 "Playlists" -> PlaylistsTab(nav, library, settings, query)
                 "Songs" -> SongsTab(nav, library, settings, query, selecting, selected, toggle)
                 "Albums" -> AlbumsTab(nav, library, settings, query, selecting, selected, toggle)
+                "Podcasts" -> ShowsTab(nav, library.podcasts, query, "No podcasts on this phone. Choose some on the Podcasts tab of the phone's page in LuxTunes.")
+                "Audiobooks" -> ShowsTab(nav, library.audiobooks, query, "No audiobooks on this phone. Choose some on the Books tab of the phone's page in LuxTunes.")
             }
         }
-        if (tabName != "Playlists" && !selecting) {
+        if (tabName in listOf("Artists", "Songs", "Albums") && !selecting) {
             BottomBar(tabName, library, settings, query, onSelect = { selecting = true })
         }
     }
@@ -335,9 +337,9 @@ private fun PlaylistsTab(nav: NavHostController, library: LibraryState, settings
         item {
             ListRow(
                 title = "Create Smart Playlist",
-                subtitle = "Needs a newer LuxTunes (coming in milestone 3)",
-                onClick = {},
-                leading = optional(icons) { PlaylistIcon(Icons.Filled.Bolt, Lux.dim) },
+                subtitle = null,
+                onClick = { nav.go(Routes.SMART_NEW) },
+                leading = optional(icons) { PlaylistIcon(Icons.Filled.Bolt, Lux.accent) },
             )
         }
         items(lists, key = { it.id }) { p ->
@@ -346,9 +348,9 @@ private fun PlaylistsTab(nav: NavHostController, library: LibraryState, settings
                 title = p.name,
                 subtitle = when {
                     p.isSmart -> "Smart playlist · "
-                    p.onPhone -> "On this phone · "
+                    p.onPhone -> "Made on this phone · "
                     else -> ""
-                } + plural(tracks.size, "song"),
+                } + plural(tracks.size, "song") + if (p.changed) " · not synced yet" else "",
                 onClick = { tapGroup(app, nav, tracks, settings.playlistAction, Routes.playlist(p.id)) },
                 leading = optional(icons) {
                     PlaylistIcon(
@@ -365,6 +367,29 @@ private fun PlaylistsTab(nav: NavHostController, library: LibraryState, settings
                 subtitle = null,
                 onClick = { Dialogs.show(DialogRequest.NewPlaylist(emptyList())) },
                 leading = optional(icons) { PlaylistIcon(Icons.Filled.Add, Lux.accent) },
+            )
+        }
+    }
+}
+
+/** Podcasts (one row per show) or audiobooks (one per book); a tap opens its episodes or chapters. */
+@Composable
+private fun ShowsTab(nav: NavHostController, shows: List<Album>, query: String, empty: String) {
+    val list = shows.filter { matches(query, it.name, it.artist) }
+    if (shows.isEmpty()) {
+        Box(Modifier.fillMaxSize().padding(32.dp), contentAlignment = Alignment.Center) {
+            Text(empty, color = Lux.dim, textAlign = TextAlign.Center)
+        }
+        return
+    }
+    LazyColumn(Modifier.fillMaxSize()) {
+        items(list, key = { it.key }) { show ->
+            ListRow(
+                title = show.name,
+                subtitle = "${show.artist} · ${plural(show.tracks.size, "item")}",
+                onClick = { nav.go(Routes.album(show.key)) },
+                leading = { Artwork(show.artwork, Modifier.size(56.dp), noteSize = 28.dp) },
+                menu = groupMenu(show.tracks, nav),
             )
         }
     }
