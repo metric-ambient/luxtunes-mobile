@@ -49,8 +49,9 @@ The folder format is described in the LuxTunes repo
 - `changes.json` is the only file the app writes there: plays and skips since the last
   sync, plus ratings changed on the phone. LuxTunes adds them to the library and empties
   the file; the app then starts counting from zero again.
-- While the phone is in USB file-transfer mode the app doesn't touch `changes.json`, so
-  nothing recorded during a sync is lost.
+- `changes.json` is updated as soon as something happens, and again when the phone is
+  plugged in for file transfer, so it's current when LuxTunes reads it.
+- Lyrics come from LuxTunes when it has them, otherwise from the song file's own tags.
 - LuxTunes decides what's on the phone: a song deleted on the phone comes back at the
   next sync if it's still selected in LuxTunes.
 

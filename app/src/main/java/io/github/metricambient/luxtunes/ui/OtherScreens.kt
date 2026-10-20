@@ -129,7 +129,7 @@ fun SearchScreen(nav: NavHostController) {
             }
             if (songs.isNotEmpty()) item { Heading("Songs") }
             items(songs, key = { "so:" + it.id }) { t ->
-                SongRow(t, onClick = { app.player.play(songs, songs.indexOf(t)) },
+                SongRow(t, onClick = { app.player.play(songs, songs.indexOf(t)); nav.go(Routes.NOW) },
                     current = t.id == playerState.currentId, menu = songMenu(t))
             }
         }
@@ -168,7 +168,13 @@ fun SettingsScreen(nav: NavHostController) {
                 Icons.Filled.LibraryMusic, "My Library",
                 "${library.libraryName.ifEmpty { "LuxTunes" }}: ${plural(library.tracks.size, "song")}\n" +
                     "Folder: $folder\nLast synced: $synced\n" +
-                    "Waiting to go to LuxTunes: ${plural(library.pendingCount, "song")}",
+                    "Waiting to go to LuxTunes: ${plural(library.pendingCount, "song")}\n" +
+                    "changes.json: " + when {
+                        library.changesError != null -> "couldn't write it (${library.changesError})"
+                        library.changesWritten > 0 -> "written " + java.text.DateFormat.getTimeInstance(java.text.DateFormat.SHORT)
+                            .format(java.util.Date(library.changesWritten))
+                        else -> "not written since the app started"
+                    } + if (library.transferMode) "\nUSB file transfer: on" else "",
             )
         }
         item { SettingRow(Icons.Filled.Refresh, "Rescan Device", "Look for a new sync from LuxTunes now") { app.repository.refreshAsync() } }

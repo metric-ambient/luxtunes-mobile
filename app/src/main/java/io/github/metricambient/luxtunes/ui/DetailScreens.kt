@@ -119,7 +119,7 @@ fun AlbumScreen(nav: NavHostController, key: String) {
                 track = t,
                 number = if (t.trackNumber > 0) t.trackNumber else i + 1,
                 current = t.id == playerState.currentId,
-                onClick = { app.player.play(album.tracks, i) },
+                onClick = { app.player.play(album.tracks, i); nav.go(Routes.NOW) },
                 menu = songMenu(t),
             )
         }
@@ -178,7 +178,7 @@ fun PlaylistScreen(nav: NavHostController, id: String) {
             SongRow(
                 track = t,
                 current = t.id == playerState.currentId,
-                onClick = { app.player.play(tracks, i) },
+                onClick = { app.player.play(tracks, i); nav.go(Routes.NOW) },
                 menu = songMenu(t),
             )
         }
@@ -208,7 +208,11 @@ fun QueueScreen(nav: NavHostController) {
             SongRow(
                 track = t,
                 current = i == playerState.queueIndex,
-                onClick = { app.player.skipToQueueItem(i) },
+                onClick = {
+                    app.player.skipToQueueItem(i)
+                    // Back to Now Playing if we came from there, instead of stacking a second one.
+                    if (!nav.popBackStack(Routes.NOW, inclusive = false)) nav.go(Routes.NOW)
+                },
                 menu = emptyList(),
             )
         }

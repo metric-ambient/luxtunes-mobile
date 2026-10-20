@@ -58,6 +58,7 @@ fun NowPlayingScreen(nav: NavHostController) {
     val app = app()
     val library by app.repository.state.collectAsState()
     val state by app.player.state.collectAsState()
+    val fileLyrics by app.repository.fileLyrics.collectAsState()
     val track = state.currentId?.let { library.byId[it] }
     var overlay by remember { mutableStateOf(false) }
 
@@ -115,7 +116,7 @@ fun NowPlayingScreen(nav: NavHostController) {
         ) {
             Artwork(track?.artwork, Modifier.fillMaxSize(), noteSize = 220.dp)
             if (overlay && track != null) {
-                val lyrics = track.lyrics
+                val lyrics = track.lyrics ?: fileLyrics[track.id]
                 if (lyrics != null) {
                     Box(Modifier.fillMaxSize().background(Lux.shade)) {
                         Text(

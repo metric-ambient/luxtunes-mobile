@@ -80,7 +80,7 @@ fun HomeScreen(nav: NavHostController) {
             when (TABS[tab]) {
                 "Artists" -> ArtistsTab(nav, library, query)
                 "Playlists" -> PlaylistsTab(nav, library, query)
-                "Songs" -> SongsTab(library, query)
+                "Songs" -> SongsTab(nav, library, query)
                 "Albums" -> AlbumsTab(nav, library)
             }
         }
@@ -134,7 +134,7 @@ private fun ArtistsTab(nav: NavHostController, library: LibraryState, query: Str
 }
 
 @Composable
-private fun SongsTab(library: LibraryState, query: String) {
+private fun SongsTab(nav: NavHostController, library: LibraryState, query: String) {
     val app = app()
     val playerState by app.player.state.collectAsState()
     val songs = library.tracks.filter { matches(query, it.name, it.artist, it.album) }
@@ -143,7 +143,7 @@ private fun SongsTab(library: LibraryState, query: String) {
             SongRow(
                 track = t,
                 current = t.id == playerState.currentId,
-                onClick = { app.player.play(songs, songs.indexOf(t)) },
+                onClick = { app.player.play(songs, songs.indexOf(t)); nav.go(Routes.NOW) },
                 menu = songMenu(t),
             )
         }

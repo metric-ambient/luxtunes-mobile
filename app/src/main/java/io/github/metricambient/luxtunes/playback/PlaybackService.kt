@@ -7,6 +7,7 @@ import androidx.media3.common.C
 import androidx.media3.common.ForwardingPlayer
 import androidx.media3.common.MediaItem
 import androidx.media3.common.Player
+import androidx.media3.common.Tracks
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.session.MediaSession
 import androidx.media3.session.MediaSessionService
@@ -95,6 +96,12 @@ class PlaybackService : MediaSessionService() {
                 repository.recordPlay(previous)      // it played to the end
             }
             currentId = mediaItem?.mediaId
+        }
+
+        override fun onTracksChanged(tracks: Tracks) {
+            // The file's own tags are read now: pass on any lyrics in them.
+            val id = exo.currentMediaItem?.mediaId ?: return
+            EmbeddedLyrics.find(tracks)?.let { repository.foundLyrics(id, it) }
         }
 
         override fun onPlaybackStateChanged(playbackState: Int) {

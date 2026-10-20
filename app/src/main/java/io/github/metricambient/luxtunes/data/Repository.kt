@@ -29,6 +29,9 @@ data class LibraryState(
     val artists: List<Artist> = emptyList(),        // name order
     val playlists: List<Playlist> = emptyList(),    // LuxTunes' order
     val pendingCount: Int = 0,                      // songs with changes not yet sent
+    val changesWritten: Long = 0,                   // when changes.json was last written (Unix ms)
+    val changesError: String? = null,               // why it couldn't be written, if it couldn't
+    val transferMode: Boolean = false,              // phone is in USB file-transfer mode
     val message: String? = null,                    // shown when there's nothing to play
 ) {
     val byId: Map<String, Track> by lazy { tracks.associateBy { it.id } }
@@ -44,8 +47,10 @@ data class LibraryState(
  *  - Out: plays, skips and ratings made on the phone are kept in the app's
  *    database and mirrored into changes.json. When LuxTunes has emptied that
  *    file, what it held has reached the computer and is taken off.
- *  - While the phone is in USB file-transfer mode, changes.json isn't touched
- *    (LuxTunes may be reading it); everything is caught up afterwards.
+ *  - changes.json is written right away, also while the phone is plugged in,
+ *    and once more when USB file transfer starts, so it's fresh when LuxTunes
+ *    reads it. (A song finishing during the few seconds between LuxTunes
+ *    reading and emptying the file could be missed; format v2 fixes that.)
  */
 class Repository(private val context: Context) {
     private val db = AppDatabase(context)
@@ -62,10 +67,13 @@ class Repository(private val context: Context) {
     /** Set by UsbState: true while the phone is in USB file-transfer mode. */
     @Volatile var transferMode: Boolean = false
         set(value) {
-            val ended = field && !value
+            val changed = field != value
             field = value
-            if (ended) refreshAsync()
+            if (changed) refreshAsync()       // starting: freshen changes.json; ending: pick up the sync
         }
+
+    private var changesWritten = 0L
+    private var changesError: String? = null
 
     fun refreshAsync() {
         scope.launch { refresh() }
@@ -84,9 +92,9 @@ class Repository(private val context: Context) {
                 publish(null, "No music from LuxTunes yet. Sync this phone from LuxTunes on your computer, then open the app again.")
                 return@withLock
             }
-            if (!transferMode) settleChangesFile(folder)
+            settleChangesFile(folder)
             importIfNew(folder)
-            if (!transferMode) writeChangesFile(folder)
+            writeChangesFileSafely(folder)
             publish(folder, null)
         } catch (e: Exception) {
             Log.e(TAG, "refresh failed", e)
@@ -108,12 +116,7 @@ class Repository(private val context: Context) {
                 pending[id] = updated
                 db.savePending(listOf(updated))
                 val folder = _state.value.folder
-                try {
-                    if (folder != null && !transferMode) writeChangesFile(folder)
-                } catch (e: Exception) {
-                    // Kept in the app's database; written at the next chance.
-                    Log.e(TAG, "couldn't write changes.json", e)
-                }
+                if (folder != null) writeChangesFileSafely(folder)
                 publish(folder, _state.value.message)
             }
         }
@@ -177,6 +180,17 @@ class Repository(private val context: Context) {
         Log.i(TAG, "LuxTunes took the changes for ${sent.size} songs")
     }
 
+    /** Write changes.json; on failure the changes stay in the app's database for next time. */
+    private fun writeChangesFileSafely(folder: File) {
+        try {
+            writeChangesFile(folder)
+            changesError = null
+        } catch (e: Exception) {
+            Log.e(TAG, "couldn't write changes.json", e)
+            changesError = e.message ?: e.javaClass.simpleName
+        }
+    }
+
     /** Mirror the pending changes into changes.json (only when there's something new to say). */
     private fun writeChangesFile(folder: File) {
         settleChangesFile(folder)          // never overwrite an emptied file unread
@@ -186,16 +200,13 @@ class Repository(private val context: Context) {
         val current = if (file.isFile) runCatching { file.readText() }.getOrNull() else null
         if (entries.isEmpty() && (current == null || ChangesJson.isEmptied(current))) return
         if (text != current) {
-            val temp = File(folder, ".changes.json.tmp")
-            temp.writeText(text)
-            if (!temp.renameTo(file)) {
-                file.delete()
-                if (!temp.renameTo(file)) {
-                    temp.delete()
-                    throw java.io.IOException("can't write ${file.path}")
-                }
-            }
-            // So the computer sees the new file over USB right away.
+            // Written in place (not via a renamed temp file), so the copy the
+            // computer sees over USB stays the same file, just updated.
+            file.writeText(text)
+            if (file.readText() != text) throw java.io.IOException("changes.json didn't save correctly")
+            changesWritten = System.currentTimeMillis()
+            Log.i(TAG, "wrote changes.json: ${entries.size} songs")
+            // Tell Android's media index, so the computer sees the new size and contents.
             MediaScannerConnection.scanFile(context, arrayOf(file.path), null, null)
         }
         // The file now holds everything recorded so far.
@@ -240,6 +251,9 @@ class Repository(private val context: Context) {
             artists = artists,
             playlists = db.loadPlaylists(),
             pendingCount = pending.values.count { !it.isEmpty },
+            changesWritten = changesWritten,
+            changesError = changesError,
+            transferMode = transferMode,
             message = if (tracks.isEmpty()) message ?: "No songs yet." else message,
         )
     }
@@ -261,6 +275,21 @@ class Repository(private val context: Context) {
         if (unixMs <= 0) return date
         val ours = ChangesJson.isoTime(unixMs)
         return if (date == null || ours > date) ours else date
+    }
+
+    // ---- Lyrics from the song files ------------------------------------------------------
+
+    /**
+     * Lyrics the player found in the song files themselves (by song ID). LuxTunes
+     * only puts lyrics in library.db for songs whose lyrics were edited there.
+     */
+    private val _fileLyrics = MutableStateFlow<Map<String, String>>(emptyMap())
+    val fileLyrics: StateFlow<Map<String, String>> = _fileLyrics.asStateFlow()
+
+    fun foundLyrics(id: String, text: String) {
+        val clean = text.replace("\r\n", "\n").replace('\r', '\n').trim()
+        if (clean.isEmpty() || _fileLyrics.value[id] == clean) return
+        _fileLyrics.value = _fileLyrics.value + (id to clean)
     }
 
     // ---- For the player ------------------------------------------------------------------
