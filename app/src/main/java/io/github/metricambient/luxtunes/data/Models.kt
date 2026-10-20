@@ -55,6 +55,7 @@ data class Playlist(
     val name: String,
     val isSmart: Boolean,
     val trackIds: List<String>,
+    val onPhone: Boolean = false,   // made on the phone (LuxTunes' own ones are read-only for now)
 )
 
 /** Text used for sorting: case-insensitive, ignoring a leading "The ". */

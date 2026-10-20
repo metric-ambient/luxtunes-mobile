@@ -129,93 +129,10 @@ fun SearchScreen(nav: NavHostController) {
             }
             if (songs.isNotEmpty()) item { Heading("Songs") }
             items(songs, key = { "so:" + it.id }) { t ->
-                SongRow(t, onClick = { app.player.play(songs, songs.indexOf(t)); nav.go(Routes.NOW) },
-                    current = t.id == playerState.currentId, menu = songMenu(t))
+                SongRow(t, onClick = { tapSong(app, nav, songs, songs.indexOf(t)) },
+                    current = t.id == playerState.currentId, menu = songMenu(t, nav))
             }
         }
     }
 }
 
-// ---- Settings --------------------------------------------------------------------------------
-
-@Composable
-fun SettingsScreen(nav: NavHostController) {
-    val app = app()
-    val library by app.repository.state.collectAsState()
-    var about by remember { mutableStateOf(false) }
-    LazyColumn(Modifier.fillMaxSize()) {
-        item {
-            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(vertical = 8.dp)) {
-                IconButton(onClick = { if (about) about = false else nav.popBackStack() }) {
-                    Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back", tint = Lux.text)
-                }
-                Text(if (about) "About" else "Settings", color = Lux.text, fontSize = 24.sp, modifier = Modifier.padding(start = 16.dp))
-            }
-        }
-        if (about) {
-            item { AboutText() }
-            return@LazyColumn
-        }
-        val later = "Coming in a later version"
-        item { SettingRow(Icons.Filled.Album, "Sound", "EQ, fade in/out, customize playback · $later") }
-        item { SettingRow(Icons.Filled.Build, "Operation", "Lock screen, font, shuffle… · $later") }
-        item { SettingRow(Icons.Filled.Palette, "Theme Color", later) }
-        item { SettingRow(Icons.Filled.Headphones, "Headset/Bluetooth", "Set volume on connect and more · $later") }
-        item {
-            val folder = library.folder?.path ?: "not found"
-            val synced = library.syncedAt?.replace('T', ' ')?.removeSuffix("Z")?.plus(" UTC") ?: "never"
-            SettingRow(
-                Icons.Filled.LibraryMusic, "My Library",
-                "${library.libraryName.ifEmpty { "LuxTunes" }}: ${plural(library.tracks.size, "song")}\n" +
-                    "Folder: $folder\nLast synced: $synced\n" +
-                    "Waiting to go to LuxTunes: ${plural(library.pendingCount, "song")}\n" +
-                    "changes.json: " + when {
-                        library.changesError != null -> "couldn't write it (${library.changesError})"
-                        library.changesWritten > 0 -> "written " + java.text.DateFormat.getTimeInstance(java.text.DateFormat.SHORT)
-                            .format(java.util.Date(library.changesWritten))
-                        else -> "not written since the app started"
-                    } + if (library.transferMode) "\nUSB file transfer: on" else "",
-            )
-        }
-        item { SettingRow(Icons.Filled.Refresh, "Rescan Device", "Look for a new sync from LuxTunes now") { app.repository.refreshAsync() } }
-        item { SettingRow(Icons.Filled.Image, "Album Art", later) }
-        item { SettingRow(Icons.Filled.Tab, "Tabs", "Choose which tabs to see · $later") }
-        item { SettingRow(Icons.Filled.Info, "About / Legal", "Version, license") { about = true } }
-    }
-}
-
-@Composable
-private fun SettingRow(icon: ImageVector, title: String, subtitle: String, onClick: (() -> Unit)? = null) {
-    Row(
-        Modifier
-            .fillMaxWidth()
-            .let { if (onClick != null) it.clickable(onClick = onClick) else it }
-            .padding(horizontal = 16.dp, vertical = 14.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Icon(icon, null, tint = if (onClick != null || title == "My Library") Lux.icon else Color(0xFF666666), modifier = Modifier.size(48.dp))
-        Column(Modifier.padding(start = 20.dp)) {
-            Text(title, color = Lux.text, fontSize = 19.sp)
-            Text(subtitle, color = Lux.dim, fontSize = 14.sp)
-        }
-    }
-}
-
-@Composable
-private fun AboutText() {
-    Column(Modifier.padding(20.dp)) {
-        Text("LuxTunes Mobile ${BuildConfigInfo.versionName(app())}", color = Lux.text, fontSize = 20.sp)
-        Spacer(Modifier.height(12.dp))
-        Text(
-            "Plays the music LuxTunes syncs to this phone, and sends plays, skips and ratings " +
-                "back at the next sync.\n\n" +
-                "Written entirely by an AI, Claude Opus 5.5 (\"vibe-coded\"). For copyright purposes, " +
-                "metric-ambient is the author.\n\n" +
-                "Provided \"as is\", without warranty of any kind. Keep backups of your music.\n\n" +
-                "License: GNU General Public License, version 3 or later.\n" +
-                "Uses AndroidX (Jetpack Compose, Media3) and Coil, under the Apache License 2.0.\n\n" +
-                "The app has no internet access.",
-            color = Lux.dim, fontSize = 15.sp,
-        )
-    }
-}

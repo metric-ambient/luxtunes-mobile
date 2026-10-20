@@ -5,8 +5,9 @@
 > ("vibe-coded"). For copyright purposes, **metric-ambient is the author** of this software.
 >
 > The code has not been reviewed line by line by a person. It plays your music, records
-> plays, skips and ratings, and writes one file (`changes.json`) in the LuxTunes folder on
-> your phone. Bugs could lose or damage data: **keep backups of your music**.
+> plays, skips and ratings, writes one file (`changes.json`) in the LuxTunes folder on your
+> phone, and deletes song files there when you ask it to. Bugs could lose or damage data:
+> **keep backups of your music**.
 >
 > LuxTunes Mobile is provided **"as is", without warranty of any kind**, express or
 > implied, including fitness for a particular purpose. You run it at your own risk; the
@@ -24,8 +25,11 @@ syncs to your phone. Plays, skips and ratings go back to LuxTunes at the next sy
 - Now Playing with album art, lyrics and star ratings; lock-screen, notification and
   Bluetooth controls.
 - Records plays, skips and ratings and hands them to LuxTunes at the next USB sync.
-- No internet: the app doesn't even ask Android for internet access. No Google services,
-  so it also runs on de-Googled phones.
+- Playlists of your own on the phone, select mode, sorting, Get Info, and deleting songs
+  from the phone (LuxTunes puts them back at the next sync if they're still chosen there).
+- Picks up where you left off: the Now Playing list, the song and the position.
+- Goes online only when you ask it to (Settings → Check for Updates), and says so first.
+  No Google services, so it also runs on de-Googled phones.
 
 Needs Android 8 or newer.
 
@@ -65,9 +69,13 @@ git tag v0.1.0
 git push origin main v0.1.0
 ```
 
-Release APKs are signed with the key stored in the repository secrets `KEYSTORE_BASE64`
-and `KEYSTORE_PASSWORD` (key alias `luxtunes`). Without them the build uses a throwaway
-debug key, and such an APK can't be updated by a properly signed one.
+APKs are signed with the key stored in the repository secrets `KEYSTORE_BASE64` and
+`KEYSTORE_PASSWORD` (key alias `luxtunes`); the build stops if they're missing. Android
+only installs an update over the app when both are signed with the same key: the build
+log ("Show the signing certificate") and Settings → About show which key signed a copy.
+
+**Updating:** Settings → Check for Updates looks at this repository's latest release
+(once the repository is public), downloads the APK and hands it to Android's installer.
 
 To build on your own computer you need Android Studio (or the Android SDK and JDK 17):
 `./gradlew assembleDebug`.

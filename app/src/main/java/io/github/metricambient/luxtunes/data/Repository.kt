@@ -27,7 +27,7 @@ data class LibraryState(
     val tracks: List<Track> = emptyList(),          // name order
     val albums: List<Album> = emptyList(),          // name order
     val artists: List<Artist> = emptyList(),        // name order
-    val playlists: List<Playlist> = emptyList(),    // LuxTunes' order
+    val playlists: List<Playlist> = emptyList(),    // LuxTunes' order, then the phone's
     val pendingCount: Int = 0,                      // songs with changes not yet sent
     val changesWritten: Long = 0,                   // when changes.json was last written (Unix ms)
     val changesError: String? = null,               // why it couldn't be written, if it couldn't
@@ -52,7 +52,7 @@ data class LibraryState(
  *    reads it. (A song finishing during the few seconds between LuxTunes
  *    reading and emptying the file could be missed; format v2 fixes that.)
  */
-class Repository(private val context: Context) {
+class Repository(private val context: Context, private val prefs: Prefs) {
     private val db = AppDatabase(context)
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private val lock = Mutex()
@@ -87,9 +87,15 @@ class Repository(private val context: Context) {
                 return@withLock
             }
             ensureLoaded()
-            val folder = LuxFolder.find(context)
+            val folder = LuxFolder.find(context, prefs.current.storage)
             if (folder == null) {
-                publish(null, "No music from LuxTunes yet. Sync this phone from LuxTunes on your computer, then open the app again.")
+                val where = when (prefs.current.storage) {
+                    StorageChoice.REMOVABLE -> " on the SD card"
+                    StorageChoice.INTERNAL -> " in internal storage"
+                    null -> ""
+                }
+                publish(null, "No music from LuxTunes$where yet. Sync this phone from LuxTunes on your computer " +
+                    "(or change the storage in Settings → My Library), then open the app again.")
                 return@withLock
             }
             settleChangesFile(folder)
@@ -249,7 +255,7 @@ class Repository(private val context: Context) {
             tracks = tracks,
             albums = albums,
             artists = artists,
-            playlists = db.loadPlaylists(),
+            playlists = db.loadPlaylists() + db.loadPhonePlaylists(),
             pendingCount = pending.values.count { !it.isEmpty },
             changesWritten = changesWritten,
             changesError = changesError,
@@ -275,6 +281,73 @@ class Repository(private val context: Context) {
         if (unixMs <= 0) return date
         val ours = ChangesJson.isoTime(unixMs)
         return if (date == null || ours > date) ours else date
+    }
+
+    // ---- Playlists made on the phone ------------------------------------------------------
+
+    /** A new phone playlist; returns its ID (16 hex digits, the format LuxTunes uses). */
+    fun createPlaylist(name: String, trackIds: List<String>, done: (String) -> Unit = {}) {
+        val id = (1..16).map { "0123456789ABCDEF".random() }.joinToString("")
+        playlistChange { db.savePhonePlaylist(id, name.trim().ifEmpty { "Untitled playlist" }, trackIds) }
+        done(id)
+    }
+
+    fun addToPlaylist(playlistId: String, trackIds: List<String>) {
+        val p = phonePlaylist(playlistId) ?: return
+        playlistChange { db.savePhonePlaylist(p.id, p.name, p.trackIds + trackIds) }
+    }
+
+    fun renamePlaylist(playlistId: String, name: String) {
+        val p = phonePlaylist(playlistId) ?: return
+        playlistChange { db.savePhonePlaylist(p.id, name.trim().ifEmpty { p.name }, p.trackIds) }
+    }
+
+    /** Remove the song at this position (positions, since a song can be in a list twice). */
+    fun removeFromPlaylist(playlistId: String, position: Int) {
+        val p = phonePlaylist(playlistId) ?: return
+        if (position !in p.trackIds.indices) return
+        playlistChange { db.savePhonePlaylist(p.id, p.name, p.trackIds.filterIndexed { i, _ -> i != position }) }
+    }
+
+    fun deletePlaylist(playlistId: String) {
+        if (phonePlaylist(playlistId) == null) return
+        playlistChange { db.deletePhonePlaylist(playlistId) }
+    }
+
+    private fun phonePlaylist(id: String) = _state.value.playlists.firstOrNull { it.id == id && it.onPhone }
+
+    private fun playlistChange(action: () -> Unit) {
+        scope.launch {
+            lock.withLock {
+                action()
+                publish(_state.value.folder, _state.value.message)
+            }
+        }
+    }
+
+    // ---- Deleting songs from the phone ---------------------------------------------------
+
+    /**
+     * Delete these songs' files from the phone. They're only gone until the next
+     * sync: if they're still chosen in LuxTunes, it copies them again (LuxTunes
+     * decides what's on the phone). Pending plays and ratings are kept.
+     */
+    fun deleteFromPhone(ids: Collection<String>) {
+        scope.launch {
+            lock.withLock {
+                val folder = _state.value.folder ?: return@withLock
+                val byId = _state.value.byId
+                for (id in ids) {
+                    val t = byId[id] ?: continue
+                    val file = File(folder, t.path)
+                    if (file.exists() && !file.delete()) Log.w(TAG, "couldn't delete ${file.path}")
+                    else MediaScannerConnection.scanFile(context, arrayOf(file.path), null, null)
+                }
+                db.deleteTracks(ids)
+                libraryTracks = libraryTracks.filter { it.id !in ids }
+                publish(folder, _state.value.message)
+            }
+        }
     }
 
     // ---- Lyrics from the song files ------------------------------------------------------

@@ -25,3 +25,10 @@ fun <T> spreadShuffle(items: List<T>, random: Random = Random.Default, key: (T) 
 }
 
 fun artistKey(t: Track): String = t.albumArtist.lowercase()
+
+/**
+ * Groups (albums or artists) in random order, each group's songs kept in their
+ * own order: "Shuffling by albums" / "Shuffling by artists".
+ */
+fun shuffleGroups(tracks: List<Track>, key: (Track) -> String): List<Track> =
+    tracks.groupBy(key).values.shuffled().flatten()

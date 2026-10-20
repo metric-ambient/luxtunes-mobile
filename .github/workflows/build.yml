@@ -26,12 +26,20 @@ jobs:
       - name: Signing key
         env:
           KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
         run: |
           if [ -n "$KEYSTORE_BASE64" ]; then
             echo "$KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/release.jks"
             echo "LUX_KEYSTORE=$RUNNER_TEMP/release.jks" >> "$GITHUB_ENV"
           else
-            echo "::warning::No KEYSTORE_BASE64 secret: this APK uses a throwaway debug key."
+            # A build signed with a throwaway key can't update the installed app,
+            # so don't make one at all.
+            echo "::error::The KEYSTORE_BASE64 secret is missing (repo Settings > Secrets and variables > Actions)."
+            exit 1
+          fi
+          if [ -z "$KEYSTORE_PASSWORD" ]; then
+            echo "::error::The KEYSTORE_PASSWORD secret is missing."
+            exit 1
           fi
 
       - name: Test and build
@@ -40,6 +48,11 @@ jobs:
         run: |
           chmod +x gradlew
           ./gradlew --no-daemon testDebugUnitTest assembleRelease
+
+      - name: Show the signing certificate
+        run: |
+          APKSIGNER=$(ls -d "$ANDROID_HOME"/build-tools/*/apksigner | sort -V | tail -1)
+          "$APKSIGNER" verify --print-certs app/build/outputs/apk/release/app-release.apk | grep -i "SHA-256"
 
       - name: Name the APK
         run: cp app/build/outputs/apk/release/app-release.apk "LuxTunes-Mobile-${GITHUB_REF_NAME//\//-}-${GITHUB_RUN_NUMBER}.apk"

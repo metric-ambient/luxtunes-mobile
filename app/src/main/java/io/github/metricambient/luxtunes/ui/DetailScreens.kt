@@ -119,8 +119,8 @@ fun AlbumScreen(nav: NavHostController, key: String) {
                 track = t,
                 number = if (t.trackNumber > 0) t.trackNumber else i + 1,
                 current = t.id == playerState.currentId,
-                onClick = { app.player.play(album.tracks, i); nav.go(Routes.NOW) },
-                menu = songMenu(t),
+                onClick = { tapSong(app, nav, album.tracks, i) },
+                menu = songMenu(t, nav),
             )
         }
     }
@@ -148,11 +148,7 @@ fun ArtistScreen(nav: NavHostController, name: String) {
                 subtitle = if (album.year > 0) "${album.year}" else plural(album.tracks.size, "song"),
                 onClick = { nav.go(Routes.album(album.key)) },
                 leading = { Artwork(album.artwork, Modifier.size(64.dp), noteSize = 32.dp) },
-                menu = listOf(
-                    "Play" to { app.player.play(album.tracks) },
-                    "Shuffle" to { app.player.shuffle(album.tracks) },
-                    "Add to queue" to { app.player.addToQueue(album.tracks) },
-                ),
+                menu = groupMenu(album.tracks, nav),
             )
         }
     }
@@ -164,22 +160,34 @@ fun PlaylistScreen(nav: NavHostController, id: String) {
     val library by app.repository.state.collectAsState()
     val playerState by app.player.state.collectAsState()
     val playlist = library.playlists.firstOrNull { it.id == id } ?: return Missing(nav, "playlist")
-    val tracks = playlist.trackIds.mapNotNull { library.byId[it] }
+    // (position in the playlist, song): songs no longer on the phone are skipped.
+    val entries = playlist.trackIds.mapIndexedNotNull { pos, tid -> library.byId[tid]?.let { pos to it } }
+    val tracks = entries.map { it.second }
     LazyColumn(Modifier.fillMaxSize()) {
         pageHeader(nav, tracks.firstNotNullOfOrNull { it.artwork }, summaryOf(tracks), tracks)
         item {
-            Text(
-                playlist.name + if (playlist.isSmart) "  ·  Smart playlist" else "",
-                color = Lux.dim, fontSize = 15.sp,
-                modifier = Modifier.padding(start = 16.dp, top = 16.dp, bottom = 4.dp),
-            )
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    playlist.name + when {
+                        playlist.isSmart -> "  ·  Smart playlist"
+                        playlist.onPhone -> "  ·  On this phone"
+                        else -> ""
+                    },
+                    color = Lux.dim, fontSize = 15.sp,
+                    modifier = Modifier.weight(1f).padding(start = 16.dp, top = 16.dp, bottom = 4.dp),
+                )
+                MoreMenu(playlistMenu(playlist, nav))
+            }
         }
-        itemsIndexed(tracks, key = { i, t -> "$i:${t.id}" }) { i, t ->
+        itemsIndexed(entries, key = { _, e -> "${e.first}:${e.second.id}" }) { i, (pos, t) ->
+            val remove: Menu = if (playlist.onPhone) {
+                listOf("Remove from playlist" to { app.repository.removeFromPlaylist(playlist.id, pos) })
+            } else emptyList()
             SongRow(
                 track = t,
                 current = t.id == playerState.currentId,
-                onClick = { app.player.play(tracks, i); nav.go(Routes.NOW) },
-                menu = songMenu(t),
+                onClick = { tapSong(app, nav, tracks, i) },
+                menu = songMenu(t, nav, remove),
             )
         }
     }

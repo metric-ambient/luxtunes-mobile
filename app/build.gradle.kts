@@ -18,9 +18,14 @@ android {
         applicationId = "io.github.metricambient.luxtunes"
         minSdk = 26
         targetSdk = 35
-        // Every GitHub build gets a higher number, so a new APK installs over the old one.
+        // Every GitHub build gets a higher number, so a new APK installs over the old one
+        // (as long as it's signed with the same key).
         versionCode = (System.getenv("GITHUB_RUN_NUMBER") ?: "1").toInt()
-        versionName = "0.1.0"
+        // A release build (tag v0.2.0) takes its version from the tag.
+        versionName = System.getenv("GITHUB_REF_NAME")
+            ?.takeIf { System.getenv("GITHUB_REF_TYPE") == "tag" }
+            ?.removePrefix("v")
+            ?: "0.2.0"
     }
 
     signingConfigs {

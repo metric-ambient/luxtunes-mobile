@@ -2,6 +2,8 @@ package io.github.metricambient.luxtunes.playback
 
 import android.app.PendingIntent
 import android.content.Intent
+import android.os.Handler
+import android.os.Looper
 import androidx.media3.common.AudioAttributes
 import androidx.media3.common.C
 import androidx.media3.common.ForwardingPlayer
@@ -26,11 +28,22 @@ class PlaybackService : MediaSessionService() {
     private var session: MediaSession? = null
     private lateinit var exo: ExoPlayer
     private var currentId: String? = null
+    private lateinit var memory: PlaybackMemory
+    private val handler = Handler(Looper.getMainLooper())
+
+    /** While playing, note the position every few seconds (so a crash or reboot loses little). */
+    private val saveTicker = object : Runnable {
+        override fun run() {
+            savePosition()
+            if (exo.isPlaying) handler.postDelayed(this, 5_000)
+        }
+    }
 
     private val repository get() = (application as LuxTunesApp).repository
 
     override fun onCreate() {
         super.onCreate()
+        memory = PlaybackMemory(this)
         exo = ExoPlayer.Builder(this)
             .setAudioAttributes(
                 AudioAttributes.Builder()
@@ -69,17 +82,32 @@ class PlaybackService : MediaSessionService() {
     override fun onGetSession(controllerInfo: MediaSession.ControllerInfo): MediaSession? = session
 
     override fun onTaskRemoved(rootIntent: Intent?) {
+        savePosition()
         val player = session?.player
         if (player == null || !player.playWhenReady || player.mediaItemCount == 0) stopSelf()
     }
 
     override fun onDestroy() {
+        handler.removeCallbacks(saveTicker)
+        savePosition()
         session?.run {
             player.release()
             release()
         }
         session = null
         super.onDestroy()
+    }
+
+    private fun savePosition() {
+        if (exo.mediaItemCount == 0) return
+        memory.savePosition(
+            exo.currentMediaItem?.mediaId, exo.currentMediaItemIndex, exo.currentPosition,
+            exo.shuffleModeEnabled, exo.repeatMode,
+        )
+    }
+
+    private fun saveQueue() {
+        memory.saveQueue((0 until exo.mediaItemCount).map { exo.getMediaItemAt(it).mediaId })
     }
 
     private fun noteSkip() {
@@ -102,6 +130,20 @@ class PlaybackService : MediaSessionService() {
             // The file's own tags are read now: pass on any lyrics in them.
             val id = exo.currentMediaItem?.mediaId ?: return
             EmbeddedLyrics.find(tracks)?.let { repository.foundLyrics(id, it) }
+        }
+
+        override fun onEvents(player: Player, events: Player.Events) {
+            if (events.contains(Player.EVENT_TIMELINE_CHANGED)) saveQueue()
+            if (events.containsAny(
+                    Player.EVENT_MEDIA_ITEM_TRANSITION, Player.EVENT_IS_PLAYING_CHANGED,
+                    Player.EVENT_POSITION_DISCONTINUITY, Player.EVENT_SHUFFLE_MODE_ENABLED_CHANGED,
+                    Player.EVENT_REPEAT_MODE_CHANGED,
+                )
+            ) savePosition()
+            if (events.contains(Player.EVENT_IS_PLAYING_CHANGED) && player.isPlaying) {
+                handler.removeCallbacks(saveTicker)
+                handler.postDelayed(saveTicker, 5_000)
+            }
         }
 
         override fun onPlaybackStateChanged(playbackState: Int) {

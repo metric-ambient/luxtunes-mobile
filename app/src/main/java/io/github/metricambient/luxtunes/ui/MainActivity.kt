@@ -45,6 +45,7 @@ import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import io.github.metricambient.luxtunes.LuxTunesApp
 import io.github.metricambient.luxtunes.data.LuxFolder
+import io.github.metricambient.luxtunes.data.StorageChoice
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -71,6 +72,8 @@ object Routes {
     const val SETTINGS = "settings"
     const val SEARCH = "search"
     const val QUEUE = "queue"
+    const val SETTINGS_TABS = "settings/tabs"
+    const val SETTINGS_ABOUT = "settings/about"
     fun album(key: String) = "album/${Uri.encode(key)}"
     fun artist(name: String) = "artist/${Uri.encode(name)}"
     fun playlist(id: String) = "playlist/${Uri.encode(id)}"
@@ -93,8 +96,21 @@ private fun Root() {
         if (Build.VERSION.SDK_INT >= 33) notifications.launch(Manifest.permission.POST_NOTIFICATIONS)
     }
 
+    // First start with an SD card in the phone: ask where the LuxTunes folder is.
+    // With internal storage only, that's the answer without asking.
+    LaunchedEffect(access) {
+        if (access && app.prefs.current.storage == null) {
+            if (LuxFolder.hasRemovable(context)) Dialogs.show(DialogRequest.ChooseStorage(firstTime = true))
+            else {
+                app.prefs.update { it.copy(storage = StorageChoice.INTERNAL) }
+                app.repository.refreshAsync()
+            }
+        }
+    }
+
     Box(Modifier.fillMaxSize().background(Lux.background).systemBarsPadding()) {
         if (access) MainScreens() else PermissionScreen { access = LuxFolder.hasAccess(context) }
+        DialogHost()
     }
 }
 
@@ -109,6 +125,8 @@ private fun MainScreens() {
                 composable(Routes.HOME) { HomeScreen(nav) }
                 composable(Routes.NOW) { NowPlayingScreen(nav) }
                 composable(Routes.SETTINGS) { SettingsScreen(nav) }
+                composable(Routes.SETTINGS_TABS) { TabsSettingsScreen(nav) }
+                composable(Routes.SETTINGS_ABOUT) { AboutScreen(nav) }
                 composable(Routes.SEARCH) { SearchScreen(nav) }
                 composable(Routes.QUEUE) { QueueScreen(nav) }
                 composable("album/{key}", listOf(navArgument("key") { type = NavType.StringType })) {
@@ -122,7 +140,7 @@ private fun MainScreens() {
                 }
             }
         }
-        if (route != Routes.NOW && route != Routes.SETTINGS) {
+        if (route != Routes.NOW && route?.startsWith(Routes.SETTINGS) != true) {
             MiniPlayer(nav, showMenu = route == Routes.HOME)
         }
     }

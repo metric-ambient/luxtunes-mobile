@@ -39,13 +39,24 @@ object LuxFolder {
         return roots.distinctBy { it.absolutePath }
     }
 
+    /** True if the phone has a removable SD card mounted. */
+    fun hasRemovable(context: Context): Boolean = storageRoots(context).size > 1
+
     /**
-     * The LuxTunes folder holding a library.db. With several (internal storage and
-     * an SD card), the one synced most recently.
+     * The LuxTunes folder holding a library.db, on the storage the user chose
+     * (internal storage or the SD card). With no choice yet, the one synced most
+     * recently.
      */
-    fun find(context: Context): File? =
-        storageRoots(context)
+    fun find(context: Context, choice: StorageChoice?): File? {
+        val roots = storageRoots(context)
+        val allowed = when (choice) {
+            StorageChoice.INTERNAL -> roots.take(1)
+            StorageChoice.REMOVABLE -> roots.drop(1)
+            null -> roots
+        }
+        return allowed
             .map { File(it, FOLDER) }
             .filter { File(it, DATABASE).isFile }
             .maxByOrNull { File(it, DATABASE).lastModified() }
+    }
 }

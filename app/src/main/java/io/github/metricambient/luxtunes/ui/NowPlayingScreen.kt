@@ -19,7 +19,9 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.PlaylistAdd
 import androidx.compose.material.icons.automirrored.filled.QueueMusic
+import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Repeat
@@ -90,13 +92,24 @@ fun NowPlayingScreen(nav: NavHostController) {
                     )
                 }
             }
+            if (track != null) {
+                IconButton(onClick = { Dialogs.show(DialogRequest.Info(track.id)) }) {
+                    Icon(Icons.Filled.Info, "Get Info", tint = Lux.icon)
+                }
+                IconButton(onClick = { Dialogs.show(DialogRequest.AddToPlaylist(listOf(track.id))) }) {
+                    Icon(Icons.AutoMirrored.Filled.PlaylistAdd, "Add to playlist", tint = Lux.icon)
+                }
+            }
             IconButton(onClick = { nav.go(Routes.QUEUE) }) {
                 Icon(Icons.AutoMirrored.Filled.QueueMusic, "Now Playing list", tint = Lux.icon)
             }
             val menu = mutableListOf<Pair<String, () -> Unit>>()
             if (track != null) {
+                menu += "Get Info" to { Dialogs.show(DialogRequest.Info(track.id)) }
                 menu += "Go to Album" to { nav.go(Routes.album(track.albumKey)) }
                 menu += "Go to Artist" to { nav.go(Routes.artist(track.albumArtist)) }
+                menu += "Add to playlist…" to { Dialogs.show(DialogRequest.AddToPlaylist(listOf(track.id))) }
+                menu += "Delete from phone" to { Dialogs.show(DialogRequest.Delete(listOf(track.id))) }
             }
             menu += "Search" to { nav.go(Routes.SEARCH) }
             menu += "Settings" to { nav.go(Routes.SETTINGS) }

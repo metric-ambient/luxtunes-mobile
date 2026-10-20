@@ -88,6 +88,10 @@ fun Artwork(path: String?, modifier: Modifier = Modifier, noteSize: Dp = 48.dp) 
 
 // ---- Rows ------------------------------------------------------------------------------------
 
+/** A row's picture slot, only when `show` (null means no slot at all). */
+fun optional(show: Boolean, content: @Composable () -> Unit): (@Composable () -> Unit)? =
+    if (show) content else null
+
 /** A list row: optional picture, two lines of text, optional ⋮ menu. */
 @Composable
 fun ListRow(

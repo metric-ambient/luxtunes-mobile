@@ -13,7 +13,7 @@ import java.io.File
  * The copy is replaced whenever LuxTunes writes a new library.db; the pending
  * table never is (it only shrinks when LuxTunes has taken the changes).
  */
-class AppDatabase(context: Context) : SQLiteOpenHelper(context, "app.db", null, 1) {
+class AppDatabase(context: Context) : SQLiteOpenHelper(context, "app.db", null, 2) {
 
     override fun onCreate(db: SQLiteDatabase) {
         db.execSQL(
@@ -34,10 +34,20 @@ class AppDatabase(context: Context) : SQLiteOpenHelper(context, "app.db", null, 
                 sent_rating INTEGER)"""
         )
         db.execSQL("CREATE TABLE meta (key TEXT PRIMARY KEY, value TEXT)")
+        createPhonePlaylistTables(db)
     }
 
     override fun onUpgrade(db: SQLiteDatabase, oldVersion: Int, newVersion: Int) {
-        // Only version 1 so far.
+        if (oldVersion < 2) createPhonePlaylistTables(db)
+    }
+
+    /**
+     * Playlists made on the phone (version 2). They're never replaced by a sync.
+     * `changed` marks ones LuxTunes hasn't received yet (for sync format v2).
+     */
+    private fun createPhonePlaylistTables(db: SQLiteDatabase) {
+        db.execSQL("CREATE TABLE phone_playlists (id TEXT PRIMARY KEY, name TEXT, created INTEGER, changed INTEGER)")
+        db.execSQL("CREATE TABLE phone_playlist_items (playlist_id TEXT, position INTEGER, track_id TEXT)")
     }
 
     // ---- Small settings and markers ----------------------------------------------
@@ -181,6 +191,65 @@ class AppDatabase(context: Context) : SQLiteOpenHelper(context, "app.db", null, 
             }
         }
         return out
+    }
+
+    /** Songs deleted on the phone: gone from the copy until the next sync brings them back. */
+    fun deleteTracks(ids: Collection<String>) {
+        val db = writableDatabase
+        db.beginTransaction()
+        try {
+            for (id in ids) db.delete("tracks", "id = ?", arrayOf(id))
+            db.setTransactionSuccessful()
+        } finally {
+            db.endTransaction()
+        }
+    }
+
+    // ---- Playlists made on the phone ------------------------------------------------
+
+    fun loadPhonePlaylists(): List<Playlist> {
+        val items = mutableMapOf<String, MutableList<String>>()
+        readableDatabase.rawQuery(
+            "SELECT playlist_id, track_id FROM phone_playlist_items ORDER BY playlist_id, position", null
+        ).use { c ->
+            while (c.moveToNext()) items.getOrPut(c.getString(0)) { mutableListOf() } += c.getString(1)
+        }
+        val out = ArrayList<Playlist>()
+        readableDatabase.rawQuery("SELECT id, name FROM phone_playlists ORDER BY created", null).use { c ->
+            while (c.moveToNext()) {
+                val id = c.getString(0)
+                out += Playlist(id, c.getString(1) ?: "Playlist", false, items[id].orEmpty(), onPhone = true)
+            }
+        }
+        return out
+    }
+
+    /** Create or replace a phone playlist with these songs, in this order. */
+    fun savePhonePlaylist(id: String, name: String, trackIds: List<String>) {
+        val db = writableDatabase
+        db.beginTransaction()
+        try {
+            val created = db.rawQuery("SELECT created FROM phone_playlists WHERE id = ?", arrayOf(id)).use {
+                if (it.moveToFirst()) it.getLong(0) else System.currentTimeMillis()
+            }
+            db.insertWithOnConflict("phone_playlists", null, ContentValues().apply {
+                put("id", id); put("name", name); put("created", created); put("changed", 1)
+            }, SQLiteDatabase.CONFLICT_REPLACE)
+            db.delete("phone_playlist_items", "playlist_id = ?", arrayOf(id))
+            trackIds.forEachIndexed { i, t ->
+                db.insert("phone_playlist_items", null, ContentValues().apply {
+                    put("playlist_id", id); put("position", i); put("track_id", t)
+                })
+            }
+            db.setTransactionSuccessful()
+        } finally {
+            db.endTransaction()
+        }
+    }
+
+    fun deletePhonePlaylist(id: String) {
+        writableDatabase.delete("phone_playlists", "id = ?", arrayOf(id))
+        writableDatabase.delete("phone_playlist_items", "playlist_id = ?", arrayOf(id))
     }
 
     // ---- Changes not yet sent to LuxTunes -------------------------------------------

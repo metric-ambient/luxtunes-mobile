@@ -13,7 +13,11 @@ import io.github.metricambient.luxtunes.data.artistKey
 import io.github.metricambient.luxtunes.data.spreadShuffle
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.MainScope
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.launch
 
 /** What the screens show about playback. */
 data class PlayerState(
@@ -47,12 +51,41 @@ class PlayerConnection(private val context: Context) {
             controller = c
             c.addListener(listener)
             update()
+            if (c.mediaItemCount == 0 && waiting == null) restore(c)
             waiting?.invoke(c)
             waiting = null
         }, ContextCompat.getMainExecutor(context))
     }
 
+    private val scope = MainScope()
+    private var restoring: Job? = null
+
+    /**
+     * Nothing loaded (the app was closed): put back the Now Playing list, the
+     * song and the position from last time, paused, as soon as the library is in.
+     */
+    private fun restore(c: MediaController) {
+        val saved = PlaybackMemory(context).load() ?: return
+        restoring?.cancel()
+        restoring = scope.launch {
+            val library = repository.state.first { it.loaded && it.folder != null && it.tracks.isNotEmpty() }
+            if (controller !== c || c.mediaItemCount > 0) return@launch      // something else started meanwhile
+            val tracks = saved.queue.mapNotNull { library.byId[it] }
+            if (tracks.isEmpty()) return@launch
+            var index = saved.index
+            if (index !in tracks.indices || tracks[index].id != saved.currentId) {
+                index = tracks.indexOfFirst { it.id == saved.currentId }.coerceAtLeast(0)
+            }
+            val position = if (tracks[index].id == saved.currentId) saved.positionMs else 0L
+            c.setMediaItems(tracks.map { repository.requestItem(it) }, index, position)
+            c.shuffleModeEnabled = saved.shuffle
+            c.repeatMode = saved.repeatMode
+            c.prepare()
+        }
+    }
+
     fun release() {
+        restoring?.cancel()
         future?.let { MediaController.releaseFuture(it) }
         future = null
         controller = null
@@ -107,6 +140,24 @@ class PlayerConnection(private val context: Context) {
 
     /** Play in LuxTunes' spread-shuffle order (the same artist rarely twice in a row). */
     fun shuffle(tracks: List<Track>) = play(spreadShuffle(tracks, key = ::artistKey))
+
+    /** Play this list in random order, starting with `first`. */
+    fun shuffleFrom(tracks: List<Track>, first: Track) =
+        play(listOf(first) + spreadShuffle(tracks.filter { it.id != first.id }, key = ::artistKey))
+
+    /** Put these songs right after the current one. */
+    fun playNext(tracks: List<Track>) {
+        val items = tracks.map { repository.requestItem(it) }
+        withController { c ->
+            if (c.mediaItemCount == 0) {
+                c.setMediaItems(items)
+                c.prepare()
+                c.play()
+            } else {
+                c.addMediaItems(c.currentMediaItemIndex + 1, items)
+            }
+        }
+    }
 
     fun addToQueue(tracks: List<Track>) {
         val items = tracks.map { repository.requestItem(it) }
