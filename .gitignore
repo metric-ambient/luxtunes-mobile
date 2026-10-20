@@ -1,0 +1,21 @@
+# Build output
+.gradle/
+build/
+app/build/
+local.properties
+*.apk
+*.aab
+
+# Editors
+.idea/
+*.iml
+.vscode/
+
+# Signing keys never go in the repo
+*.jks
+*.keystore
+signing/
+
+# Personal notes
+LuxTunes App scratchpad.md
+LuxTunes sync format v2 spec.md
