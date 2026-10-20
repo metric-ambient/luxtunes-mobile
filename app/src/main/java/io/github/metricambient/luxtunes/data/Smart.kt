@@ -163,8 +163,9 @@ object Smart {
         val units: Long = WEEK,
         val raw: ByteArray? = null,       // a rule the app doesn't understand: kept exactly
     ) : Item {
-        val known: Boolean get() = raw == null && field in FIELDS
-        val kind: Kind? get() = FIELDS[field]?.kind
+        // "this.field": inside a getter, a bare `field` means the getter's own backing field.
+        val known: Boolean get() = raw == null && this.field in FIELDS
+        val kind: Kind? get() = FIELDS[this.field]?.kind
     }
 
     data class Group(val matchAny: Boolean = false, val rules: List<Item> = emptyList()) : Item
