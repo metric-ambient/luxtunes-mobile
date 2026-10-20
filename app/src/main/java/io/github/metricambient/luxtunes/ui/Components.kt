@@ -144,19 +144,12 @@ fun SongRow(
     number: Int? = null,
     leading: (@Composable () -> Unit)? = null,
 ) {
-    val lead: (@Composable () -> Unit)? = when {
-        leading != null -> leading
-        number != null -> @Composable { TrackNumber(number) }
-        else -> null
+    val subtitle = "${track.artist} (${formatTime(track.totalTime)})"
+    if (leading == null && number != null) {
+        ListRow(track.name, subtitle, onClick, leading = { TrackNumber(number) }, highlighted = current, menu = menu)
+    } else {
+        ListRow(track.name, subtitle, onClick, leading = leading, highlighted = current, menu = menu)
     }
-    ListRow(
-        title = track.name,
-        subtitle = "${track.artist} (${formatTime(track.totalTime)})",
-        onClick = onClick,
-        highlighted = current,
-        menu = menu,
-        leading = lead,
-    )
 }
 
 @Composable
