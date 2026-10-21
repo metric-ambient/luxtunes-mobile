@@ -91,6 +91,7 @@ fun MiniPlayer(nav: NavHostController, showMenu: Boolean) {
                     "Search" to { nav.go(Routes.SEARCH) },
                     "Rescan Device" to { app.repository.refreshAsync() },
                     "Switch Theme" to { nav.go(Routes.SETTINGS_THEME) },
+                    "Check for Updates" to { UpdateCheck.start() },
                     "Settings" to { nav.go(Routes.SETTINGS) },
                 ))
             } else {

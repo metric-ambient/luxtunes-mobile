@@ -238,9 +238,12 @@ class PlaybackService : MediaSessionService() {
 
     private fun speedFor(t: Track?): PlaybackParameters {
         val s = app.prefs.current
-        val spoken = t?.mediaKind == "audiobook" || t?.mediaKind == "podcast"
-        val speed = if (t?.isVideo == true) 1f else if (spoken) s.spokenSpeed else s.musicSpeed
-        val fix = if (spoken) s.spokenPitchFix else s.musicPitchFix
+        val (speed, fix) = when {
+            t?.isVideo == true -> 1f to true
+            t?.mediaKind == "audiobook" -> s.audiobookSpeed to s.audiobookPitchFix
+            t?.mediaKind == "podcast" -> s.podcastSpeed to s.podcastPitchFix
+            else -> s.musicSpeed to s.musicPitchFix
+        }
         return PlaybackParameters(speed, if (fix) 1f else speed)
     }
 

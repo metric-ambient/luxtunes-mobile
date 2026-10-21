@@ -1,5 +1,6 @@
 package io.github.metricambient.luxtunes.ui
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -8,6 +9,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
@@ -20,8 +22,12 @@ import androidx.compose.material3.CheckboxDefaults
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.RadioButton
+import androidx.compose.material3.RadioButtonDefaults
 import androidx.compose.material3.Slider
 import androidx.compose.material3.SliderDefaults
+import androidx.compose.material3.Switch
+import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -61,7 +67,7 @@ fun SoundSettingsScreen(nav: NavHostController) {
     val s by prefs.settings.collectAsState()
     val eq by app.repository.equalizer.collectAsState()
     val eqHere by app.repository.equalizerChangedHere.collectAsState()
-    var speedFor by remember { mutableStateOf<Boolean?>(null) }       // true: music, false: audiobooks and podcasts
+    var speedFor by remember { mutableStateOf<String?>(null) }        // which speed's pop-up is open
 
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
         ScreenTitle(nav, "Sound")
@@ -78,9 +84,9 @@ fun SoundSettingsScreen(nav: NavHostController) {
             Text("Crossfade time: ${s.crossfadeSeconds} s", color = Lux.text, fontSize = 16.sp)
             Slider(
                 value = s.crossfadeSeconds.toFloat(),
-                onValueChange = { v -> prefs.update { it.copy(crossfadeSeconds = v.roundToInt().coerceIn(1, 10)) } },
-                valueRange = 1f..10f,
-                steps = 8,
+                onValueChange = { v -> prefs.update { it.copy(crossfadeSeconds = v.roundToInt().coerceIn(1, 15)) } },
+                valueRange = 1f..15f,
+                steps = 13,
                 enabled = fading,
                 colors = SliderDefaults.colors(thumbColor = Lux.accent, activeTrackColor = Lux.accent, inactiveTrackColor = Lux.track),
             )
@@ -105,8 +111,9 @@ fun SoundSettingsScreen(nav: NavHostController) {
         }
         HorizontalDivider(color = Lux.panel)
 
-        ChoiceRow("Music Playback Speed", speedLabel(s.musicSpeed, s.musicPitchFix)) { speedFor = true }
-        ChoiceRow("Audiobook & Podcast Speed", speedLabel(s.spokenSpeed, s.spokenPitchFix)) { speedFor = false }
+        ChoiceRow("Music Playback Speed", speedLabel(s.musicSpeed, s.musicPitchFix)) { speedFor = "Music" }
+        ChoiceRow("Audiobook Playback Speed", speedLabel(s.audiobookSpeed, s.audiobookPitchFix)) { speedFor = "Audiobook" }
+        ChoiceRow("Podcast Playback Speed", speedLabel(s.podcastSpeed, s.podcastPitchFix)) { speedFor = "Podcast" }
         ChoiceRow("Replay Gain", s.replayGain.label) {
             Dialogs.show(DialogRequest.Choose("Replay Gain", ReplayGain.entries.map { it.label }, s.replayGain.ordinal) { i ->
                 prefs.update { it.copy(replayGain = ReplayGain.entries[i]) }
@@ -118,24 +125,27 @@ fun SoundSettingsScreen(nav: NavHostController) {
         Spacer(Modifier.height(24.dp))
     }
 
-    speedFor?.let { music ->
+    speedFor?.let { kind ->
         SpeedDialog(
-            title = if (music) "Music Playback Speed" else "Audiobook & Podcast Speed",
-            speed = if (music) s.musicSpeed else s.spokenSpeed,
-            pitchFix = if (music) s.musicPitchFix else s.spokenPitchFix,
+            title = "$kind Playback Speed",
+            speed = when (kind) { "Audiobook" -> s.audiobookSpeed; "Podcast" -> s.podcastSpeed; else -> s.musicSpeed },
+            pitchFix = when (kind) { "Audiobook" -> s.audiobookPitchFix; "Podcast" -> s.podcastPitchFix; else -> s.musicPitchFix },
             onDismiss = { speedFor = null },
             onDone = { speed, fix ->
                 speedFor = null
                 prefs.update {
-                    if (music) it.copy(musicSpeed = speed, musicPitchFix = fix)
-                    else it.copy(spokenSpeed = speed, spokenPitchFix = fix)
+                    when (kind) {
+                        "Audiobook" -> it.copy(audiobookSpeed = speed, audiobookPitchFix = fix)
+                        "Podcast" -> it.copy(podcastSpeed = speed, podcastPitchFix = fix)
+                        else -> it.copy(musicSpeed = speed, musicPitchFix = fix)
+                    }
                 }
             },
         )
     }
 }
 
-/** A speed from 0.5× to 3.0× (steps of 0.05), and whether to keep the pitch. */
+/** A speed from 0.5× to 2.0× (steps of 0.05), and whether to keep the pitch. */
 @Composable
 private fun SpeedDialog(title: String, speed: Float, pitchFix: Boolean, onDismiss: () -> Unit, onDone: (Float, Boolean) -> Unit) {
     var value by remember { mutableStateOf(speed) }
@@ -149,13 +159,13 @@ private fun SpeedDialog(title: String, speed: Float, pitchFix: Boolean, onDismis
                 Slider(
                     value = value,
                     onValueChange = { value = (it * 20).roundToInt() / 20f },
-                    valueRange = 0.5f..3f,
-                    steps = 49,
+                    valueRange = 0.5f..2f,
+                    steps = 29,
                     colors = SliderDefaults.colors(thumbColor = Lux.accent, activeTrackColor = Lux.accent, inactiveTrackColor = Lux.track),
                 )
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                     Text("0.5×", color = Lux.dim, fontSize = 13.sp)
-                    Text("3.0×", color = Lux.dim, fontSize = 13.sp)
+                    Text("2.0×", color = Lux.dim, fontSize = 13.sp)
                 }
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Checkbox(checked = fix, onCheckedChange = { fix = it }, colors = CheckboxDefaults.colors(checkedColor = Lux.accent))
@@ -278,4 +288,55 @@ private fun BandRow(label: String, db: Double, onChange: (Double) -> Unit) {
             modifier = Modifier.width(52.dp).padding(start = 8.dp),
         )
     }
+}
+
+/**
+ * From Now Playing: the equalizer at a glance. On/off, then Manual and the presets
+ * (picking one turns the equalizer on), and the sliders screen for fine tuning.
+ */
+@Composable
+fun EqualizerPopup(nav: NavHostController, onClose: () -> Unit) {
+    val repo = app().repository
+    val eq by repo.equalizer.collectAsState()
+    val names = listOf(Eq.MANUAL) + eq.presets.map { it.name }
+    val selected = if (eq.isManual) Eq.MANUAL else eq.current.name
+    AlertDialog(
+        onDismissRequest = onClose,
+        title = { Text("Equalizer") },
+        text = {
+            Column {
+                Row(
+                    Modifier.fillMaxWidth().clickable { repo.setEqualizer(eq.copy(on = !eq.on)) }.padding(vertical = 4.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text("On", color = Lux.text, fontSize = 18.sp, modifier = Modifier.weight(1f))
+                    Switch(
+                        checked = eq.on,
+                        onCheckedChange = { repo.setEqualizer(eq.copy(on = it)) },
+                        colors = SwitchDefaults.colors(checkedThumbColor = Lux.onAccent, checkedTrackColor = Lux.accent),
+                    )
+                }
+                HorizontalDivider(color = Lux.panel)
+                Column(Modifier.heightIn(max = 340.dp).verticalScroll(rememberScrollState())) {
+                    for (name in names) {
+                        Row(
+                            Modifier.fillMaxWidth().clickable { repo.setEqualizer(eq.copy(chosen = name, on = true)) },
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            RadioButton(
+                                selected = name == selected,
+                                onClick = { repo.setEqualizer(eq.copy(chosen = name, on = true)) },
+                                colors = RadioButtonDefaults.colors(selectedColor = Lux.accent),
+                            )
+                            Text(name, color = Lux.text, fontSize = 17.sp)
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = { TextButton(onClick = onClose) { Text("Done", color = Lux.accent) } },
+        dismissButton = {
+            TextButton(onClick = { onClose(); nav.go(Routes.SETTINGS_EQUALIZER) }) { Text("Sliders…", color = Lux.accent) }
+        },
+    )
 }

@@ -181,7 +181,7 @@ private fun InfoRow(label: String, value: String) {
 
 // ---- Check for Updates ---------------------------------------------------------------------
 
-private sealed interface UpdateStep {
+internal sealed interface UpdateStep {
     data object Idle : UpdateStep
     data object Ask : UpdateStep                         // "this goes online: OK?"
     data object Checking : UpdateStep
@@ -192,17 +192,32 @@ private sealed interface UpdateStep {
     data class Failed(val message: String) : UpdateStep
 }
 
-/** Settings → Check for Updates. Asks before going online, and again before downloading. */
+/** Check for Updates can start from Settings or from the overview's menu. */
+object UpdateCheck {
+    internal val state = mutableStateOf<UpdateStep>(UpdateStep.Idle)
+
+    /** Ask first (it goes online), then check, download and install. */
+    fun start() {
+        if (state.value == UpdateStep.Idle) state.value = UpdateStep.Ask
+    }
+}
+
+/** Settings → Check for Updates. */
 @Composable
 private fun UpdateRow() {
     val context = LocalContext.current
-    val scope = rememberCoroutineScope()
-    var step by remember { mutableStateOf<UpdateStep>(UpdateStep.Idle) }
-    val installed = remember { runCatching { Updater.installedBuild(context) }.getOrDefault(0) }
-
     SettingRow(Icons.Filled.SystemUpdate, "Check for Updates", "This copy: ${BuildConfigInfo.versionName(context)}") {
-        step = UpdateStep.Ask
+        UpdateCheck.start()
     }
+}
+
+/** The Check for Updates pop-ups (shown over every screen). Asks before going online, and again before downloading. */
+@Composable
+fun UpdateDialogs() {
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    var step by UpdateCheck.state
+    val installed = remember { runCatching { Updater.installedBuild(context) }.getOrDefault(0) }
 
     val close = { step = UpdateStep.Idle }
     when (val s = step) {

@@ -98,11 +98,13 @@ data class AppSettings(
     // Settings → Sound
     val autoplay: Boolean = true,                // off: stop after every song
     val transition: Transition = Transition.GAPLESS,
-    val crossfadeSeconds: Int = 5,               // 1-10
-    val musicSpeed: Float = 1f,                  // 0.5-3.0
+    val crossfadeSeconds: Int = 5,               // 1-15
+    val musicSpeed: Float = 1f,                  // 0.5-2.0
     val musicPitchFix: Boolean = true,           // keep the pitch when the speed changes
-    val spokenSpeed: Float = 1f,                 // audiobooks and podcasts
-    val spokenPitchFix: Boolean = true,
+    val audiobookSpeed: Float = 1f,
+    val audiobookPitchFix: Boolean = true,
+    val podcastSpeed: Float = 1f,
+    val podcastPitchFix: Boolean = true,
     val replayGain: ReplayGain = ReplayGain.OFF,
     val forceMono: Boolean = false,
     val launchNowPlaying: Boolean = true,        // starting a song opens Now Playing
@@ -151,11 +153,13 @@ class Prefs(context: Context) {
             albumSort = enumOf(sp.getString("albumSort", null), d.albumSort),
             autoplay = sp.getBoolean("autoplay", d.autoplay),
             transition = enumOf(sp.getString("transition", null), d.transition),
-            crossfadeSeconds = sp.getInt("crossfadeSeconds", d.crossfadeSeconds).coerceIn(1, 10),
-            musicSpeed = sp.getFloat("musicSpeed", d.musicSpeed).coerceIn(0.5f, 3f),
+            crossfadeSeconds = sp.getInt("crossfadeSeconds", d.crossfadeSeconds).coerceIn(1, 15),
+            musicSpeed = sp.getFloat("musicSpeed", d.musicSpeed).coerceIn(0.5f, 2f),
             musicPitchFix = sp.getBoolean("musicPitchFix", d.musicPitchFix),
-            spokenSpeed = sp.getFloat("spokenSpeed", d.spokenSpeed).coerceIn(0.5f, 3f),
-            spokenPitchFix = sp.getBoolean("spokenPitchFix", d.spokenPitchFix),
+            audiobookSpeed = sp.getFloat("audiobookSpeed", d.audiobookSpeed).coerceIn(0.5f, 2f),
+            audiobookPitchFix = sp.getBoolean("audiobookPitchFix", d.audiobookPitchFix),
+            podcastSpeed = sp.getFloat("podcastSpeed", d.podcastSpeed).coerceIn(0.5f, 2f),
+            podcastPitchFix = sp.getBoolean("podcastPitchFix", d.podcastPitchFix),
             replayGain = enumOf(sp.getString("replayGain", null), d.replayGain),
             forceMono = sp.getBoolean("forceMono", d.forceMono),
             launchNowPlaying = sp.getBoolean("launchNowPlaying", d.launchNowPlaying),
@@ -205,8 +209,10 @@ class Prefs(context: Context) {
             .putInt("crossfadeSeconds", s.crossfadeSeconds)
             .putFloat("musicSpeed", s.musicSpeed)
             .putBoolean("musicPitchFix", s.musicPitchFix)
-            .putFloat("spokenSpeed", s.spokenSpeed)
-            .putBoolean("spokenPitchFix", s.spokenPitchFix)
+            .putFloat("audiobookSpeed", s.audiobookSpeed)
+            .putBoolean("audiobookPitchFix", s.audiobookPitchFix)
+            .putFloat("podcastSpeed", s.podcastSpeed)
+            .putBoolean("podcastPitchFix", s.podcastPitchFix)
             .putString("replayGain", s.replayGain.name)
             .putBoolean("forceMono", s.forceMono)
             .putBoolean("launchNowPlaying", s.launchNowPlaying)

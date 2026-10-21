@@ -136,6 +136,7 @@ private fun Root() {
     Box(Modifier.fillMaxSize().background(Lux.background).systemBarsPadding()) {
         if (access) MainScreens() else PermissionScreen { access = LuxFolder.hasAccess(context) }
         DialogHost()
+        UpdateDialogs()
     }
 }
 

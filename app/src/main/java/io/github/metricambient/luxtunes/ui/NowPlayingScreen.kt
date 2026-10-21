@@ -30,6 +30,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.PlaylistAdd
 import androidx.compose.material.icons.automirrored.filled.QueueMusic
+import androidx.compose.material.icons.filled.Equalizer
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
@@ -72,6 +73,9 @@ fun NowPlayingScreen(nav: NavHostController) {
     val state by app.player.state.collectAsState()
     val fileLyrics by app.repository.fileLyrics.collectAsState()
     val ratingsNow by app.repository.ratingsNow.collectAsState()
+    val eq by app.repository.equalizer.collectAsState()
+    var eqPopup by remember { mutableStateOf(false) }
+    if (eqPopup) EqualizerPopup(nav) { eqPopup = false }
     val track = state.currentId?.let { library.byId[it] }
     // A movie or TV episode belongs in the video screen.
     LaunchedEffect(track?.id) {
@@ -107,6 +111,9 @@ fun NowPlayingScreen(nav: NavHostController) {
                 IconButton(onClick = { Dialogs.show(DialogRequest.AddToPlaylist(listOf(track.id))) }) {
                     Icon(Icons.AutoMirrored.Filled.PlaylistAdd, "Add to playlist", tint = Lux.icon)
                 }
+            }
+            IconButton(onClick = { eqPopup = true }) {
+                Icon(Icons.Filled.Equalizer, "Equalizer", tint = if (eq.on) Lux.accent else Lux.icon)
             }
             IconButton(onClick = { nav.go(Routes.QUEUE) }) {
                 Icon(Icons.AutoMirrored.Filled.QueueMusic, "Play Queue - Up Next", tint = Lux.icon)
