@@ -1,6 +1,13 @@
 package io.github.metricambient.luxtunes.ui
 
+import android.content.res.Configuration
 import androidx.compose.foundation.background
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.tween
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
@@ -9,6 +16,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -46,6 +54,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.style.TextAlign
@@ -82,7 +91,8 @@ fun NowPlayingScreen(nav: NavHostController) {
         }
     }
 
-    Column(Modifier.fillMaxSize().background(Lux.background)) {
+    // The pieces of the screen, arranged below by orientation.
+    val topBar: @Composable () -> Unit = {
         // Back, then the actions
         Row(Modifier.fillMaxWidth().padding(top = 4.dp), verticalAlignment = Alignment.CenterVertically) {
             IconButton(onClick = { nav.popBackStack() }) {
@@ -112,12 +122,11 @@ fun NowPlayingScreen(nav: NavHostController) {
             menu += "Settings" to { nav.go(Routes.SETTINGS) }
             MoreMenu(menu)
         }
+    }
+    val titleBlock: @Composable () -> Unit = {
         // The song on its own line, artist / album below it
         Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp)) {
-            Text(
-                track?.name ?: "Not playing", color = Lux.text, fontSize = 22.sp,
-                maxLines = 1, overflow = TextOverflow.Ellipsis,
-            )
+            ScrollingTitle(track?.name ?: "Not playing")
             if (track != null) {
                 Text(
                     "${track.artist} / ${track.album}", color = Lux.dim, fontSize = 15.sp,
@@ -125,14 +134,11 @@ fun NowPlayingScreen(nav: NavHostController) {
                 )
             }
         }
-        Spacer(Modifier.height(8.dp))
-
+    }
+    val artwork: @Composable (Modifier) -> Unit = { place ->
         // Art; tap it for the rating (and lyrics, when LuxTunes has them)
         Box(
-            Modifier
-                .align(Alignment.CenterHorizontally)
-                // Square, as big as fits: the full width on tall phones, smaller on short ones.
-                .weight(1f, fill = false)
+            place
                 .aspectRatio(1f, matchHeightConstraintsFirst = true)
                 .clickable(
                     interactionSource = remember { MutableInteractionSource() },
@@ -163,9 +169,8 @@ fun NowPlayingScreen(nav: NavHostController) {
                 }
             }
         }
-
-        Spacer(Modifier.height(24.dp))
-
+    }
+    val controls: @Composable () -> Unit = {
         // Controls
         Row(
             Modifier.fillMaxWidth().padding(horizontal = 4.dp),
@@ -204,9 +209,8 @@ fun NowPlayingScreen(nav: NavHostController) {
                 )
             }
         }
-
-        Spacer(Modifier.height(8.dp))
-
+    }
+    val seekBar: @Composable () -> Unit = {
         // Seek bar
         Row(
             Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp),
@@ -229,6 +233,73 @@ fun NowPlayingScreen(nav: NavHostController) {
                 formatTime(duration), color = Lux.text, fontSize = 18.sp,
                 textAlign = TextAlign.End, modifier = Modifier.width(64.dp),
             )
+        }
+    }
+
+    val landscape = LocalConfiguration.current.orientation == Configuration.ORIENTATION_LANDSCAPE
+    if (landscape) {
+        // Art on the right at full height; everything else to its left.
+        Row(Modifier.fillMaxSize().background(Lux.background)) {
+            Column(Modifier.weight(1f).fillMaxHeight()) {
+                topBar()
+                titleBlock()
+                Spacer(Modifier.weight(1f))
+                controls()
+                seekBar()
+            }
+            artwork(Modifier.fillMaxHeight())
+        }
+    } else {
+        Column(Modifier.fillMaxSize().background(Lux.background)) {
+            topBar()
+            titleBlock()
+            Spacer(Modifier.height(8.dp))
+            // Square, as big as fits: the full width on tall phones, smaller on short ones.
+            artwork(Modifier.align(Alignment.CenterHorizontally).weight(1f, fill = false))
+            Spacer(Modifier.height(24.dp))
+            controls()
+            Spacer(Modifier.height(8.dp))
+            seekBar()
+        }
+    }
+}
+
+/**
+ * The song title. Too long to fit: after a few seconds it scrolls round once, pauses
+ * a few seconds, and goes again, until the song changes. Short titles stay still.
+ */
+@Composable
+private fun ScrollingTitle(text: String) {
+    val scroll = rememberScrollState()
+    val density = LocalDensity.current
+    var boxWidth by remember { mutableIntStateOf(0) }
+    var textWidth by remember(text) { mutableIntStateOf(0) }
+    val gap = 48.dp
+    val tooLong = boxWidth > 0 && textWidth > boxWidth
+    LaunchedEffect(text, tooLong) {
+        scroll.scrollTo(0)
+        if (!tooLong) return@LaunchedEffect
+        val loop = textWidth + with(density) { gap.roundToPx() }      // one title + the gap
+        val millis = (loop / with(density) { 40.dp.toPx() } * 1000).toInt()   // 40 dp a second
+        while (true) {
+            delay(3000)
+            scroll.animateScrollTo(loop, tween(millis, easing = LinearEasing))
+            scroll.scrollTo(0)          // the second copy is where the first was: no jump
+        }
+    }
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .onSizeChanged { boxWidth = it.width }
+            .horizontalScroll(scroll, enabled = false),
+    ) {
+        Text(
+            text, color = Lux.text, fontSize = 22.sp, maxLines = 1, softWrap = false,
+            onTextLayout = { textWidth = it.size.width },
+        )
+        if (tooLong) {
+            Spacer(Modifier.width(gap))
+            Text(text, color = Lux.text, fontSize = 22.sp, maxLines = 1, softWrap = false)
         }
     }
 }

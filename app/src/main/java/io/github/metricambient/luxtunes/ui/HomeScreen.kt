@@ -46,6 +46,7 @@ import androidx.compose.material3.ScrollableTabRow
 import androidx.compose.material3.Tab
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -148,7 +149,10 @@ fun HomeScreen(nav: NavHostController) {
             Empty(library)
             return@Column
         }
-        SearchField(query, setQuery, Modifier.padding(vertical = 4.dp))
+        // No search bar in landscape, to leave room for the list (and no hidden filter either).
+        val landscape = LocalConfiguration.current.orientation == Configuration.ORIENTATION_LANDSCAPE
+        LaunchedEffect(landscape) { if (landscape) queries.value = emptyMap() }
+        if (!landscape) SearchField(query, setQuery, Modifier.padding(vertical = 4.dp))
         Box(Modifier.weight(1f)) {
             when (tabName) {
                 "Artists" -> GroupTab(nav, library.trackArtists, "trackartist", Icons.Filled.Person,
