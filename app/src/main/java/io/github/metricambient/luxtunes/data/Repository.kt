@@ -190,7 +190,17 @@ class Repository(private val context: Context, private val prefs: Prefs) {
                 db.clearEdits()
                 edits.clear()
             }
-            // What LuxTunes took is in this library.db now.
+            // What LuxTunes took is in this library.db now. A playlist made on the
+            // phone that isn't there (LuxTunes skipped it, or the sync stopped
+            // early) is sent again instead of vanishing from the phone.
+            val inLibrary = db.loadPlaylists().map { it.id.uppercase() }.toSet()
+            val missing = db.loadEdits().filter {
+                it.state == PlaylistEdit.DELIVERED && it.action == "create" && it.id.uppercase() !in inLibrary
+            }
+            if (missing.isNotEmpty()) {
+                Log.w(TAG, "${missing.size} playlists made on the phone aren't in library.db: sending them again")
+                db.setEditStates(missing.map { it.id }, PlaylistEdit.NEW)
+            }
             db.dropDeliveredEdits()
             edits = db.loadEdits().associateBy { it.id }.toMutableMap()
             db.setMeta("format_version", info["format_version"])

@@ -25,6 +25,8 @@ import androidx.compose.material.icons.filled.Palette
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.SystemUpdate
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CheckboxDefaults
 import androidx.compose.material3.HorizontalDivider
@@ -106,36 +108,74 @@ fun SettingsScreen(nav: NavHostController) {
         item { SettingRow(Icons.Filled.Palette, "Theme", "${settings.themeStyle.label} · style and colors") { nav.go(Routes.SETTINGS_THEME) } }
         item { SettingRow(Icons.Filled.Headphones, "Headset/Bluetooth", "Set volume on connect and more · $later") }
         item {
-            val folder = library.folder?.path ?: "not found"
-            val synced = library.syncedAt?.let { niceDate(it) } ?: "never"
-            val storage = when (settings.storage) {
-                StorageChoice.REMOVABLE -> "SD card"
-                StorageChoice.INTERNAL -> "Internal storage"
-                null -> "any"
-            }
-            val written = when {
-                library.changesError != null -> "couldn't write it (${library.changesError})"
-                library.changesWritten > 0 -> "written " + java.text.DateFormat.getTimeInstance(java.text.DateFormat.SHORT)
-                    .format(java.util.Date(library.changesWritten))
-                else -> "not written since the app started"
-            }
-            val canChoose = LuxFolder.hasRemovable(context)
             SettingRow(
                 Icons.Filled.LibraryMusic, "My Library",
-                "${library.libraryName.ifEmpty { "LuxTunes" }}: ${plural(library.tracks.size, "song")}\n" +
-                    "Storage: $storage${if (canChoose) " (tap to change)" else ""}\n" +
-                    "Folder: $folder\nLast synced: $synced\n" +
-                    "Waiting to go to LuxTunes: ${plural(library.pendingCount, "song")}, " +
-                    "${plural(library.pendingPlaylists, "playlist change")}\n" +
-                    "Sync format: ${library.formatVersion}" +
-                    (if (library.formatVersion < 2) " (playlists go back with LuxTunes 0.6.0+)" else "") + "\n" +
-                    "changes.json: $written" + if (library.transferMode) "\nUSB file transfer: on" else "",
-                onClick = if (canChoose) { { Dialogs.show(DialogRequest.ChooseStorage(firstTime = false)) } } else null,
-            )
+                "${library.libraryName.ifEmpty { "LuxTunes" }}: ${plural(library.tracks.size, "song")}",
+            ) { nav.go(Routes.SETTINGS_LIBRARY) }
         }
         item { SettingRow(Icons.Filled.Refresh, "Rescan Device", "Look for a new sync from LuxTunes now") { app.repository.refreshAsync() } }
         item { UpdateRow() }
         item { SettingRow(Icons.Filled.Info, "About / Legal", "Version, license") { nav.go(Routes.SETTINGS_ABOUT) } }
+    }
+}
+
+// ---- My Library ------------------------------------------------------------------------------
+
+/** Settings → My Library: where the library is, when it was synced, what's waiting to go back. */
+@Composable
+fun LibrarySettingsScreen(nav: NavHostController) {
+    val app = app()
+    val context = LocalContext.current
+    val library by app.repository.state.collectAsState()
+    val settings by app.prefs.settings.collectAsState()
+    val storage = when (settings.storage) {
+        StorageChoice.REMOVABLE -> "SD card"
+        StorageChoice.INTERNAL -> "Internal storage"
+        null -> "Any"
+    }
+    val written = when {
+        library.changesError != null -> "Couldn't write it (${library.changesError})"
+        library.changesWritten > 0 -> "Written " + java.text.DateFormat.getTimeInstance(java.text.DateFormat.SHORT)
+            .format(java.util.Date(library.changesWritten))
+        else -> "Not written since the app started"
+    }
+    val canChoose = LuxFolder.hasRemovable(context)
+    Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
+        ScreenTitle(nav, "My Library")
+        InfoRow("Library", "${library.libraryName.ifEmpty { "LuxTunes" }}: ${plural(library.tracks.size, "song")}")
+        InfoRow("Storage", storage)
+        InfoRow("Folder", library.folder?.path ?: "Not found")
+        InfoRow("Last synced", library.syncedAt?.let { niceDate(it) } ?: "Never")
+        InfoRow(
+            "Waiting to go to LuxTunes",
+            "${plural(library.pendingCount, "song")}, ${plural(library.pendingPlaylists, "playlist change")}",
+        )
+        InfoRow(
+            "Sync format",
+            "${library.formatVersion}" + if (library.formatVersion < 2) " (playlists go back with LuxTunes 0.6.0+)" else "",
+        )
+        InfoRow("changes.json", written)
+        if (library.transferMode) InfoRow("USB file transfer", "On")
+        Spacer(Modifier.height(16.dp))
+        Button(
+            onClick = { Dialogs.show(DialogRequest.ChooseStorage(firstTime = false)) },
+            enabled = canChoose,
+            colors = ButtonDefaults.buttonColors(containerColor = Lux.accent, contentColor = Lux.onAccent),
+            modifier = Modifier.padding(horizontal = 16.dp),
+        ) { Text("Change Library Location") }
+        Text(
+            if (canChoose) "Choose whether the LuxTunes folder is on the phone's own storage or the SD card."
+            else "There's no SD card in the phone, so the library can only be on its own storage.",
+            color = Lux.dim, fontSize = 14.sp, modifier = Modifier.padding(16.dp),
+        )
+    }
+}
+
+@Composable
+private fun InfoRow(label: String, value: String) {
+    Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp)) {
+        Text(label, color = Lux.dim, fontSize = 14.sp)
+        Text(value, color = Lux.text, fontSize = 17.sp)
     }
 }
 
@@ -332,8 +372,8 @@ fun TabsSettingsScreen(nav: NavHostController) {
         })
     }
 
-    fun chooseColumns(title: String, current: Int, set: (AppSettings, Int) -> AppSettings) {
-        val options = (1..6).toList()
+    fun chooseColumns(title: String, current: Int, most: Int, set: (AppSettings, Int) -> AppSettings) {
+        val options = (1..most).toList()
         Dialogs.show(DialogRequest.Choose(title, options.map { "$it" }, options.indexOf(current)) { i ->
             prefs.update { set(it, options[i]) }
         })
@@ -359,10 +399,10 @@ fun TabsSettingsScreen(nav: NavHostController) {
         }
         TabSection("Albums", "Display albums tab", "Albums" in s.tabs, { showTab("Albums", it) }) {
             ChoiceRow("Number of portrait grid items", "${s.gridPortrait}") {
-                chooseColumns("Portrait grid items", s.gridPortrait) { cur, n -> cur.copy(gridPortrait = n) }
+                chooseColumns("Portrait grid items", s.gridPortrait, 4) { cur, n -> cur.copy(gridPortrait = n) }
             }
             ChoiceRow("Number of landscape grid items", "${s.gridLandscape}") {
-                chooseColumns("Landscape grid items", s.gridLandscape) { cur, n -> cur.copy(gridLandscape = n) }
+                chooseColumns("Landscape grid items", s.gridLandscape, 6) { cur, n -> cur.copy(gridLandscape = n) }
             }
             CheckRow("Display album art", s.albumArt) { v -> prefs.update { it.copy(albumArt = v) } }
             ChoiceRow("Default Album Action", s.albumAction.label) {

@@ -50,6 +50,7 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.navigation.NavHostController
+import kotlinx.coroutines.delay
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
@@ -89,6 +90,7 @@ object Routes {
     const val SETTINGS_ABOUT = "settings/about"
     const val SETTINGS_THEME = "settings/theme"
     const val SETTINGS_OPERATION = "settings/operation"
+    const val SETTINGS_LIBRARY = "settings/library"
     fun album(key: String) = "album/${Uri.encode(key)}"
     /** An album artist's page. */
     fun artist(name: String) = group("artist", name)
@@ -172,6 +174,7 @@ private fun MainScreens() {
                 screen(nav, Routes.SETTINGS_ABOUT) { AboutScreen(nav) }
                 screen(nav, Routes.SETTINGS_THEME) { ThemeSettingsScreen(nav) }
                 screen(nav, Routes.SETTINGS_OPERATION) { OperationSettingsScreen(nav) }
+                screen(nav, Routes.SETTINGS_LIBRARY) { LibrarySettingsScreen(nav) }
                 screen(nav, Routes.SEARCH) { SearchScreen(nav) }
                 screen(nav, Routes.QUEUE) { QueueScreen(nav) }
                 screen(nav, "album/{key}", listOf(navArgument("key") { type = NavType.StringType })) {
@@ -190,11 +193,19 @@ private fun MainScreens() {
                 }
             }
         }
-        if (route != Routes.NOW && route != Routes.VIDEO && route?.startsWith(Routes.SETTINGS) != true &&
-            route?.startsWith("smart/") != true
-        ) {
-            MiniPlayer(nav, showMenu = route == Routes.HOME)
+        val wantMini = route != Routes.NOW && route != Routes.VIDEO &&
+            route?.startsWith(Routes.SETTINGS) != true && route?.startsWith("smart/") != true
+        // Leaving Now Playing: wait until it has slid away, so the bar doesn't
+        // appear on top of it halfway down.
+        var showMini by remember { mutableStateOf(wantMini) }
+        var lastRoute by remember { mutableStateOf(route) }
+        LaunchedEffect(wantMini, route) {
+            val from = lastRoute
+            lastRoute = route
+            if (wantMini && !showMini && (from == Routes.NOW || from == Routes.VIDEO)) delay(320)
+            showMini = wantMini
         }
+        if (showMini && wantMini) MiniPlayer(nav, showMenu = route == Routes.HOME)
     }
 }
 

@@ -328,13 +328,23 @@ private fun DateField(unixSeconds: Long, key: String, onValue: (Long) -> Unit) {
     )
 }
 
-/** A button showing the current choice; tapping it lists the choices. */
+/**
+ * A button showing the current choice; tapping it lists the choices. Long lists
+ * (like the song details) open in a scrolling pop-up: a drop-down menu can run
+ * under the phone's navigation bar and hide its last items.
+ */
 @Composable
 private fun Picker(current: String, options: List<String>, onPick: (Int) -> Unit) {
     var open by remember { mutableStateOf(false) }
+    val long = options.size > 6
     Box {
         Row(
-            Modifier.clickable { open = true }.padding(horizontal = 8.dp, vertical = 10.dp),
+            Modifier
+                .clickable {
+                    if (long) Dialogs.show(DialogRequest.Choose("Choose", options, options.indexOf(current), onPick))
+                    else open = true
+                }
+                .padding(horizontal = 8.dp, vertical = 10.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(2.dp),
         ) {

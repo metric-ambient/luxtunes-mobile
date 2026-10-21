@@ -487,7 +487,7 @@ private fun AlbumsTab(
 ) {
     val app = app()
     val landscape = LocalConfiguration.current.orientation == Configuration.ORIENTATION_LANDSCAPE
-    val columns = (if (landscape) settings.gridLandscape else settings.gridPortrait).coerceIn(1, 6)
+    val columns = if (landscape) settings.gridLandscape.coerceIn(1, 6) else settings.gridPortrait.coerceIn(1, 4)
     val albums = sortAlbums(library.albums.filter { matches(query, it.name, it.artist) }, settings.albumSort)
     LazyVerticalGrid(columns = GridCells.Fixed(columns), modifier = Modifier.fillMaxSize()) {
         items(albums, key = { it.key }) { album ->

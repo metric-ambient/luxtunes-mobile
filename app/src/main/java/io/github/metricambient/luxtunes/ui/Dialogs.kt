@@ -311,7 +311,7 @@ private fun ChooseDialog(r: DialogRequest.Choose) {
         onDismissRequest = { Dialogs.close() },
         title = { Text(r.title) },
         text = {
-            Column {
+            Column(Modifier.verticalScroll(rememberScrollState())) {      // long lists scroll
                 r.options.forEachIndexed { i, label ->
                     Row(
                         Modifier.fillMaxWidth().clickable { r.onPick(i); Dialogs.close() }.padding(vertical = 4.dp),
