@@ -149,10 +149,12 @@ fun HomeScreen(nav: NavHostController) {
             Empty(library)
             return@Column
         }
-        // No search bar in landscape, to leave room for the list (and no hidden filter either).
+        // No search bar in landscape (room for the list) or when hidden in Settings → Tabs,
+        // and then no hidden filter either.
         val landscape = LocalConfiguration.current.orientation == Configuration.ORIENTATION_LANDSCAPE
-        LaunchedEffect(landscape) { if (landscape) queries.value = emptyMap() }
-        if (!landscape) SearchField(query, setQuery, Modifier.padding(vertical = 4.dp))
+        val noSearch = landscape || settings.hideSearch
+        LaunchedEffect(noSearch) { if (noSearch) queries.value = emptyMap() }
+        if (!noSearch) SearchField(query, setQuery, Modifier.padding(vertical = 4.dp))
         Box(Modifier.weight(1f)) {
             when (tabName) {
                 "Artists" -> GroupTab(nav, library.trackArtists, "trackartist", Icons.Filled.Person,

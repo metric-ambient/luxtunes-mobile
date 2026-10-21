@@ -11,8 +11,8 @@ import kotlin.math.sqrt
  * for "off" ones (grey):
  * 1. the cover's most prominent color, if it's colorful and readable on the background;
  * 2. else its strongest readable splash of color (a bit of red on a black cover);
- * 3. else its most colorful part, lightened or darkened until it's readable;
- * 4. else null (an all-grey cover): the app uses the default blue.
+ * 3. else null (only greys, or no color that stands out): the app uses the style's
+ *    own accent color.
  */
 object AccentPicker {
     /** Contrast needed against the background (the usual minimum for icons and lines). */
@@ -57,43 +57,7 @@ object AccentPicker {
 
         colorful.filter { contrast(it.color, background) >= MIN_CONTRAST }
             .maxByOrNull { sqrt(it.share) * it.chroma }?.let { return it.color }
-        // Lightening or darkening washes a color out; give up if it turns grey.
-        return readableVersion(colorful.maxBy { sqrt(it.share) * it.chroma }.color, background)
-            .takeIf { chromaOf(it) >= MIN_CHROMA_AFTER }
-    }
-
-    private const val MIN_CHROMA_AFTER = 0.18
-
-    private fun chromaOf(c: Int): Double {
-        val r = (c shr 16) and 0xFF; val g = (c shr 8) and 0xFF; val b = c and 0xFF
-        return (max(r, max(g, b)) - min(r, min(g, b))) / 255.0
-    }
-
-    /**
-     * `color` made readable: first brightened (on a dark background) or darkened (on a
-     * light one) keeping its hue, then, if that's not enough, mixed toward white or black.
-     */
-    fun readableVersion(color: Int, background: Int): Int {
-        val dark = luminance(background) <= 0.4
-        var c = color
-        var step = 1
-        while (contrast(c, background) < MIN_CONTRAST && step <= 20) {
-            c = scale(color, if (dark) 1 + step * 0.25 else maxOf(0.0, 1 - step * 0.05))
-            step++
-        }
-        val base = c
-        val target = if (dark) 0xFFFFFFFF.toInt() else 0xFF000000.toInt()
-        var t = 0.0
-        while (contrast(c, background) < MIN_CONTRAST && t < 1.0) {
-            t += 0.05
-            c = mix(base, target, t)
-        }
-        return c
-    }
-
-    private fun scale(c: Int, f: Double): Int {
-        fun s(sh: Int) = (((c shr sh) and 0xFF) * f).toInt().coerceIn(0, 255)
-        return (0xFF shl 24) or (s(16) shl 16) or (s(8) shl 8) or s(0)
+        return null
     }
 
     fun contrast(a: Int, b: Int): Double {
@@ -110,8 +74,4 @@ object AccentPicker {
         return 0.2126 * ch((c shr 16) and 0xFF) + 0.7152 * ch((c shr 8) and 0xFF) + 0.0722 * ch(c and 0xFF)
     }
 
-    private fun mix(a: Int, b: Int, t: Double): Int {
-        fun m(sh: Int) = ((((a shr sh) and 0xFF) * (1 - t)) + (((b shr sh) and 0xFF) * t)).toInt().coerceIn(0, 255)
-        return (0xFF shl 24) or (m(16) shl 16) or (m(8) shl 8) or m(0)
-    }
 }

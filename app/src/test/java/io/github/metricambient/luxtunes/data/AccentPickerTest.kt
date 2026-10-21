@@ -36,11 +36,9 @@ class AccentPickerTest {
         assertNull(AccentPicker.pick(cover(0xFF101010 to 1000), black))
     }
 
-    @Test fun darkNavyCoverIsLightenedOnDark() {
-        val c = AccentPicker.pick(cover(0xFF0A1440 to 1000), black)!!
-        assertTrue(AccentPicker.contrast(c, black) >= AccentPicker.MIN_CONTRAST)
-        val (r, _, b) = rgb(c)
-        assertTrue("still blue, got ${Integer.toHexString(c)}", b - r > 45)
+    @Test fun nothingStandsOutGivesNothing() {
+        // A dark navy cover on black: the app falls back to the style's own accent.
+        assertNull(AccentPicker.pick(cover(0xFF0A1440 to 1000), black))
     }
 
     @Test fun smallRedOnWhiteIsUsedOnLight() {

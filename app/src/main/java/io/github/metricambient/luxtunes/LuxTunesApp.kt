@@ -9,7 +9,12 @@ import androidx.lifecycle.ProcessLifecycleOwner
 import io.github.metricambient.luxtunes.data.Prefs
 import io.github.metricambient.luxtunes.data.Repository
 import io.github.metricambient.luxtunes.data.UsbState
+import io.github.metricambient.luxtunes.playback.DeviceWatch
 import io.github.metricambient.luxtunes.playback.PlayerConnection
+import kotlinx.coroutines.MainScope
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.launch
 import io.github.metricambient.luxtunes.ui.ArtFetcher
 import io.github.metricambient.luxtunes.ui.ArtKeyer
 import io.github.metricambient.luxtunes.ui.Lux
@@ -28,8 +33,15 @@ class LuxTunesApp : Application(), ImageLoaderFactory {
         prefs = Prefs(this)
         repository = Repository(this, prefs)
         player = PlayerConnection(this)
-        prefs.current.let { Lux.use(LuxPalette(it.themeStyle, it.colors)) }
+        prefs.current.let { Lux.use(LuxPalette(it.themeStyle, it.colors, it.autoAccent)) }
         UsbState.watch(this) { repository.transferMode = it }
+        // Settings → Headset/Bluetooth: play on connect, and High Priority Mode.
+        DeviceWatch.start(this)
+        MainScope().launch {
+            prefs.settings.map { it.highPriority }.distinctUntilChanged().collect {
+                DeviceWatch.setHighPriority(this@LuxTunesApp, it)
+            }
+        }
         // Check for a new sync whenever the app comes to the front.
         ProcessLifecycleOwner.get().lifecycle.addObserver(object : DefaultLifecycleObserver {
             override fun onStart(owner: LifecycleOwner) {

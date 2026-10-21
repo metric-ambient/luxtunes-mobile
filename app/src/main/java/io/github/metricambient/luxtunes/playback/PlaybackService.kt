@@ -23,6 +23,10 @@ import androidx.media3.session.MediaSession
 import androidx.media3.session.MediaSessionService
 import com.google.common.util.concurrent.Futures
 import com.google.common.util.concurrent.ListenableFuture
+import com.google.common.util.concurrent.SettableFuture
+import android.view.KeyEvent
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.withTimeoutOrNull
 import io.github.metricambient.luxtunes.LuxTunesApp
 import io.github.metricambient.luxtunes.data.ReplayGain
 import io.github.metricambient.luxtunes.data.Track
@@ -63,6 +67,8 @@ class PlaybackService : MediaSessionService() {
     private val repository get() = app.repository
     private val scope = MainScope()
     private val processor = LuxAudioProcessor()
+    private lateinit var focus: AudioFocusKeeper
+    private var ducked = false
 
     /** A player whose sound goes through `audio`. Only the main one handles audio focus. */
     private fun buildPlayer(audio: LuxAudioProcessor, main: Boolean): ExoPlayer {
@@ -81,7 +87,7 @@ class PlaybackService : MediaSessionService() {
                     .setUsage(C.USAGE_MEDIA)
                     .setContentType(C.AUDIO_CONTENT_TYPE_MUSIC)
                     .build(),
-                /* handleAudioFocus = */ main,
+                /* handleAudioFocus = */ false,         // AudioFocusKeeper does it (Audio Priority)
             )
             .setHandleAudioBecomingNoisy(main)       // pause when headphones are unplugged
             .build()
@@ -93,6 +99,10 @@ class PlaybackService : MediaSessionService() {
         exo = buildPlayer(processor, main = true)
         exo.addListener(counter)
         exo.addListener(sound)
+        focus = AudioFocusKeeper(this, exo, { app.prefs.current }) { on ->
+            ducked = on
+            if (fadeStart == 0L) exo.volume = volumeFor(trackOf(exo.currentMediaItem))
+        }
         // Settings → Sound and the equalizer: apply whenever either changes.
         scope.launch {
             app.prefs.settings.combine(repository.equalizer) { s, e -> s to e }.collect { applySound() }
@@ -100,12 +110,34 @@ class PlaybackService : MediaSessionService() {
 
         // Every "next" (app, notification, headset, car) passes through here.
         val player = object : ForwardingPlayer(exo) {
+            override fun play() {
+                if (!allowFromOutside(play = true)) return
+                super.play()
+            }
+
+            override fun setPlayWhenReady(playWhenReady: Boolean) {
+                if (!allowFromOutside(play = playWhenReady)) return
+                super.setPlayWhenReady(playWhenReady)
+            }
+
+            override fun pause() {
+                if (!allowFromOutside(play = false)) return
+                super.pause()
+            }
+
+            override fun seekToPrevious() {
+                if (!allowFromOutside(play = false)) return
+                super.seekToPrevious()
+            }
+
             override fun seekToNext() {
+                if (!allowFromOutside(play = false)) return
                 noteSkip()
                 super.seekToNext()
             }
 
             override fun seekToNextMediaItem() {
+                if (!allowFromOutside(play = false)) return
                 noteSkip()
                 super.seekToNextMediaItem()
             }
@@ -132,6 +164,7 @@ class PlaybackService : MediaSessionService() {
     override fun onDestroy() {
         handler.removeCallbacks(saveTicker)
         endCrossfade()
+        focus.release()
         scope.cancel()
         savePosition()
         session?.run {
@@ -206,6 +239,70 @@ class PlaybackService : MediaSessionService() {
             Futures.immediateFuture(
                 mediaItems.map { repository.mediaItem(it.mediaId) ?: it }.toMutableList()
             )
+
+        @Suppress("DEPRECATION")
+        override fun onMediaButtonEvent(
+            session: MediaSession,
+            controllerInfo: MediaSession.ControllerInfo,
+            intent: Intent,
+        ): Boolean = ignoreButton(controllerInfo, intent)
+
+        /**
+         * A headset's play button with LuxTunes not playing (High Priority Mode): pick up
+         * where it left off, once the library is in.
+         */
+        override fun onPlaybackResumption(
+            mediaSession: MediaSession,
+            controller: MediaSession.ControllerInfo,
+        ): ListenableFuture<MediaSession.MediaItemsWithStartPosition> {
+            val result = SettableFuture.create<MediaSession.MediaItemsWithStartPosition>()
+            scope.launch {
+                repository.refreshAsync()
+                val saved = memory.load()
+                val ready = withTimeoutOrNull(15_000) {
+                    repository.state.first { it.loaded && it.allTracks.isNotEmpty() }
+                }
+                val items = if (ready == null || saved == null) emptyList()
+                else saved.queue.mapNotNull { repository.mediaItem(it) }
+                if (items.isEmpty()) {
+                    result.setException(IllegalStateException("nothing to resume"))
+                } else {
+                    val index = items.indexOfFirst { it.mediaId == saved?.currentId }
+                    result.set(MediaSession.MediaItemsWithStartPosition(
+                        items, index.coerceAtLeast(0), if (index >= 0) saved?.positionMs ?: 0L else 0L,
+                    ))
+                }
+            }
+            return result
+        }
+    }
+
+    // ---- Settings → Headset/Bluetooth ----------------------------------------------------------
+    // Commands from this app (its screens and its notification) always count. Others are
+    // checked: Bluetooth devices send theirs through the system's Bluetooth service.
+
+    private fun fromBluetooth(controller: MediaSession.ControllerInfo?): Boolean =
+        controller != null && controller.packageName.contains("bluetooth", ignoreCase = true)
+
+    /** May this command, from whoever sent it, go ahead? */
+    private fun allowFromOutside(play: Boolean): Boolean {
+        val controller = session?.controllerForCurrentRequest ?: return true
+        if (controller.packageName == packageName) return true
+        val s = app.prefs.current
+        if (fromBluetooth(controller) && !s.obeyHeadset) return false
+        // A car or speaker saying "play" as it connects.
+        if (play && !exo.playWhenReady && s.blockReceiverPlay && DeviceWatch.justConnectedBluetooth()) return false
+        return true
+    }
+
+    /** Headset buttons (wired, and Bluetooth ones sent as button presses). True: ignored. */
+    private fun ignoreButton(controller: MediaSession.ControllerInfo, intent: Intent): Boolean {
+        if (controller.packageName == packageName) return false          // our own notification
+        val s = app.prefs.current
+        if (!s.obeyHeadset) return true
+        val key = intent.getParcelableExtra<KeyEvent>(Intent.EXTRA_KEY_EVENT) ?: return false
+        val isPlay = key.keyCode == KeyEvent.KEYCODE_MEDIA_PLAY || key.keyCode == KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE
+        return isPlay && !exo.playWhenReady && s.blockReceiverPlay && DeviceWatch.justConnectedBluetooth()
     }
 
     // ---- Settings → Sound -----------------------------------------------------------------
@@ -233,7 +330,8 @@ class PlaybackService : MediaSessionService() {
     /** LuxTunes' Volume Adjustment: -100…+100 % of the playing volume, never above full. */
     private fun volumeFor(t: Track?): Float {
         val adjust = (t?.raw?.get("volume_adjustment") as? Number)?.toFloat() ?: 0f
-        return (1f + adjust / 100f).coerceIn(0f, 1f)
+        // Quieter while another app speaks (navigation and the like).
+        return (1f + adjust / 100f).coerceIn(0f, 1f) * if (ducked) 0.2f else 1f
     }
 
     private fun speedFor(t: Track?): PlaybackParameters {
@@ -268,6 +366,10 @@ class PlaybackService : MediaSessionService() {
             val id = exo.currentMediaItem?.mediaId ?: return
             gains[id] = ReplayGainTags.find(tracks)
             applySound()
+        }
+
+        override fun onPlayWhenReadyChanged(playWhenReady: Boolean, reason: Int) {
+            focus.playingChanged(playWhenReady)
         }
 
         override fun onIsPlayingChanged(isPlaying: Boolean) {

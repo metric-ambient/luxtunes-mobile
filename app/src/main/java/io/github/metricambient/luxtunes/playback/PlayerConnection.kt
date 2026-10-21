@@ -89,6 +89,11 @@ class PlayerConnection(private val context: Context) {
             c.setMediaItems(tracks.map { repository.requestItem(it) }, index, position)
             c.shuffleModeEnabled = false              // shuffle is ours (see "Shuffle" below)
             loadShuffle()
+            if (playWhenRestored) {
+                playWhenRestored = false
+                c.prepare()
+                c.play()
+            }
             c.repeatMode = saved.repeatMode
             c.prepare()
         }
@@ -204,6 +209,20 @@ class PlayerConnection(private val context: Context) {
     }
 
     fun pause() = withController { it.pause() }
+
+    private var playWhenRestored = false
+
+    /** Headphones or Bluetooth connected (Settings → Headset/Bluetooth): carry on playing. */
+    fun playFromDevice() = withController { c ->
+        if (c.mediaItemCount == 0) {
+            playWhenRestored = true
+            restore(c)
+        } else {
+            if (c.playbackState == Player.STATE_IDLE) c.prepare()
+            if (c.playbackState == Player.STATE_ENDED) c.seekToDefaultPosition(0)
+            c.play()
+        }
+    }
 
     fun togglePlay() = withController { c ->
         if (c.wantsToPlay) c.pause() else {

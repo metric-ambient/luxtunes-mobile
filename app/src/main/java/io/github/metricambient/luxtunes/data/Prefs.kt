@@ -54,8 +54,8 @@ enum class ArtistPlay(val label: String) {
 /** The look of the app (Settings → Theme). */
 enum class ThemeStyle(val label: String) { DARK("Dark"), MATERIAL("Material"), LIGHT("Light") }
 
-/** A style's three colors (ARGB). `autoAccent`: take the accent from the album art. */
-data class ThemeColors(val background: Int, val accent: Int, val text: Int, val autoAccent: Boolean = false) {
+/** A style's three colors (ARGB). */
+data class ThemeColors(val background: Int, val accent: Int, val text: Int) {
     companion object {
         val BLUE = 0xFF0099CC.toInt()
         // Light's background is the soft white of LuxTunes' light theme (its "alt_base").
@@ -107,11 +107,27 @@ data class AppSettings(
     val podcastPitchFix: Boolean = true,
     val replayGain: ReplayGain = ReplayGain.OFF,
     val forceMono: Boolean = false,
+    // Sound → Audio Priority
+    val pauseOnCall: Boolean = true,
+    val resumeAfterCall: Boolean = true,
+    val pauseOnFocusLoss: Boolean = true,
+    val ignoreOtherApps: Boolean = false,
+    // Headset/Bluetooth
+    val obeyHeadset: Boolean = true,
+    val highPriority: Boolean = false,
+    val playOnWired: Boolean = false,
+    val playOnBluetooth: Boolean = false,
+    val blockReceiverPlay: Boolean = false,
+    // Operation
+    val noAlbumArt: Boolean = false,
+    // Tabs
+    val hideSearch: Boolean = false,
     val launchNowPlaying: Boolean = true,        // starting a song opens Now Playing
     val smartAtEnd: Boolean = false,             // Playlists tab: smart playlists after the others
     val artistPlay: ArtistPlay = ArtistPlay.FROM_TOP,
     val artistSongs: Boolean = false,            // artist pages: one list of songs, not albums
     val themeStyle: ThemeStyle = ThemeStyle.DARK,
+    val autoAccent: Boolean = false,             // accent from the album art, in every style
     // Each style keeps its own colors, so switching back and forth loses nothing.
     val themeColors: Map<ThemeStyle, ThemeColors> = ThemeStyle.entries.associateWith { ThemeColors.defaults(it) },
 ) {
@@ -162,18 +178,30 @@ class Prefs(context: Context) {
             podcastPitchFix = sp.getBoolean("podcastPitchFix", d.podcastPitchFix),
             replayGain = enumOf(sp.getString("replayGain", null), d.replayGain),
             forceMono = sp.getBoolean("forceMono", d.forceMono),
+            pauseOnCall = sp.getBoolean("pauseOnCall", d.pauseOnCall),
+            resumeAfterCall = sp.getBoolean("resumeAfterCall", d.resumeAfterCall),
+            pauseOnFocusLoss = sp.getBoolean("pauseOnFocusLoss", d.pauseOnFocusLoss),
+            ignoreOtherApps = sp.getBoolean("ignoreOtherApps", d.ignoreOtherApps),
+            obeyHeadset = sp.getBoolean("obeyHeadset", d.obeyHeadset),
+            highPriority = sp.getBoolean("highPriority", d.highPriority),
+            playOnWired = sp.getBoolean("playOnWired", d.playOnWired),
+            playOnBluetooth = sp.getBoolean("playOnBluetooth", d.playOnBluetooth),
+            blockReceiverPlay = sp.getBoolean("blockReceiverPlay", d.blockReceiverPlay),
+            noAlbumArt = sp.getBoolean("noAlbumArt", d.noAlbumArt),
+            hideSearch = sp.getBoolean("hideSearch", d.hideSearch),
             launchNowPlaying = sp.getBoolean("launchNowPlaying", d.launchNowPlaying),
             smartAtEnd = sp.getBoolean("smartAtEnd", d.smartAtEnd),
             artistPlay = enumOf(sp.getString("artistPlay", null), d.artistPlay),
             artistSongs = sp.getBoolean("artistSongs", d.artistSongs),
             themeStyle = enumOf(sp.getString("themeStyle", null), d.themeStyle),
+            // (Before, each style had its own Auto: on if any was.)
+            autoAccent = sp.getBoolean("autoAccent", ThemeStyle.entries.any { sp.getBoolean("theme.${it.name}.auto", false) }),
             themeColors = ThemeStyle.entries.associateWith { style ->
                 val def = ThemeColors.defaults(style)
                 ThemeColors(
                     background = sp.getInt("theme.${style.name}.background", def.background),
                     accent = sp.getInt("theme.${style.name}.accent", def.accent),
                     text = sp.getInt("theme.${style.name}.text", def.text),
-                    autoAccent = sp.getBoolean("theme.${style.name}.auto", def.autoAccent),
                 )
             },
         )
@@ -215,17 +243,28 @@ class Prefs(context: Context) {
             .putBoolean("podcastPitchFix", s.podcastPitchFix)
             .putString("replayGain", s.replayGain.name)
             .putBoolean("forceMono", s.forceMono)
+            .putBoolean("pauseOnCall", s.pauseOnCall)
+            .putBoolean("resumeAfterCall", s.resumeAfterCall)
+            .putBoolean("pauseOnFocusLoss", s.pauseOnFocusLoss)
+            .putBoolean("ignoreOtherApps", s.ignoreOtherApps)
+            .putBoolean("obeyHeadset", s.obeyHeadset)
+            .putBoolean("highPriority", s.highPriority)
+            .putBoolean("playOnWired", s.playOnWired)
+            .putBoolean("playOnBluetooth", s.playOnBluetooth)
+            .putBoolean("blockReceiverPlay", s.blockReceiverPlay)
+            .putBoolean("noAlbumArt", s.noAlbumArt)
+            .putBoolean("hideSearch", s.hideSearch)
             .putBoolean("launchNowPlaying", s.launchNowPlaying)
             .putBoolean("smartAtEnd", s.smartAtEnd)
             .putString("artistPlay", s.artistPlay.name)
             .putBoolean("artistSongs", s.artistSongs)
             .putString("themeStyle", s.themeStyle.name)
+            .putBoolean("autoAccent", s.autoAccent)
             .also { e ->
                 for ((style, c) in s.themeColors) {
                     e.putInt("theme.${style.name}.background", c.background)
                     e.putInt("theme.${style.name}.accent", c.accent)
                     e.putInt("theme.${style.name}.text", c.text)
-                    e.putBoolean("theme.${style.name}.auto", c.autoAccent)
                 }
             }
             .apply()

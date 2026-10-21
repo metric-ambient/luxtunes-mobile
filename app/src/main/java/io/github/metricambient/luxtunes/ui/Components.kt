@@ -26,6 +26,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextField
 import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -80,7 +81,10 @@ fun Artwork(
     noteSize: Dp = 48.dp,
     note: ImageVector = Icons.Filled.MusicNote,
 ) {
-    val art = app().repository.art(song)
+    val app = app()
+    val settings by app.prefs.settings.collectAsState()
+    // Settings → Operation → Disable Album Art: always the plain note.
+    val art = if (settings.noAlbumArt) null else app.repository.art(song)
     Box(modifier.background(Lux.bar), contentAlignment = Alignment.Center) {
         Icon(note, null, tint = Lux.faint, modifier = Modifier.size(noteSize))
         if (art != null) {

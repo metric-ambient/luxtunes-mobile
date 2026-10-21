@@ -27,6 +27,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.filled.Check
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -127,12 +128,16 @@ fun ThemeSettingsScreen(nav: NavHostController) {
         )
         Heading("Colors")
         ColorRow("Background", Color(colors.background), hexOf(Color(colors.background))) { editing = ColorSlot.BACKGROUND }
-        ColorRow(
-            "Accent",
-            if (colors.autoAccent) Lux.accent else Color(colors.accent),
-            if (colors.autoAccent) "Auto · from the album art" else hexOf(Color(colors.accent)),
-        ) { editing = ColorSlot.ACCENT }
+        ColorRow("Accent", Color(colors.accent), hexOf(Color(colors.accent))) { editing = ColorSlot.ACCENT }
         ColorRow("Text", Color(colors.text), hexOf(Color(colors.text))) { editing = ColorSlot.TEXT }
+        HorizontalDivider(color = Lux.panel, modifier = Modifier.padding(top = 8.dp))
+        ToggleRow(
+            "Auto Accent",
+            "Take the accent color from the album art: the playing song's, or the album or artist " +
+                "you're looking at. When the art has no color that stands out on the background, " +
+                "your own accent color above is used. Works in all three styles.",
+            s.autoAccent,
+        ) { on -> prefs.update { it.copy(autoAccent = on) } }
         Spacer(Modifier.height(24.dp))
     }
 
@@ -150,18 +155,14 @@ fun ThemeSettingsScreen(nav: NavHostController) {
                 ColorSlot.ACCENT -> ACCENT_SUGGESTIONS
                 ColorSlot.TEXT -> TEXT_SUGGESTIONS
             },
-            offerAuto = slot == ColorSlot.ACCENT,
-            autoNow = slot == ColorSlot.ACCENT && colors.autoAccent,
             onDismiss = { editing = null },
             onPick = { picked ->
                 editing = null
                 setColors { c ->
                     when (slot) {
-                        ColorSlot.BACKGROUND -> c.copy(background = picked!!.toArgb())
-                        ColorSlot.TEXT -> c.copy(text = picked!!.toArgb())
-                        ColorSlot.ACCENT ->
-                            if (picked == null) c.copy(autoAccent = true)
-                            else c.copy(accent = picked.toArgb(), autoAccent = false)
+                        ColorSlot.BACKGROUND -> c.copy(background = picked.toArgb())
+                        ColorSlot.TEXT -> c.copy(text = picked.toArgb())
+                        ColorSlot.ACCENT -> c.copy(accent = picked.toArgb())
                     }
                 }
             },
@@ -181,7 +182,7 @@ private fun StylePreview(
 ) {
     val bg = Color(colors.background)
     val text = Color(colors.text)
-    val accent = if (colors.autoAccent) (if (selected) Lux.accent else Color(ThemeColors.BLUE)) else Color(colors.accent)
+    val accent = if (selected) Lux.accent else Color(colors.accent)
     val onAccent = if (AccentPicker.luminance(accent.toArgb()) > 0.4) Color.Black else Color.White
     val material = style == ThemeStyle.MATERIAL
     Column(
@@ -255,27 +256,23 @@ private fun ColorRow(label: String, color: Color, value: String, onClick: () -> 
 // ---- Color picker ----------------------------------------------------------------------
 
 private val HUES = listOf(Color.Red, Color.Magenta, Color.Blue, Color.Cyan, Color.Green, Color.Yellow, Color.Red)
-private val RAINBOW = Brush.sweepGradient(listOf(Color.Red, Color.Yellow, Color.Green, Color.Cyan, Color.Blue, Color.Magenta, Color.Red))
 
 /**
  * Pick a color: suggestions, a saturation/brightness square with a hue bar, or a
- * hex value. Shows the current color and the new one. `onPick(null)` means Auto.
+ * hex value. Shows the current color and the new one.
  */
 @Composable
 private fun ColorPickerDialog(
     title: String,
     current: Color,
     suggestions: List<Color>,
-    offerAuto: Boolean,
-    autoNow: Boolean,
     onDismiss: () -> Unit,
-    onPick: (Color?) -> Unit,
+    onPick: (Color) -> Unit,
 ) {
     val start = remember { FloatArray(3).also { android.graphics.Color.colorToHSV(current.toArgb(), it) } }
     var hue by remember { mutableFloatStateOf(start[0]) }
     var sat by remember { mutableFloatStateOf(start[1]) }
     var value by remember { mutableFloatStateOf(start[2]) }
-    var auto by remember { mutableStateOf(autoNow) }
     var hex by remember { mutableStateOf(hexOf(current)) }
     val picked = Color.hsv(hue.coerceIn(0f, 359.9f), sat, value)
 
@@ -285,41 +282,30 @@ private fun ColorPickerDialog(
         // Greys have no hue of their own: keep the bar where it is.
         if (hsv[1] > 0f) hue = hsv[0]
         sat = hsv[1]; value = hsv[2]
-        auto = false
         hex = hexOf(c)
     }
-    fun moved() { auto = false; hex = hexOf(Color.hsv(hue.coerceIn(0f, 359.9f), sat, value)) }
+    fun moved() { hex = hexOf(Color.hsv(hue.coerceIn(0f, 359.9f), sat, value)) }
 
     Dialog(onDismissRequest = onDismiss) {
         Surface(shape = RoundedCornerShape(24.dp), color = Lux.panel) {
             Column(Modifier.padding(20.dp).verticalScroll(rememberScrollState())) {
                 Text(title, color = Lux.text, fontSize = 20.sp, modifier = Modifier.padding(bottom = 12.dp))
 
-                // Suggestions (and Auto first, for the accent)
-                val dots: List<Color?> = (if (offerAuto) listOf<Color?>(null) else emptyList()) + suggestions
-                for (row in dots.chunked(if (dots.size > 10) 6 else 5)) {
+                // Suggestions
+                for (row in suggestions.chunked(5)) {
                     Row(Modifier.fillMaxWidth().padding(vertical = 4.dp), horizontalArrangement = Arrangement.SpaceEvenly) {
                         for (c in row) {
-                            val chosen = if (c == null) auto else !auto && hexOf(c) == hex
+                            val chosen = hexOf(c) == hex
                             Box(
                                 Modifier
                                     .size(38.dp)
                                     .clip(CircleShape)
-                                    .background(if (c == null) RAINBOW else SolidColor(c))
+                                    .background(c)
                                     .border(if (chosen) 3.dp else 1.dp, if (chosen) Lux.text else Lux.dim, CircleShape)
-                                    .clickable { if (c == null) auto = true else choose(c) },
-                                contentAlignment = Alignment.Center,
-                            ) {
-                                if (c == null) Text("A", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 15.sp)
-                            }
+                                    .clickable { choose(c) },
+                            )
                         }
                     }
-                }
-                if (offerAuto) {
-                    Text(
-                        "Auto takes the accent from the album art, picking a color that stands out on your background.",
-                        color = Lux.dim, fontSize = 13.sp, modifier = Modifier.padding(top = 4.dp),
-                    )
                 }
                 Spacer(Modifier.height(14.dp))
 
@@ -386,16 +372,15 @@ private fun ColorPickerDialog(
 
                 // Old → new, as hex
                 Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.Center) {
-                    Text(if (autoNow) "Auto" else "#" + hexOf(current), color = Lux.text, fontSize = 18.sp)
+                    Text("#" + hexOf(current), color = Lux.text, fontSize = 18.sp)
                     Icon(Icons.AutoMirrored.Filled.ArrowForward, null, tint = Lux.text, modifier = Modifier.padding(horizontal = 14.dp))
                     Text("#", color = Lux.text, fontSize = 18.sp)
                     Column(Modifier.width(96.dp).padding(start = 4.dp)) {
                         BasicTextField(
-                            value = if (auto) "" else hex,
+                            value = hex,
                             onValueChange = { typed ->
                                 val clean = typed.uppercase().filter { it in "0123456789ABCDEF" }.take(6)
                                 hex = clean
-                                auto = false
                                 if (clean.length == 6) {
                                     val c = Color(0xFF000000 or clean.toLong(16))
                                     val hsv = FloatArray(3)
@@ -415,17 +400,17 @@ private fun ColorPickerDialog(
                 }
                 Spacer(Modifier.height(14.dp))
                 Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.Center) {
-                    PreviewDot(if (autoNow) null else current)
+                    PreviewDot(current)
                     Icon(Icons.AutoMirrored.Filled.ArrowForward, null, tint = Lux.text, modifier = Modifier.padding(horizontal = 14.dp))
-                    PreviewDot(if (auto) null else picked)
+                    PreviewDot(picked)
                 }
                 Spacer(Modifier.height(10.dp))
 
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
                     TextButton(onClick = onDismiss) { Text("Cancel", color = Lux.accent, fontSize = 17.sp) }
                     TextButton(
-                        onClick = { onPick(if (auto) null else picked) },
-                        enabled = auto || hex.length == 6,
+                        onClick = { onPick(picked) },
+                        enabled = hex.length == 6,
                     ) { Text("OK", color = Lux.accent, fontSize = 17.sp) }
                 }
             }
@@ -433,15 +418,8 @@ private fun ColorPickerDialog(
     }
 }
 
-/** A color, or the Auto rainbow (null). */
+/** A color in a circle. */
 @Composable
-private fun PreviewDot(c: Color?) {
-    Box(
-        Modifier.size(44.dp).clip(CircleShape)
-            .background(if (c == null) RAINBOW else SolidColor(c))
-            .border(1.dp, Lux.dim, CircleShape),
-        contentAlignment = Alignment.Center,
-    ) {
-        if (c == null) Text("A", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 15.sp, textAlign = TextAlign.Center)
-    }
+private fun PreviewDot(c: Color) {
+    Box(Modifier.size(44.dp).clip(CircleShape).background(c).border(1.dp, Lux.dim, CircleShape))
 }

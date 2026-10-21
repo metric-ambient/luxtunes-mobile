@@ -43,6 +43,13 @@ syncs to your phone. Plays, skips and ratings go back to LuxTunes at the next sy
 
 Needs Android 8 or newer.
 
+## Privacy
+
+LuxTunes for Android collects nothing about you: no accounts, ads, analytics or tracking.
+Your music, ratings, plays and playlists stay on the phone and go only to your own
+computer, over USB, when you sync. The app goes online only when you choose Check for
+Updates (it asks first); GitHub then sees your internet address, as any website would.
+
 ## Installing
 
 1. Download the latest `LuxTunes-Mobile-….apk` from the releases page onto your phone.

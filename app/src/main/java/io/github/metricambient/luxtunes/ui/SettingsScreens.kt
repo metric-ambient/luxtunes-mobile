@@ -14,6 +14,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.HelpOutline
 import androidx.compose.material.icons.filled.Album
 import androidx.compose.material.icons.filled.Build
 import androidx.compose.material.icons.filled.Folder
@@ -99,14 +100,13 @@ fun SettingsScreen(nav: NavHostController) {
     val context = LocalContext.current
     val library by app.repository.state.collectAsState()
     val settings by app.prefs.settings.collectAsState()
-    val later = "Coming in a later version"
     LazyColumn(Modifier.fillMaxSize()) {
         item { ScreenTitle(nav, "Settings") }
         item { SettingRow(Icons.Filled.Album, "Sound", "Equalizer, crossfade, speed, ReplayGain") { nav.go(Routes.SETTINGS_SOUND) } }
         item { SettingRow(Icons.Filled.Build, "Operation", "Now Playing, playlists") { nav.go(Routes.SETTINGS_OPERATION) } }
         item { SettingRow(Icons.Filled.Folder, "Tabs", "Choose which tabs to see, and what a tap does") { nav.go(Routes.SETTINGS_TABS) } }
         item { SettingRow(Icons.Filled.Palette, "Theme", "${settings.themeStyle.label} · style and colors") { nav.go(Routes.SETTINGS_THEME) } }
-        item { SettingRow(Icons.Filled.Headphones, "Headset/Bluetooth", "Set volume on connect and more · $later") }
+        item { SettingRow(Icons.Filled.Headphones, "Headset/Bluetooth", "Headset buttons, play on connect") { nav.go(Routes.SETTINGS_HEADSET) } }
         item {
             SettingRow(
                 Icons.Filled.LibraryMusic, "My Library",
@@ -115,7 +115,8 @@ fun SettingsScreen(nav: NavHostController) {
         }
         item { SettingRow(Icons.Filled.Refresh, "Rescan Device", "Look for a new sync from LuxTunes now") { app.repository.refreshAsync() } }
         item { UpdateRow() }
-        item { SettingRow(Icons.Filled.Info, "About / Legal", "Version, license") { nav.go(Routes.SETTINGS_ABOUT) } }
+        item { SettingRow(Icons.AutoMirrored.Filled.HelpOutline, "Help", "How to use the app") { nav.go(Routes.SETTINGS_HELP) } }
+        item { SettingRow(Icons.Filled.Info, "About / Legal", "Version, licenses, privacy") { nav.go(Routes.SETTINGS_ABOUT) } }
     }
 }
 
@@ -343,6 +344,11 @@ fun OperationSettingsScreen(nav: NavHostController) {
             "In the Playlists tab, show smart playlists after your other playlists.",
             s.smartAtEnd,
         ) { on -> prefs.update { it.copy(smartAtEnd = on) } }
+        ToggleRow(
+            "Disable Album Art",
+            "Show every song, album and artist as if it had no album art (a plain music note).",
+            s.noAlbumArt,
+        ) { on -> prefs.update { it.copy(noAlbumArt = on) } }
     }
 }
 
@@ -396,6 +402,12 @@ fun TabsSettingsScreen(nav: NavHostController) {
 
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
         ScreenTitle(nav, "Tabs")
+        ToggleRow(
+            "Hide Search Bar",
+            "No search bar above the lists, in any orientation. Search stays in the ⋮ menu.",
+            s.hideSearch,
+        ) { on -> prefs.update { it.copy(hideSearch = on) } }
+        HorizontalDivider(color = Lux.panel)
 
         TabSection("Songs", "Display songs tab", "Songs" in s.tabs, { showTab("Songs", it) }) {
             CheckRow("Display album art", s.songArt) { v -> prefs.update { it.copy(songArt = v) } }
@@ -506,11 +518,25 @@ fun AboutScreen(nav: NavHostController) {
                     "Written entirely by an AI, Claude Opus 5.5 (\"vibe-coded\"). For copyright purposes, " +
                     "metric-ambient is the author.\n\n" +
                     "Provided \"as is\", without warranty of any kind. Keep backups of your music.\n\n" +
-                    "License: GNU General Public License, version 3 or later.\n" +
-                    "Uses AndroidX (Jetpack Compose, Media3) and Coil, under the Apache License 2.0.\n\n" +
-                    "The app only goes online when you ask it to check for updates.",
+                    "License: GNU General Public License, version 3 or later.",
                 color = Lux.dim, fontSize = 15.sp,
             )
         }
+        ChoiceRow("Open-Source Licenses", "The licenses of LuxTunes and the libraries it uses") {
+            nav.go(Routes.SETTINGS_LICENSES)
+        }
+        HorizontalDivider(color = Lux.panel)
+        Heading("Privacy")
+        Text(
+            "LuxTunes for Android collects nothing about you. It has no accounts, no ads, no " +
+                "analytics and no tracking. Your music, ratings, plays and playlists stay on this " +
+                "phone and go only to your own computer, over the USB cable, when you sync.\n\n" +
+                "The app goes online only when you choose Check for Updates (and it asks first). " +
+                "It then asks github.com for the newest version, and downloads it if you say so. " +
+                "Like any website, GitHub sees your internet address when that happens; nothing " +
+                "about you or your music is sent.",
+            color = Lux.dim, fontSize = 15.sp, modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp),
+        )
+        Spacer(Modifier.height(24.dp))
     }
 }

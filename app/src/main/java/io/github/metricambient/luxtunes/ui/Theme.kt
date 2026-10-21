@@ -38,11 +38,10 @@ import kotlinx.coroutines.withContext
 import android.graphics.Color as AndroidColor
 
 /** Every color the screens use, worked out from a style's three colors. */
-class LuxPalette(val style: ThemeStyle, colors: ThemeColors) {
+class LuxPalette(val style: ThemeStyle, colors: ThemeColors, val autoAccent: Boolean = false) {
     val background = Color(colors.background)
     val text = Color(colors.text)
     val chosenAccent = Color(colors.accent)
-    val autoAccent = colors.autoAccent
     val isLight = background.luminance() > 0.5f
     val bar = lerp(background, text, if (isLight) 0.075f else 0.12f)      // bottom bars and menus
     val panel = lerp(background, text, if (isLight) 0.12f else 0.17f)
@@ -68,7 +67,8 @@ object Lux {
     val auto: Boolean get() = palette.autoAccent
     val accent: Color
         get() = if (!palette.autoAccent) palette.chosenAccent
-        else pageAccents.lastOrNull()?.second ?: playingAccent ?: Color(ThemeColors.BLUE)
+        // No usable color in the art: the style's own accent.
+        else pageAccents.lastOrNull()?.second ?: playingAccent ?: palette.chosenAccent
     /** Text and icons drawn on top of the accent. */
     val onAccent: Color get() = if (accent.luminance() > 0.4f) Color.Black else Color.White
     val background: Color get() = palette.background
@@ -100,7 +100,9 @@ object Lux {
 fun LuxTheme(content: @Composable () -> Unit) {
     val prefs = app().prefs
     val settings by prefs.settings.collectAsState()
-    val palette = remember(settings.themeStyle, settings.colors) { LuxPalette(settings.themeStyle, settings.colors) }
+    val palette = remember(settings.themeStyle, settings.colors, settings.autoAccent) {
+        LuxPalette(settings.themeStyle, settings.colors, settings.autoAccent)
+    }
     SideEffect { Lux.use(palette) }     // (LuxTunesApp sets the saved one before the first frame)
     PlayingAccent()
 

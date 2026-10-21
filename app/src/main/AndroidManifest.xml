@@ -58,8 +58,19 @@
             android:foregroundServiceType="mediaPlayback">
             <intent-filter>
                 <action android:name="androidx.media3.session.MediaSessionService" />
+                <action android:name="android.intent.action.MEDIA_BUTTON" />
             </intent-filter>
         </service>
+        <!-- Settings > Headset/Bluetooth > High Priority Mode turns this on: headset
+             buttons can start LuxTunes even when it isn't playing. -->
+        <receiver
+            android:name="androidx.media3.session.MediaButtonReceiver"
+            android:enabled="false"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MEDIA_BUTTON" />
+            </intent-filter>
+        </receiver>
         <!-- Hands a downloaded update to Android's installer. -->
         <provider
             android:name="androidx.core.content.FileProvider"
