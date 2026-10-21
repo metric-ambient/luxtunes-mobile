@@ -102,7 +102,7 @@ fun SettingsScreen(nav: NavHostController) {
     val later = "Coming in a later version"
     LazyColumn(Modifier.fillMaxSize()) {
         item { ScreenTitle(nav, "Settings") }
-        item { SettingRow(Icons.Filled.Album, "Sound", "EQ, fade in/out, customize playback · $later") }
+        item { SettingRow(Icons.Filled.Album, "Sound", "Equalizer, crossfade, speed, ReplayGain") { nav.go(Routes.SETTINGS_SOUND) } }
         item { SettingRow(Icons.Filled.Build, "Operation", "Now Playing, playlists") { nav.go(Routes.SETTINGS_OPERATION) } }
         item { SettingRow(Icons.Filled.Folder, "Tabs", "Choose which tabs to see, and what a tap does") { nav.go(Routes.SETTINGS_TABS) } }
         item { SettingRow(Icons.Filled.Palette, "Theme", "${settings.themeStyle.label} · style and colors") { nav.go(Routes.SETTINGS_THEME) } }
@@ -333,7 +333,7 @@ fun OperationSettingsScreen(nav: NavHostController) {
 
 /** A setting with a title, a line about it and an on/off switch. */
 @Composable
-private fun ToggleRow(title: String, subtitle: String, checked: Boolean, onChange: (Boolean) -> Unit) {
+internal fun ToggleRow(title: String, subtitle: String, checked: Boolean, onChange: (Boolean) -> Unit) {
     Row(
         Modifier.fillMaxWidth().clickable { onChange(!checked) }.padding(horizontal = 16.dp, vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically,
@@ -467,7 +467,7 @@ private fun CheckRow(label: String, checked: Boolean, onChange: (Boolean) -> Uni
 }
 
 @Composable
-private fun ChoiceRow(label: String, value: String, onClick: () -> Unit) {
+internal fun ChoiceRow(label: String, value: String, onClick: () -> Unit) {
     Column(Modifier.fillMaxWidth().clickable(onClick = onClick).padding(horizontal = 16.dp, vertical = 12.dp)) {
         Text(label, color = Lux.text, fontSize = 18.sp)
         Text(value, color = Lux.dim, fontSize = 14.sp)

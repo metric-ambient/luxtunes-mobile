@@ -38,6 +38,12 @@ enum class SongSort(val label: String) {
 
 enum class GroupSort(val label: String) { NAME("Name"), ARTIST("Artist"), YEAR("Year"), SONGS("Number of songs") }
 
+/** How one song leads into the next. */
+enum class Transition(val label: String) { GAPLESS("Gapless"), CROSSFADE("Crossfade") }
+
+/** Loudness levelling from the files' ReplayGain tags. */
+enum class ReplayGain(val label: String) { OFF("Off"), SONG("Prefer Song Gain"), ALBUM("Prefer Album Gain") }
+
 /** The artist page's round play button: the last choice becomes its default. */
 enum class ArtistPlay(val label: String) {
     FROM_TOP("Play From Top"),
@@ -89,6 +95,16 @@ data class AppSettings(
     val songSort: SongSort = SongSort.NAME,
     val artistSort: GroupSort = GroupSort.NAME,
     val albumSort: GroupSort = GroupSort.NAME,
+    // Settings → Sound
+    val autoplay: Boolean = true,                // off: stop after every song
+    val transition: Transition = Transition.GAPLESS,
+    val crossfadeSeconds: Int = 5,               // 1-10
+    val musicSpeed: Float = 1f,                  // 0.5-3.0
+    val musicPitchFix: Boolean = true,           // keep the pitch when the speed changes
+    val spokenSpeed: Float = 1f,                 // audiobooks and podcasts
+    val spokenPitchFix: Boolean = true,
+    val replayGain: ReplayGain = ReplayGain.OFF,
+    val forceMono: Boolean = false,
     val launchNowPlaying: Boolean = true,        // starting a song opens Now Playing
     val smartAtEnd: Boolean = false,             // Playlists tab: smart playlists after the others
     val artistPlay: ArtistPlay = ArtistPlay.FROM_TOP,
@@ -133,6 +149,15 @@ class Prefs(context: Context) {
             songSort = enumOf(sp.getString("songSort", null), d.songSort),
             artistSort = enumOf(sp.getString("artistSort", null), d.artistSort),
             albumSort = enumOf(sp.getString("albumSort", null), d.albumSort),
+            autoplay = sp.getBoolean("autoplay", d.autoplay),
+            transition = enumOf(sp.getString("transition", null), d.transition),
+            crossfadeSeconds = sp.getInt("crossfadeSeconds", d.crossfadeSeconds).coerceIn(1, 10),
+            musicSpeed = sp.getFloat("musicSpeed", d.musicSpeed).coerceIn(0.5f, 3f),
+            musicPitchFix = sp.getBoolean("musicPitchFix", d.musicPitchFix),
+            spokenSpeed = sp.getFloat("spokenSpeed", d.spokenSpeed).coerceIn(0.5f, 3f),
+            spokenPitchFix = sp.getBoolean("spokenPitchFix", d.spokenPitchFix),
+            replayGain = enumOf(sp.getString("replayGain", null), d.replayGain),
+            forceMono = sp.getBoolean("forceMono", d.forceMono),
             launchNowPlaying = sp.getBoolean("launchNowPlaying", d.launchNowPlaying),
             smartAtEnd = sp.getBoolean("smartAtEnd", d.smartAtEnd),
             artistPlay = enumOf(sp.getString("artistPlay", null), d.artistPlay),
@@ -175,6 +200,15 @@ class Prefs(context: Context) {
             .putString("songSort", s.songSort.name)
             .putString("artistSort", s.artistSort.name)
             .putString("albumSort", s.albumSort.name)
+            .putBoolean("autoplay", s.autoplay)
+            .putString("transition", s.transition.name)
+            .putInt("crossfadeSeconds", s.crossfadeSeconds)
+            .putFloat("musicSpeed", s.musicSpeed)
+            .putBoolean("musicPitchFix", s.musicPitchFix)
+            .putFloat("spokenSpeed", s.spokenSpeed)
+            .putBoolean("spokenPitchFix", s.spokenPitchFix)
+            .putString("replayGain", s.replayGain.name)
+            .putBoolean("forceMono", s.forceMono)
             .putBoolean("launchNowPlaying", s.launchNowPlaying)
             .putBoolean("smartAtEnd", s.smartAtEnd)
             .putString("artistPlay", s.artistPlay.name)

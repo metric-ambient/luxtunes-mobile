@@ -10,6 +10,8 @@ import androidx.media3.common.MediaMetadata
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -140,7 +142,18 @@ class Repository(private val context: Context, private val prefs: Prefs) {
 
     fun recordPlay(id: String) = change(id) { it.played(System.currentTimeMillis()) }
     fun recordSkip(id: String) = change(id) { it.skipped(System.currentTimeMillis()) }
-    fun setRating(id: String, rating: Int) = change(id) { it.rated(rating) }
+    private val _ratingsNow = MutableStateFlow<Map<String, Int>>(emptyMap())
+
+    /**
+     * Ratings just tapped, for showing straight away: rebuilding the whole library
+     * (sorting, albums, smart playlists) to show one new rating takes a moment.
+     */
+    val ratingsNow: StateFlow<Map<String, Int>> = _ratingsNow.asStateFlow()
+
+    fun setRating(id: String, rating: Int) {
+        _ratingsNow.value = _ratingsNow.value + (id to rating.coerceIn(0, 100))
+        change(id) { it.rated(rating) }
+    }
 
     private fun change(id: String, how: (PendingEntry) -> PendingEntry) {
         scope.launch {
@@ -148,10 +161,30 @@ class Repository(private val context: Context, private val prefs: Prefs) {
                 ensureLoaded()
                 val updated = how(pending[id] ?: PendingEntry(id))
                 pending[id] = updated
-                db.savePending(listOf(updated))
+                db.savePending(listOf(updated))      // safe straight away
+                catchUpSoon()
+            }
+        }
+    }
+
+    private var catchUp: Job? = null
+
+    /**
+     * Write changes.json and rebuild what the screens show, once things go quiet
+     * for a moment: several taps in a row cost one rebuild, not one each.
+     * (Called with `lock` held.)
+     */
+    private fun catchUpSoon() {
+        catchUp?.cancel()
+        catchUp = scope.launch {
+            delay(400)
+            lock.withLock {
+                val shown = _ratingsNow.value
                 val folder = _state.value.folder
                 if (folder != null) writeChangesFileSafely(folder)
                 publish(folder, _state.value.message)
+                // The library has these ratings now (keep any tapped meanwhile).
+                _ratingsNow.value = _ratingsNow.value.filter { (k, v) -> shown[k] != v }
             }
         }
     }
@@ -166,7 +199,63 @@ class Repository(private val context: Context, private val prefs: Prefs) {
         libraryTracks = db.loadTracks()
         pending = db.loadPending().toMutableMap()
         edits = db.loadEdits().associateBy { it.id }.toMutableMap()
+        refreshEqualizer()
         loadedFromDb = true
+    }
+
+    // ---- The equalizer ------------------------------------------------------------------
+    // LuxTunes sends its equalizer in library.db ("eq_library"). Changes made on the
+    // phone ("eq_phone") win until LuxTunes has taken them: eq_state goes
+    // new → written (in changes.json) → delivered (LuxTunes read the file) → "" once
+    // a library.db arrives from a LuxTunes that applies them (info equalizer_from_phone).
+    // A LuxTunes that doesn't yet is sent them again, so they aren't lost.
+
+    private val _equalizer = MutableStateFlow(EqSettings())
+    val equalizer: StateFlow<EqSettings> = _equalizer.asStateFlow()
+    private val _equalizerChangedHere = MutableStateFlow(false)
+    /** The phone's equalizer differs from the computer's until LuxTunes takes it. */
+    val equalizerChangedHere: StateFlow<Boolean> = _equalizerChangedHere.asStateFlow()
+
+    private fun eqFrom(json: String?): EqSettings? =
+        json?.let { runCatching { EqSettings.fromJson(org.json.JSONObject(it)) }.getOrNull() }
+
+    private fun refreshEqualizer() {
+        val changed = !db.meta("eq_state").isNullOrEmpty()
+        val phone = if (changed) eqFrom(db.meta("eq_phone")) else null
+        _equalizer.value = phone ?: eqFrom(db.meta("eq_library")) ?: EqSettings()
+        _equalizerChangedHere.value = phone != null
+    }
+
+    private var eqSave: Job? = null
+
+    /** A change on the phone: heard at once, saved and sent to LuxTunes when the sliders settle. */
+    fun setEqualizer(e: EqSettings) {
+        _equalizer.value = e
+        _equalizerChangedHere.value = true
+        eqSave?.cancel()
+        eqSave = scope.launch {
+            delay(300)
+            lock.withLock {
+                ensureLoaded()
+                db.setMeta("eq_phone", e.toJson().toString())
+                db.setMeta("eq_state", "new")
+                catchUpSoon()
+            }
+        }
+    }
+
+    /** Drop the phone's changes and use the computer's equalizer again. */
+    fun useComputerEqualizer() {
+        eqSave?.cancel()
+        scope.launch {
+            lock.withLock {
+                ensureLoaded()
+                db.setMeta("eq_phone", null)
+                db.setMeta("eq_state", null)
+                refreshEqualizer()
+                catchUpSoon()
+            }
+        }
     }
 
     private fun importIfNew(folder: File) {
@@ -203,6 +292,17 @@ class Repository(private val context: Context, private val prefs: Prefs) {
             }
             db.dropDeliveredEdits()
             edits = db.loadEdits().associateBy { it.id }.toMutableMap()
+            // The computer's equalizer; the phone's changes stay until LuxTunes has applied them.
+            db.setMeta("eq_library", runCatching { db.readEqualizer(copy, info) }.getOrNull()?.toJson()?.toString())
+            if (db.meta("eq_state") == "delivered") {
+                if (info["equalizer_from_phone"] == "1") {
+                    db.setMeta("eq_state", null)
+                    db.setMeta("eq_phone", null)
+                } else {
+                    db.setMeta("eq_state", "new")
+                }
+            }
+            refreshEqualizer()
             db.setMeta("format_version", info["format_version"])
             db.setMeta("library_id", newId)
             db.setMeta("library_name", info["library_name"])
@@ -245,6 +345,7 @@ class Repository(private val context: Context, private val prefs: Prefs) {
         val arrived = edits.values.filter { it.state == PlaylistEdit.WRITTEN && it.id.uppercase() !in remainder.playlists }
         db.setEditStates(arrived.map { it.id }, PlaylistEdit.DELIVERED)
         for (e in arrived) edits[e.id] = e.copy(state = PlaylistEdit.DELIVERED)
+        if (db.meta("eq_state") == "written") db.setMeta("eq_state", "delivered")
         db.setMeta("changes_text", text)
         Log.i(TAG, "LuxTunes took the changes for ${sent.size} songs and ${arrived.size} playlists")
     }
@@ -268,9 +369,15 @@ class Repository(private val context: Context, private val prefs: Prefs) {
         // Playlists only go to a LuxTunes that understands them (format 2), else they wait.
         val v2 = (db.meta("format_version")?.toIntOrNull() ?: 1) >= 2
         val waiting = if (v2) edits.values.filter { it.state != PlaylistEdit.DELIVERED }.sortedBy { it.created } else emptyList()
-        val text = ChangesJson.build(entries, db.meta("library_id"), if (v2) waiting.map { ChangesJson.playlistEntry(it) } else null)
+        val eqState = db.meta("eq_state").orEmpty()
+        val eqJson = if (v2 && (eqState == "new" || eqState == "written")) db.meta("eq_phone") else null
+        val text = ChangesJson.build(
+            entries, db.meta("library_id"), if (v2) waiting.map { ChangesJson.playlistEntry(it) } else null, eqJson,
+        )
         val current = if (file.isFile) runCatching { file.readText() }.getOrNull() else null
-        if (entries.isEmpty() && waiting.isEmpty() && (current == null || ChangesJson.isEmptied(current))) return
+        if (entries.isEmpty() && waiting.isEmpty() && eqJson == null &&
+            (current == null || ChangesJson.isEmptied(current))
+        ) return
         if (text != current) {
             // Written in place (not via a renamed temp file), so the copy the
             // computer sees over USB stays the same file, just updated.
@@ -289,6 +396,7 @@ class Repository(private val context: Context, private val prefs: Prefs) {
             db.savePending(marked)
             for (e in marked) pending[e.id] = e
         }
+        if (eqJson != null && eqState == "new") db.setMeta("eq_state", "written")
         val newEdits = waiting.filter { it.state == PlaylistEdit.NEW }
         if (newEdits.isNotEmpty()) {
             db.setEditStates(newEdits.map { it.id }, PlaylistEdit.WRITTEN)

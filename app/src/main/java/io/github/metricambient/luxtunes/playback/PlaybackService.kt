@@ -1,29 +1,49 @@
 package io.github.metricambient.luxtunes.playback
 
 import android.app.PendingIntent
+import android.content.Context
 import android.content.Intent
 import android.os.Handler
 import android.os.Looper
+import android.os.SystemClock
 import androidx.media3.common.AudioAttributes
 import androidx.media3.common.C
 import androidx.media3.common.ForwardingPlayer
 import androidx.media3.common.MediaItem
+import androidx.media3.common.PlaybackParameters
 import androidx.media3.common.Player
 import androidx.media3.common.Tracks
+import androidx.media3.common.audio.AudioProcessor
+import androidx.media3.common.util.UnstableApi
+import androidx.media3.exoplayer.DefaultRenderersFactory
 import androidx.media3.exoplayer.ExoPlayer
+import androidx.media3.exoplayer.audio.AudioSink
+import androidx.media3.exoplayer.audio.DefaultAudioSink
 import androidx.media3.session.MediaSession
 import androidx.media3.session.MediaSessionService
 import com.google.common.util.concurrent.Futures
 import com.google.common.util.concurrent.ListenableFuture
 import io.github.metricambient.luxtunes.LuxTunesApp
+import io.github.metricambient.luxtunes.data.ReplayGain
+import io.github.metricambient.luxtunes.data.Track
+import io.github.metricambient.luxtunes.data.Transition
 import io.github.metricambient.luxtunes.ui.MainActivity
+import kotlinx.coroutines.MainScope
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.launch
+import kotlin.math.min
 
 /**
  * Plays music in the background, with the notification, lock-screen and
  * Bluetooth controls Media3 provides. Also counts plays and skips the way
  * LuxTunes does on the computer: a play when a song ends, a skip when Next is
  * pressed in its first 20 seconds.
+ *
+ * Settings → Sound is applied here: the equalizer, ReplayGain and mono (in the
+ * audio processor), speed, autoplay, and crossfades between songs.
  */
+@androidx.annotation.OptIn(UnstableApi::class)
 class PlaybackService : MediaSessionService() {
     private var session: MediaSession? = null
     private lateinit var exo: ExoPlayer
@@ -39,22 +59,44 @@ class PlaybackService : MediaSessionService() {
         }
     }
 
-    private val repository get() = (application as LuxTunesApp).repository
+    private val app get() = application as LuxTunesApp
+    private val repository get() = app.repository
+    private val scope = MainScope()
+    private val processor = LuxAudioProcessor()
 
-    override fun onCreate() {
-        super.onCreate()
-        memory = PlaybackMemory(this)
-        exo = ExoPlayer.Builder(this)
+    /** A player whose sound goes through `audio`. Only the main one handles audio focus. */
+    private fun buildPlayer(audio: LuxAudioProcessor, main: Boolean): ExoPlayer {
+        val renderers = object : DefaultRenderersFactory(this) {
+            override fun buildAudioSink(
+                context: Context,
+                enableFloatOutput: Boolean,
+                enableAudioTrackPlaybackParams: Boolean,
+            ): AudioSink = DefaultAudioSink.Builder(context)
+                .setAudioProcessors(arrayOf<AudioProcessor>(audio))
+                .build()
+        }
+        return ExoPlayer.Builder(this, renderers)
             .setAudioAttributes(
                 AudioAttributes.Builder()
                     .setUsage(C.USAGE_MEDIA)
                     .setContentType(C.AUDIO_CONTENT_TYPE_MUSIC)
                     .build(),
-                /* handleAudioFocus = */ true,
+                /* handleAudioFocus = */ main,
             )
-            .setHandleAudioBecomingNoisy(true)       // pause when headphones are unplugged
+            .setHandleAudioBecomingNoisy(main)       // pause when headphones are unplugged
             .build()
+    }
+
+    override fun onCreate() {
+        super.onCreate()
+        memory = PlaybackMemory(this)
+        exo = buildPlayer(processor, main = true)
         exo.addListener(counter)
+        exo.addListener(sound)
+        // Settings → Sound and the equalizer: apply whenever either changes.
+        scope.launch {
+            app.prefs.settings.combine(repository.equalizer) { s, e -> s to e }.collect { applySound() }
+        }
 
         // Every "next" (app, notification, headset, car) passes through here.
         val player = object : ForwardingPlayer(exo) {
@@ -89,6 +131,8 @@ class PlaybackService : MediaSessionService() {
 
     override fun onDestroy() {
         handler.removeCallbacks(saveTicker)
+        endCrossfade()
+        scope.cancel()
         savePosition()
         session?.run {
             player.release()
@@ -162,6 +206,154 @@ class PlaybackService : MediaSessionService() {
             Futures.immediateFuture(
                 mediaItems.map { repository.mediaItem(it.mediaId) ?: it }.toMutableList()
             )
+    }
+
+    // ---- Settings → Sound -----------------------------------------------------------------
+
+    /** ReplayGain values read from each song file's tags (song, album), by song ID. */
+    private val gains = HashMap<String, ReplayGainTags.Gains>()
+
+    private fun trackOf(item: MediaItem?): Track? = item?.mediaId?.let { repository.track(it) }
+
+    /** What a song's sound goes through: its equalizer preset, ReplayGain and mono. */
+    private fun filterFor(t: Track?): SoundFilter.Settings {
+        val s = app.prefs.current
+        if (t == null) return SoundFilter.Settings(mono = s.forceMono)
+        // Video sound isn't filtered: on the computer it would drift out of step with the picture.
+        val eq = if (t.isVideo) null else repository.equalizer.value.forSong(t.raw["equalizer"] as? String)
+        val g = gains[t.id]
+        val gain = when (s.replayGain) {
+            ReplayGain.OFF -> null
+            ReplayGain.SONG -> g?.track ?: g?.album
+            ReplayGain.ALBUM -> g?.album ?: g?.track
+        }
+        return SoundFilter.Settings(eq, if (t.isVideo) 0.0 else gain ?: 0.0, s.forceMono)
+    }
+
+    /** LuxTunes' Volume Adjustment: -100…+100 % of the playing volume, never above full. */
+    private fun volumeFor(t: Track?): Float {
+        val adjust = (t?.raw?.get("volume_adjustment") as? Number)?.toFloat() ?: 0f
+        return (1f + adjust / 100f).coerceIn(0f, 1f)
+    }
+
+    private fun speedFor(t: Track?): PlaybackParameters {
+        val s = app.prefs.current
+        val spoken = t?.mediaKind == "audiobook" || t?.mediaKind == "podcast"
+        val speed = if (t?.isVideo == true) 1f else if (spoken) s.spokenSpeed else s.musicSpeed
+        val fix = if (spoken) s.spokenPitchFix else s.musicPitchFix
+        return PlaybackParameters(speed, if (fix) 1f else speed)
+    }
+
+    /** Apply everything for the song that's playing now. */
+    private fun applySound() {
+        val t = trackOf(exo.currentMediaItem)
+        processor.settings = filterFor(t)
+        exo.pauseAtEndOfMediaItems = !app.prefs.current.autoplay
+        val speed = speedFor(t)
+        if (exo.playbackParameters != speed) exo.playbackParameters = speed
+        if (fadeStart == 0L) exo.volume = volumeFor(t)
+    }
+
+    private val sound = object : Player.Listener {
+        override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
+            if (!startingFade) endCrossfade()          // the listener skipped or chose another song
+            if (reason == Player.MEDIA_ITEM_TRANSITION_REASON_AUTO) processor.songChanged()
+            applySound()
+        }
+
+        override fun onTracksChanged(tracks: Tracks) {
+            val id = exo.currentMediaItem?.mediaId ?: return
+            gains[id] = ReplayGainTags.find(tracks)
+            applySound()
+        }
+
+        override fun onIsPlayingChanged(isPlaying: Boolean) {
+            if (isPlaying) handler.post(crossfadeWatch) else if (!exo.playWhenReady) endCrossfade()
+        }
+
+        override fun onPositionDiscontinuity(oldPosition: Player.PositionInfo, newPosition: Player.PositionInfo, reason: Int) {
+            if (reason == Player.DISCONTINUITY_REASON_SEEK && !startingFade) endCrossfade()
+        }
+    }
+
+    // ---- Crossfade -----------------------------------------------------------------------
+    // Near the end of a song, a second player takes over its last seconds and fades
+    // them out, while the main player moves on to the next song and fades it in.
+
+    private var tail: ExoPlayer? = null
+    private val tailProcessor = LuxAudioProcessor()
+    private var fadeStart = 0L
+    private var fadeLength = 0L
+    private var tailVolume = 1f
+    private var startingFade = false
+
+    private val crossfadeWatch = object : Runnable {
+        override fun run() {
+            handler.removeCallbacks(this)
+            if (!exo.isPlaying) return
+            maybeStartCrossfade()
+            handler.postDelayed(this, 250)
+        }
+    }
+
+    private fun maybeStartCrossfade() {
+        val s = app.prefs.current
+        if (s.transition != Transition.CROSSFADE || !s.autoplay || fadeStart != 0L) return
+        if (exo.repeatMode == Player.REPEAT_MODE_ONE || !exo.hasNextMediaItem()) return
+        val duration = exo.duration
+        if (duration == C.TIME_UNSET || duration <= 0) return
+        val now = exo.currentMediaItem ?: return
+        val next = exo.getMediaItemAt(exo.nextMediaItemIndex)
+        if (trackOf(now)?.isVideo == true || trackOf(next)?.isVideo == true) return
+        val left = ((duration - exo.currentPosition) / exo.playbackParameters.speed).toLong()
+        val wanted = s.crossfadeSeconds * 1000L
+        if (left > wanted || left < 400) return
+        startCrossfade(now, min(wanted, left))
+    }
+
+    private fun startCrossfade(item: MediaItem, length: Long) {
+        endCrossfade()
+        val t = buildPlayer(tailProcessor, main = false)
+        tailProcessor.settings = processor.settings
+        tailVolume = exo.volume
+        t.setMediaItem(item, exo.currentPosition)
+        t.playbackParameters = exo.playbackParameters
+        t.volume = tailVolume
+        t.prepare()
+        t.play()
+        tail = t
+        repository.recordPlay(item.mediaId)        // it played to its fade
+        fadeStart = SystemClock.uptimeMillis()
+        fadeLength = length.coerceAtLeast(1)
+        startingFade = true
+        try {
+            exo.volume = 0f
+            exo.seekToNextMediaItem()
+        } finally {
+            startingFade = false
+        }
+        handler.post(fadeTick)
+    }
+
+    private val fadeTick = object : Runnable {
+        override fun run() {
+            if (fadeStart == 0L) return
+            val p = ((SystemClock.uptimeMillis() - fadeStart).toFloat() / fadeLength).coerceIn(0f, 1f)
+            exo.volume = volumeFor(trackOf(exo.currentMediaItem)) * p
+            tail?.volume = tailVolume * (1f - p)
+            if (p >= 1f) endCrossfade() else handler.postDelayed(this, 40)
+        }
+    }
+
+    /** Stop any crossfade: the outgoing song stops, the new one plays at its own volume. */
+    private fun endCrossfade() {
+        handler.removeCallbacks(fadeTick)
+        tail?.release()
+        tail = null
+        if (fadeStart != 0L) {
+            fadeStart = 0L
+            exo.volume = volumeFor(trackOf(exo.currentMediaItem))
+        }
     }
 
     companion object {

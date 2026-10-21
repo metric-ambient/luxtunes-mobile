@@ -91,6 +91,8 @@ object Routes {
     const val SETTINGS_THEME = "settings/theme"
     const val SETTINGS_OPERATION = "settings/operation"
     const val SETTINGS_LIBRARY = "settings/library"
+    const val SETTINGS_SOUND = "settings/sound"
+    const val SETTINGS_EQUALIZER = "settings/equalizer"
     fun album(key: String) = "album/${Uri.encode(key)}"
     /** An album artist's page. */
     fun artist(name: String) = group("artist", name)
@@ -175,6 +177,8 @@ private fun MainScreens() {
                 screen(nav, Routes.SETTINGS_THEME) { ThemeSettingsScreen(nav) }
                 screen(nav, Routes.SETTINGS_OPERATION) { OperationSettingsScreen(nav) }
                 screen(nav, Routes.SETTINGS_LIBRARY) { LibrarySettingsScreen(nav) }
+                screen(nav, Routes.SETTINGS_SOUND) { SoundSettingsScreen(nav) }
+                screen(nav, Routes.SETTINGS_EQUALIZER) { EqualizerScreen(nav) }
                 screen(nav, Routes.SEARCH) { SearchScreen(nav) }
                 screen(nav, Routes.QUEUE) { QueueScreen(nav) }
                 screen(nav, "album/{key}", listOf(navArgument("key") { type = NavType.StringType })) {

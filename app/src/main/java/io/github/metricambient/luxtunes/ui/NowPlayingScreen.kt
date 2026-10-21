@@ -71,6 +71,7 @@ fun NowPlayingScreen(nav: NavHostController) {
     val library by app.repository.state.collectAsState()
     val state by app.player.state.collectAsState()
     val fileLyrics by app.repository.fileLyrics.collectAsState()
+    val ratingsNow by app.repository.ratingsNow.collectAsState()
     val track = state.currentId?.let { library.byId[it] }
     // A movie or TV episode belongs in the video screen.
     LaunchedEffect(track?.id) {
@@ -165,7 +166,12 @@ fun NowPlayingScreen(nav: NavHostController) {
                     Modifier.align(Alignment.BottomCenter).fillMaxWidth().background(Lux.shade).padding(vertical = 6.dp),
                     contentAlignment = Alignment.Center,
                 ) {
-                    StarRating(track.rating, track.ratingComputed, onRate = { app.repository.setRating(track.id, it) })
+                    // A tapped rating shows at once, before the library has caught up.
+                    val now = ratingsNow[track.id]
+                    StarRating(
+                        now ?: track.rating, if (now != null) false else track.ratingComputed,
+                        onRate = { app.repository.setRating(track.id, it) },
+                    )
                 }
             }
         }

@@ -60,9 +60,15 @@ object ChangesJson {
 
     /**
      * The whole file. Only songs with something to report are listed. With
-     * `playlists` (one JSON object each, see playlistEntry) it's version 2.
+     * `playlists` (one JSON object each, see playlistEntry) it's version 2, and can
+     * carry the phone's `equalizer` settings (a JSON object).
      */
-    fun build(entries: List<PendingEntry>, libraryId: String?, playlists: List<String>? = null): String {
+    fun build(
+        entries: List<PendingEntry>,
+        libraryId: String?,
+        playlists: List<String>? = null,
+        equalizer: String? = null,
+    ): String {
         val sb = StringBuilder()
         sb.append("{\"version\": ").append(if (playlists != null) VERSION_2 else VERSION)
         if (!libraryId.isNullOrEmpty()) sb.append(", \"library_id\": \"").append(clean(libraryId)).append('"')
@@ -89,6 +95,7 @@ object ChangesJson {
             sb.append(", \"playlists\": [")
             sb.append(playlists.joinToString(",") { "\n  $it" })
             sb.append(if (playlists.isEmpty()) "]" else "\n]")
+            if (equalizer != null) sb.append(", \"equalizer\": ").append(equalizer)
         }
         sb.append("}\n")
         return sb.toString()

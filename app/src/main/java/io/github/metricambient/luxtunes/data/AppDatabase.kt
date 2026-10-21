@@ -33,7 +33,7 @@ data class PlaylistEdit(
  * (`playlist_edits`). The copy is replaced whenever LuxTunes writes a new
  * library.db; the other two only shrink once LuxTunes has taken the changes.
  */
-class AppDatabase(context: Context) : SQLiteOpenHelper(context, "app.db", null, 3) {
+class AppDatabase(context: Context) : SQLiteOpenHelper(context, "app.db", null, 4) {
 
     override fun onCreate(db: SQLiteDatabase) {
         createLibraryTables(db)
@@ -58,6 +58,10 @@ class AppDatabase(context: Context) : SQLiteOpenHelper(context, "app.db", null, 
             db.delete("meta", "key = ?", arrayOf("imported_stamp"))
             createEditTable(db)
             if (oldVersion == 2) movePhonePlaylists(db)
+        } else if (oldVersion < 4) {
+            // LuxTunes 0.7.0: a song's own equalizer preset. Take library.db in again.
+            db.execSQL("ALTER TABLE tracks ADD COLUMN equalizer")
+            db.delete("meta", "key = ?", arrayOf("imported_stamp"))
         }
     }
 
@@ -170,6 +174,41 @@ class AppDatabase(context: Context) : SQLiteOpenHelper(context, "app.db", null, 
                 db.endTransaction()
             }
             return info
+        } finally {
+            src.close()
+        }
+    }
+
+    /**
+     * The equalizer LuxTunes sent (0.7.0 and later), or null for an older library.db:
+     * on/off and the chosen preset from `info`, the presets and the Manual values
+     * from `equalizer_presets`.
+     */
+    fun readEqualizer(source: File, info: Map<String, String>): EqSettings? {
+        val src = SQLiteDatabase.openDatabase(source.path, null, SQLiteDatabase.OPEN_READONLY)
+        try {
+            val has = src.rawQuery("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'equalizer_presets'", null)
+                .use { it.moveToFirst() }
+            if (!has) return null
+            val presets = ArrayList<EqPreset>()
+            var manual = EqPreset(Eq.MANUAL, 0.0, List(10) { 0.0 })
+            val cols = listOf("band_32", "band_64", "band_125", "band_250", "band_500",
+                "band_1k", "band_2k", "band_4k", "band_8k", "band_16k")
+            src.rawQuery("SELECT * FROM equalizer_presets ORDER BY position IS NULL, position", null).use { c ->
+                fun num(col: String): Double = c.getColumnIndex(col).let { if (it < 0 || c.isNull(it)) 0.0 else c.getDouble(it) }
+                while (c.moveToNext()) {
+                    val name = c.getString(c.getColumnIndexOrThrow("name")) ?: continue
+                    val p = EqPreset.of(name, num("preamp"), cols.map { num(it) })
+                    val pos = c.getColumnIndex("position")
+                    if (pos < 0 || c.isNull(pos)) manual = p.renamed(Eq.MANUAL) else presets += p
+                }
+            }
+            return EqSettings(
+                on = info["equalizer_on"] == "1",
+                chosen = info["equalizer_preset"]?.ifBlank { null } ?: Eq.MANUAL,
+                manual = manual,
+                presets = presets,
+            )
         } finally {
             src.close()
         }
@@ -408,6 +447,7 @@ class AppDatabase(context: Context) : SQLiteOpenHelper(context, "app.db", null, 
             "bookmarkable", "bookmark_time", "skip_when_shuffling", "start_time", "stop_time",
             "volume_adjustment", "show", "season", "episode_number", "sort_name", "sort_artist",
             "sort_album", "sort_album_artist", "sort_composer", "enabled", "bpm", "kind", "purchased",
+            "equalizer",
         )
     }
 }

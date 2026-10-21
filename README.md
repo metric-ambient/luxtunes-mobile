@@ -29,6 +29,9 @@ syncs to your phone. Plays, skips and ratings go back to LuxTunes at the next sy
   next sync (LuxTunes 0.6.0 or newer). Smart playlists use LuxTunes' own rules and stay
   up to date on the phone.
 - Movies and TV shows play full screen.
+- Settings → Sound: LuxTunes' ten-band equalizer with the same presets (synced with the
+  computer), crossfade or gapless, autoplay, playback speed for music and for
+  audiobooks/podcasts, ReplayGain and mono.
 - Dark, Material and Light themes with your own colors, or an accent color taken from the
   album art.
 - Tabs for artists, album artists, genres, composers, podcasts, audiobooks, movies and TV
