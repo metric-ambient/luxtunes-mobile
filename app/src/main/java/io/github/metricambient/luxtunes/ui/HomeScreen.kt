@@ -403,25 +403,29 @@ private fun PlaylistsTab(nav: NavHostController, library: LibraryState, settings
                 leading = optional(icons) { PlaylistIcon(Icons.AutoMirrored.Filled.PlaylistPlay, Lux.text) },
             )
         }
-        item {
-            ListRow(
-                title = "Create Smart Playlist",
-                subtitle = null,
-                onClick = { nav.go(Routes.SMART_NEW) },
-                leading = optional(icons) { PlaylistIcon(Icons.Filled.Bolt, Lux.accent) },
-            )
+        // Smart playlists, then the others (or the other way round: Settings → Operation),
+        // each group under its own Create button.
+        val groups = if (settings.smartAtEnd) listOf(false, true) else listOf(true, false)
+        for (smart in groups) {
+            item(key = if (smart) "create-smart" else "create") {
+                if (smart) {
+                    ListRow(
+                        title = "Create Smart Playlist",
+                        subtitle = null,
+                        onClick = { nav.go(Routes.SMART_NEW) },
+                        leading = optional(icons) { PlaylistIcon(Icons.Filled.Bolt, Lux.accent) },
+                    )
+                } else {
+                    ListRow(
+                        title = "Create Playlist",
+                        subtitle = null,
+                        onClick = { Dialogs.show(DialogRequest.NewPlaylist(emptyList())) },
+                        leading = optional(icons) { PlaylistIcon(Icons.Filled.Add, Lux.accent) },
+                    )
+                }
+            }
+            items(lists.filter { it.isSmart == smart }, key = { it.id }) { p -> PlaylistRow(p, nav, library, settings) }
         }
-        // Smart playlists first, then Create Playlist, then the others.
-        items(lists.filter { it.isSmart }, key = { it.id }) { p -> PlaylistRow(p, nav, library, settings) }
-        item {
-            ListRow(
-                title = "Create Playlist",
-                subtitle = null,
-                onClick = { Dialogs.show(DialogRequest.NewPlaylist(emptyList())) },
-                leading = optional(icons) { PlaylistIcon(Icons.Filled.Add, Lux.accent) },
-            )
-        }
-        items(lists.filter { !it.isSmart }, key = { it.id }) { p -> PlaylistRow(p, nav, library, settings) }
     }
 }
 

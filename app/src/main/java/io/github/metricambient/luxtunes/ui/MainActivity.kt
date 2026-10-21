@@ -11,7 +11,12 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.AnimatedContentTransitionScope
+import androidx.compose.animation.EnterTransition
+import androidx.compose.animation.ExitTransition
 import androidx.compose.animation.core.tween
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.ui.input.pointer.PointerEventPass
@@ -83,6 +88,7 @@ object Routes {
     const val SETTINGS_TABS = "settings/tabs"
     const val SETTINGS_ABOUT = "settings/about"
     const val SETTINGS_THEME = "settings/theme"
+    const val SETTINGS_OPERATION = "settings/operation"
     fun album(key: String) = "album/${Uri.encode(key)}"
     /** An album artist's page. */
     fun artist(name: String) = group("artist", name)
@@ -140,13 +146,23 @@ private fun MainScreens() {
                 nav,
                 startDestination = Routes.HOME,
                 // Quick fades (the default is 0.7 s, long enough to tap the old screen by mistake).
+                // Now Playing slides up over the screen below, which stays put meanwhile.
                 enterTransition = { fadeIn(tween(150)) },
-                exitTransition = { fadeOut(tween(150)) },
-                popEnterTransition = { fadeIn(tween(150)) },
+                exitTransition = {
+                    if (targetState.destination.route == Routes.NOW) ExitTransition.KeepUntilTransitionsFinished
+                    else fadeOut(tween(150))
+                },
+                popEnterTransition = {
+                    if (initialState.destination.route == Routes.NOW) EnterTransition.None else fadeIn(tween(150))
+                },
                 popExitTransition = { fadeOut(tween(150)) },
             ) {
                 screen(nav, Routes.HOME) { HomeScreen(nav) }
-                screen(nav, Routes.NOW) { NowPlayingScreen(nav) }
+                screen(
+                    nav, Routes.NOW,
+                    enter = { slideInVertically(tween(300)) { it } },
+                    popExit = { slideOutVertically(tween(300)) { it } },
+                ) { NowPlayingScreen(nav) }
                 screen(nav, Routes.SETTINGS) { SettingsScreen(nav) }
                 screen(nav, Routes.SETTINGS_TABS) { TabsSettingsScreen(nav) }
                 screen(nav, Routes.SMART_NEW) { SmartEditorScreen(nav, null) }
@@ -155,6 +171,7 @@ private fun MainScreens() {
                 }
                 screen(nav, Routes.SETTINGS_ABOUT) { AboutScreen(nav) }
                 screen(nav, Routes.SETTINGS_THEME) { ThemeSettingsScreen(nav) }
+                screen(nav, Routes.SETTINGS_OPERATION) { OperationSettingsScreen(nav) }
                 screen(nav, Routes.SEARCH) { SearchScreen(nav) }
                 screen(nav, Routes.QUEUE) { QueueScreen(nav) }
                 screen(nav, "album/{key}", listOf(navArgument("key") { type = NavType.StringType })) {
@@ -186,8 +203,10 @@ private fun NavGraphBuilder.screen(
     nav: NavHostController,
     route: String,
     arguments: List<NamedNavArgument> = emptyList(),
+    enter: (AnimatedContentTransitionScope<NavBackStackEntry>.() -> EnterTransition)? = null,
+    popExit: (AnimatedContentTransitionScope<NavBackStackEntry>.() -> ExitTransition)? = null,
     content: @Composable (NavBackStackEntry) -> Unit,
-) = composable(route, arguments) { entry ->
+) = composable(route, arguments, enterTransition = enter, popExitTransition = popExit) { entry ->
     Box(Modifier.fillMaxSize().onlyWhenCurrent(nav, entry)) { content(entry) }
 }
 

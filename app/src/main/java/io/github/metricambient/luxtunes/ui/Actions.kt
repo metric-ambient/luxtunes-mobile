@@ -24,12 +24,17 @@ fun tapSong(app: LuxTunesApp, nav: NavHostController, list: List<Track>, index: 
         SongAction.PLAY_ONE -> app.player.play(listOf(t))
         SongAction.SHUFFLE -> app.player.shuffleFrom(list, t)
     }
-    nav.go(if (t.isVideo) Routes.VIDEO else Routes.NOW)
+    showPlayer(nav, listOf(t))
 }
 
-/** After starting playback: Now Playing (or the video screen for movies and TV). */
+/**
+ * After starting playback: Now Playing (or the video screen for movies and TV).
+ * With Settings → Operation → Launch Now Playing View off, music stays where you are.
+ */
 fun showPlayer(nav: NavHostController, tracks: List<Track>) {
-    nav.go(if (tracks.firstOrNull()?.isVideo == true) Routes.VIDEO else Routes.NOW)
+    val video = tracks.firstOrNull()?.isVideo == true
+    val app = nav.context.applicationContext as LuxTunesApp
+    if (video) nav.go(Routes.VIDEO) else if (app.prefs.current.launchNowPlaying) nav.go(Routes.NOW)
 }
 
 /** Movies and TV episodes: just this one (or the season from here), in the video screen. */
@@ -44,10 +49,10 @@ fun playGroup(app: LuxTunesApp, nav: NavHostController, tracks: List<Track>, act
     when (action) {
         GroupAction.VIEW, GroupAction.PLAY -> app.player.play(tracks)
         GroupAction.SHUFFLE -> app.player.shuffle(tracks)
-        GroupAction.SHUFFLE_ALBUMS -> app.player.play(shuffleGroups(tracks) { it.albumKey })
-        GroupAction.SHUFFLE_ARTISTS -> app.player.play(shuffleGroups(tracks) { it.albumArtist.lowercase() })
+        GroupAction.SHUFFLE_ALBUMS -> app.player.playShuffled(shuffleGroups(tracks) { it.albumKey }, tracks)
+        GroupAction.SHUFFLE_ARTISTS -> app.player.playShuffled(shuffleGroups(tracks) { it.albumArtist.lowercase() }, tracks)
     }
-    nav.go(if (tracks.first().isVideo) Routes.VIDEO else Routes.NOW)
+    showPlayer(nav, tracks)
 }
 
 /** A tap on an artist, album or playlist: open it, or play it (Settings → Tabs). */
@@ -60,7 +65,7 @@ fun tapGroup(app: LuxTunesApp, nav: NavHostController, tracks: List<Track>, acti
 fun songMenu(t: Track, nav: NavHostController, extra: Menu = emptyList()): Menu {
     val app = app()
     return listOf(
-        "Play" to { app.player.play(listOf(t)); nav.go(if (t.isVideo) Routes.VIDEO else Routes.NOW) },
+        "Play" to { app.player.play(listOf(t)); showPlayer(nav, listOf(t)) },
         "Add to Queue" to { app.player.addToQueue(listOf(t)) },
         "Add to End of Queue" to { app.player.addToEnd(listOf(t)) },
         "Add to playlist…" to { Dialogs.show(DialogRequest.AddToPlaylist(listOf(t.id))) },

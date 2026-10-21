@@ -86,8 +86,8 @@ private fun LazyListScope.pageHeader(
                     Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back", tint = Lux.text)
                 }
                 Spacer(Modifier.weight(1f))
-                IconButton(onClick = { player.addToQueue(tracks) }) {
-                    Icon(Icons.AutoMirrored.Filled.PlaylistAdd, "Add to Queue", tint = Lux.text)
+                IconButton(onClick = { Dialogs.show(DialogRequest.AddToPlaylist(tracks.map { it.id })) }) {
+                    Icon(Icons.AutoMirrored.Filled.PlaylistAdd, "Add to Playlist", tint = Lux.text)
                 }
                 IconButton(onClick = { player.shuffle(tracks); showPlayer(nav, tracks) }) {
                     Icon(Icons.Filled.Shuffle, "Shuffle", tint = Lux.text)
@@ -145,8 +145,9 @@ fun AlbumScreen(nav: NavHostController, key: String) {
     val playerState by app.player.state.collectAsState()
     val album = library.albumByKey[key] ?: return Missing(nav, "album")
     PageAccent(album.artTrack)
+    val menu = groupMenu(album.tracks, nav)
     LazyColumn(Modifier.fillMaxSize()) {
-        pageHeader(nav, album.artTrack, summaryOf(album.tracks, album.year), album.tracks)
+        pageHeader(nav, album.artTrack, summaryOf(album.tracks, album.year), album.tracks, menu)
         item { Spacer(Modifier.height(16.dp)) }
         itemsIndexed(album.tracks, key = { _, t -> t.id }) { i, t ->
             SongRow(
@@ -248,7 +249,7 @@ private fun playArtist(app: LuxTunesApp, nav: NavHostController, tracks: List<Tr
     if (tracks.isEmpty()) return
     when (how) {
         ArtistPlay.FROM_TOP -> app.player.play(tracks)
-        ArtistPlay.SHUFFLE_ALBUMS -> app.player.play(shuffleGroups(tracks) { it.albumKey })
+        ArtistPlay.SHUFFLE_ALBUMS -> app.player.playShuffled(shuffleGroups(tracks) { it.albumKey }, tracks)
         ArtistPlay.SHUFFLE_SONGS -> app.player.shuffle(tracks)
     }
     showPlayer(nav, tracks)

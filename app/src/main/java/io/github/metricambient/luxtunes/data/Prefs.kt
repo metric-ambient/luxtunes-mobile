@@ -89,6 +89,8 @@ data class AppSettings(
     val songSort: SongSort = SongSort.NAME,
     val artistSort: GroupSort = GroupSort.NAME,
     val albumSort: GroupSort = GroupSort.NAME,
+    val launchNowPlaying: Boolean = true,        // starting a song opens Now Playing
+    val smartAtEnd: Boolean = false,             // Playlists tab: smart playlists after the others
     val artistPlay: ArtistPlay = ArtistPlay.FROM_TOP,
     val artistSongs: Boolean = false,            // artist pages: one list of songs, not albums
     val themeStyle: ThemeStyle = ThemeStyle.DARK,
@@ -131,6 +133,8 @@ class Prefs(context: Context) {
             songSort = enumOf(sp.getString("songSort", null), d.songSort),
             artistSort = enumOf(sp.getString("artistSort", null), d.artistSort),
             albumSort = enumOf(sp.getString("albumSort", null), d.albumSort),
+            launchNowPlaying = sp.getBoolean("launchNowPlaying", d.launchNowPlaying),
+            smartAtEnd = sp.getBoolean("smartAtEnd", d.smartAtEnd),
             artistPlay = enumOf(sp.getString("artistPlay", null), d.artistPlay),
             artistSongs = sp.getBoolean("artistSongs", d.artistSongs),
             themeStyle = enumOf(sp.getString("themeStyle", null), d.themeStyle),
@@ -171,6 +175,8 @@ class Prefs(context: Context) {
             .putString("songSort", s.songSort.name)
             .putString("artistSort", s.artistSort.name)
             .putString("albumSort", s.albumSort.name)
+            .putBoolean("launchNowPlaying", s.launchNowPlaying)
+            .putBoolean("smartAtEnd", s.smartAtEnd)
             .putString("artistPlay", s.artistPlay.name)
             .putBoolean("artistSongs", s.artistSongs)
             .putString("themeStyle", s.themeStyle.name)

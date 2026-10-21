@@ -31,6 +31,8 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
+import androidx.compose.material3.Switch
+import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -99,7 +101,7 @@ fun SettingsScreen(nav: NavHostController) {
     LazyColumn(Modifier.fillMaxSize()) {
         item { ScreenTitle(nav, "Settings") }
         item { SettingRow(Icons.Filled.Album, "Sound", "EQ, fade in/out, customize playback · $later") }
-        item { SettingRow(Icons.Filled.Build, "Operation", "Lock screen, font, shuffle… · $later") }
+        item { SettingRow(Icons.Filled.Build, "Operation", "Now Playing, playlists") { nav.go(Routes.SETTINGS_OPERATION) } }
         item { SettingRow(Icons.Filled.Folder, "Tabs", "Choose which tabs to see, and what a tap does") { nav.go(Routes.SETTINGS_TABS) } }
         item { SettingRow(Icons.Filled.Palette, "Theme", "${settings.themeStyle.label} · style and colors") { nav.go(Routes.SETTINGS_THEME) } }
         item { SettingRow(Icons.Filled.Headphones, "Headset/Bluetooth", "Set volume on connect and more · $later") }
@@ -264,6 +266,49 @@ private fun UpdateRow() {
             title = { Text("Check for Updates") },
             text = { Text(s.message) },
             confirmButton = { TextButton(onClick = close) { Text("OK") } },
+        )
+    }
+}
+
+// ---- Operation ------------------------------------------------------------------------------
+
+@Composable
+fun OperationSettingsScreen(nav: NavHostController) {
+    val prefs = app().prefs
+    val s by prefs.settings.collectAsState()
+    Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
+        ScreenTitle(nav, "Operation")
+        ToggleRow(
+            "Launch Now Playing View",
+            "Starting a song opens Now Playing. Off: you stay where you are and the bar at the bottom shows the song.",
+            s.launchNowPlaying,
+        ) { on -> prefs.update { it.copy(launchNowPlaying = on) } }
+        ToggleRow(
+            "Smart Playlists at end of list",
+            "In the Playlists tab, show smart playlists after your other playlists.",
+            s.smartAtEnd,
+        ) { on -> prefs.update { it.copy(smartAtEnd = on) } }
+    }
+}
+
+/** A setting with a title, a line about it and an on/off switch. */
+@Composable
+private fun ToggleRow(title: String, subtitle: String, checked: Boolean, onChange: (Boolean) -> Unit) {
+    Row(
+        Modifier.fillMaxWidth().clickable { onChange(!checked) }.padding(horizontal = 16.dp, vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Column(Modifier.weight(1f).padding(end = 12.dp)) {
+            Text(title, color = Lux.text, fontSize = 18.sp)
+            Text(subtitle, color = Lux.dim, fontSize = 14.sp)
+        }
+        Switch(
+            checked = checked,
+            onCheckedChange = onChange,
+            colors = SwitchDefaults.colors(
+                checkedThumbColor = Lux.onAccent, checkedTrackColor = Lux.accent,
+                uncheckedThumbColor = Lux.dim, uncheckedTrackColor = Lux.panel, uncheckedBorderColor = Lux.dim,
+            ),
         )
     }
 }

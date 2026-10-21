@@ -87,7 +87,8 @@ class PlayerConnection(private val context: Context) {
             }
             val position = if (tracks[index].id == saved.currentId) saved.positionMs else 0L
             c.setMediaItems(tracks.map { repository.requestItem(it) }, index, position)
-            c.shuffleModeEnabled = saved.shuffle
+            c.shuffleModeEnabled = false              // shuffle is ours (see "Shuffle" below)
+            loadShuffle()
             c.repeatMode = saved.repeatMode
             c.prepare()
         }
@@ -121,7 +122,7 @@ class PlayerConnection(private val context: Context) {
             connected = true,
             currentId = c.currentMediaItem?.mediaId,
             isPlaying = c.wantsToPlay,
-            shuffle = c.shuffleModeEnabled,
+            shuffle = shuffled,
             repeatMode = c.repeatMode,
             queue = ids,
             queueIndex = c.currentMediaItemIndex,
@@ -138,10 +139,19 @@ class PlayerConnection(private val context: Context) {
 
     // ---- Commands --------------------------------------------------------------------------
 
-    /** Play these songs in this order, starting with the one at `start`. */
-    fun play(tracks: List<Track>, start: Int = 0) {
+    /** Play these songs in this order, starting with the one at `start`. Shuffle goes off. */
+    fun play(tracks: List<Track>, start: Int = 0) = start(tracks, start, original = null)
+
+    /**
+     * Play `order`, a shuffled version of `original`, with the Shuffle button on;
+     * turning Shuffle off then goes back to `original`'s order.
+     */
+    fun playShuffled(order: List<Track>, original: List<Track>) = start(order, 0, original)
+
+    private fun start(tracks: List<Track>, start: Int, original: List<Track>?) {
         if (tracks.isEmpty()) return
         val items = tracks.map { repository.requestItem(it) }
+        setShuffle(original != null, original?.map { it.id }.orEmpty())
         withController { c ->
             c.shuffleModeEnabled = false
             upNextEnd = 0
@@ -152,11 +162,11 @@ class PlayerConnection(private val context: Context) {
     }
 
     /** Play in LuxTunes' spread-shuffle order (the same artist rarely twice in a row). */
-    fun shuffle(tracks: List<Track>) = play(spreadShuffle(tracks, key = ::artistKey))
+    fun shuffle(tracks: List<Track>) = playShuffled(spreadShuffle(tracks, key = ::artistKey), tracks)
 
     /** Play this list in random order, starting with `first`. */
     fun shuffleFrom(tracks: List<Track>, first: Track) =
-        play(listOf(first) + spreadShuffle(tracks.filter { it.id != first.id }, key = ::artistKey))
+        playShuffled(listOf(first) + spreadShuffle(tracks.filter { it.id != first.id }, key = ::artistKey), tracks)
 
     // Where the songs added with "Add to Queue" end, so the next ones go after them.
     private var upNextEnd = 0
@@ -180,6 +190,7 @@ class PlayerConnection(private val context: Context) {
                 upNextEnd = at + items.size
             }
         }
+        if (shuffled) setShuffle(true, unshuffled + tracks.map { it.id })
     }
 
     /** Add these songs at the very end of the play queue. */
@@ -189,6 +200,7 @@ class PlayerConnection(private val context: Context) {
             c.addMediaItems(items)
             if (c.playbackState == Player.STATE_IDLE) c.prepare()
         }
+        if (shuffled) setShuffle(true, unshuffled + tracks.map { it.id })
     }
 
     fun pause() = withController { it.pause() }
@@ -205,7 +217,65 @@ class PlayerConnection(private val context: Context) {
     fun previous() = withController { it.seekToPrevious() }       // restarts the song after 3 s
     fun seekTo(ms: Long) = withController { it.seekTo(ms) }
     fun skipToQueueItem(index: Int) = withController { it.seekToDefaultPosition(index); it.play() }
-    fun toggleShuffle() = withController { it.shuffleModeEnabled = !it.shuffleModeEnabled }
+
+    // ---- Shuffle --------------------------------------------------------------------------
+    // The app shuffles the list itself (LuxTunes' spread shuffle, or by albums), so the
+    // player's own shuffle mode stays off. `unshuffled` is the order to go back to.
+
+    private val shuffleMemory = context.getSharedPreferences("shuffle", Context.MODE_PRIVATE)
+    private var shuffled = false
+    private var unshuffled: List<String> = emptyList()
+
+    init { loadShuffle() }
+
+    private fun setShuffle(on: Boolean, original: List<String>) {
+        shuffled = on
+        unshuffled = if (on) original else emptyList()
+        shuffleMemory.edit()
+            .putBoolean("on", shuffled)
+            .putString("original", unshuffled.joinToString(","))
+            .apply()
+        update()
+    }
+
+    private fun loadShuffle() {
+        shuffled = shuffleMemory.getBoolean("on", false)
+        unshuffled = shuffleMemory.getString("original", null)?.split(',')?.filter { it.isNotBlank() }.orEmpty()
+        update()
+    }
+
+    /**
+     * Shuffle on: the current song keeps playing and everything else is shuffled after it.
+     * Shuffle off: back to the order from before shuffling, carrying on from this song.
+     */
+    fun toggleShuffle() = withController { c ->
+        val count = c.mediaItemCount
+        val now = c.currentMediaItemIndex
+        val ids = (0 until count).map { c.getMediaItemAt(it).mediaId }
+        if (count == 0 || now !in ids.indices) { setShuffle(!shuffled, ids); return@withController }
+        val library = repository.state.value
+        val currentId = ids[now]
+        val newOrder: List<String>
+        if (!shuffled) {
+            val rest = ids.filterIndexed { i, _ -> i != now }.mapNotNull { library.byId[it] }
+            newOrder = listOf(currentId) + spreadShuffle(rest, key = ::artistKey).map { it.id }
+            setShuffle(true, ids)
+        } else {
+            // Songs added while shuffled are already at the end of `unshuffled`.
+            val original = unshuffled.filter { library.byId[it] != null }.ifEmpty { ids }
+            newOrder = if (currentId in original) original else listOf(currentId) + original
+            setShuffle(false, emptyList())
+        }
+        // Swap everything around the playing song, so it doesn't stop.
+        val at = newOrder.indexOf(currentId)
+        val before = newOrder.take(at).mapNotNull { id -> library.byId[id]?.let { repository.requestItem(it) } }
+        val after = newOrder.drop(at + 1).mapNotNull { id -> library.byId[id]?.let { repository.requestItem(it) } }
+        if (now + 1 < count) c.removeMediaItems(now + 1, count)
+        if (now > 0) c.removeMediaItems(0, now)
+        c.addMediaItems(0, before)
+        c.addMediaItems(after)
+        upNextEnd = 0
+    }
 
     fun cycleRepeat() = withController {
         it.repeatMode = when (it.repeatMode) {
