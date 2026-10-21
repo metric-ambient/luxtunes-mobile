@@ -11,6 +11,14 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.ui.input.pointer.PointerEventPass
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.navigation.NamedNavArgument
+import androidx.navigation.NavBackStackEntry
+import androidx.navigation.NavGraphBuilder
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -128,30 +136,39 @@ private fun MainScreens() {
     val route = entry?.destination?.route
     Column(Modifier.fillMaxSize()) {
         Box(Modifier.weight(1f)) {
-            NavHost(nav, startDestination = Routes.HOME) {
-                composable(Routes.HOME) { HomeScreen(nav) }
-                composable(Routes.NOW) { NowPlayingScreen(nav) }
-                composable(Routes.SETTINGS) { SettingsScreen(nav) }
-                composable(Routes.SETTINGS_TABS) { TabsSettingsScreen(nav) }
-                composable(Routes.SMART_NEW) { SmartEditorScreen(nav, null) }
-                composable("smart/edit/{id}", listOf(navArgument("id") { type = NavType.StringType })) {
+            NavHost(
+                nav,
+                startDestination = Routes.HOME,
+                // Quick fades (the default is 0.7 s, long enough to tap the old screen by mistake).
+                enterTransition = { fadeIn(tween(150)) },
+                exitTransition = { fadeOut(tween(150)) },
+                popEnterTransition = { fadeIn(tween(150)) },
+                popExitTransition = { fadeOut(tween(150)) },
+            ) {
+                screen(nav, Routes.HOME) { HomeScreen(nav) }
+                screen(nav, Routes.NOW) { NowPlayingScreen(nav) }
+                screen(nav, Routes.SETTINGS) { SettingsScreen(nav) }
+                screen(nav, Routes.SETTINGS_TABS) { TabsSettingsScreen(nav) }
+                screen(nav, Routes.SMART_NEW) { SmartEditorScreen(nav, null) }
+                screen(nav, "smart/edit/{id}", listOf(navArgument("id") { type = NavType.StringType })) {
                     SmartEditorScreen(nav, it.arguments?.getString("id"))
                 }
-                composable(Routes.SETTINGS_ABOUT) { AboutScreen(nav) }
-                composable(Routes.SETTINGS_THEME) { ThemeSettingsScreen(nav) }
-                composable(Routes.SEARCH) { SearchScreen(nav) }
-                composable(Routes.QUEUE) { QueueScreen(nav) }
-                composable("album/{key}", listOf(navArgument("key") { type = NavType.StringType })) {
+                screen(nav, Routes.SETTINGS_ABOUT) { AboutScreen(nav) }
+                screen(nav, Routes.SETTINGS_THEME) { ThemeSettingsScreen(nav) }
+                screen(nav, Routes.SEARCH) { SearchScreen(nav) }
+                screen(nav, Routes.QUEUE) { QueueScreen(nav) }
+                screen(nav, "album/{key}", listOf(navArgument("key") { type = NavType.StringType })) {
                     AlbumScreen(nav, it.arguments?.getString("key").orEmpty())
                 }
-                composable(
+                screen(
+                    nav,
                     "group/{kind}/{name}",
                     listOf(navArgument("kind") { type = NavType.StringType }, navArgument("name") { type = NavType.StringType }),
                 ) {
                     GroupScreen(nav, it.arguments?.getString("kind").orEmpty(), it.arguments?.getString("name").orEmpty())
                 }
-                composable(Routes.VIDEO) { VideoScreen(nav) }
-                composable("playlist/{id}", listOf(navArgument("id") { type = NavType.StringType })) {
+                screen(nav, Routes.VIDEO) { VideoScreen(nav) }
+                screen(nav, "playlist/{id}", listOf(navArgument("id") { type = NavType.StringType })) {
                     PlaylistScreen(nav, it.arguments?.getString("id").orEmpty())
                 }
             }
@@ -160,6 +177,29 @@ private fun MainScreens() {
             route?.startsWith("smart/") != true
         ) {
             MiniPlayer(nav, showMenu = route == Routes.HOME)
+        }
+    }
+}
+
+/** A screen in the NavHost that only takes touches while it's the current one. */
+private fun NavGraphBuilder.screen(
+    nav: NavHostController,
+    route: String,
+    arguments: List<NamedNavArgument> = emptyList(),
+    content: @Composable (NavBackStackEntry) -> Unit,
+) = composable(route, arguments) { entry ->
+    Box(Modifier.fillMaxSize().onlyWhenCurrent(nav, entry)) { content(entry) }
+}
+
+/**
+ * Swallows touches on a screen that's on its way out (still fading after Back or
+ * after opening another screen), so a quick tap can't hit a song on it.
+ */
+private fun Modifier.onlyWhenCurrent(nav: NavHostController, entry: NavBackStackEntry) = pointerInput(entry) {
+    awaitPointerEventScope {
+        while (true) {
+            val event = awaitPointerEvent(PointerEventPass.Initial)
+            if (nav.currentBackStackEntry?.id != entry.id) event.changes.forEach { it.consume() }
         }
     }
 }

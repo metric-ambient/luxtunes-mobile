@@ -38,6 +38,13 @@ enum class SongSort(val label: String) {
 
 enum class GroupSort(val label: String) { NAME("Name"), ARTIST("Artist"), YEAR("Year"), SONGS("Number of songs") }
 
+/** The artist page's round play button: the last choice becomes its default. */
+enum class ArtistPlay(val label: String) {
+    FROM_TOP("Play From Top"),
+    SHUFFLE_ALBUMS("Shuffle By Albums"),
+    SHUFFLE_SONGS("Shuffle By Songs"),
+}
+
 /** The look of the app (Settings → Theme). */
 enum class ThemeStyle(val label: String) { DARK("Dark"), MATERIAL("Material"), LIGHT("Light") }
 
@@ -82,6 +89,8 @@ data class AppSettings(
     val songSort: SongSort = SongSort.NAME,
     val artistSort: GroupSort = GroupSort.NAME,
     val albumSort: GroupSort = GroupSort.NAME,
+    val artistPlay: ArtistPlay = ArtistPlay.FROM_TOP,
+    val artistSongs: Boolean = false,            // artist pages: one list of songs, not albums
     val themeStyle: ThemeStyle = ThemeStyle.DARK,
     // Each style keeps its own colors, so switching back and forth loses nothing.
     val themeColors: Map<ThemeStyle, ThemeColors> = ThemeStyle.entries.associateWith { ThemeColors.defaults(it) },
@@ -122,6 +131,8 @@ class Prefs(context: Context) {
             songSort = enumOf(sp.getString("songSort", null), d.songSort),
             artistSort = enumOf(sp.getString("artistSort", null), d.artistSort),
             albumSort = enumOf(sp.getString("albumSort", null), d.albumSort),
+            artistPlay = enumOf(sp.getString("artistPlay", null), d.artistPlay),
+            artistSongs = sp.getBoolean("artistSongs", d.artistSongs),
             themeStyle = enumOf(sp.getString("themeStyle", null), d.themeStyle),
             themeColors = ThemeStyle.entries.associateWith { style ->
                 val def = ThemeColors.defaults(style)
@@ -160,6 +171,8 @@ class Prefs(context: Context) {
             .putString("songSort", s.songSort.name)
             .putString("artistSort", s.artistSort.name)
             .putString("albumSort", s.albumSort.name)
+            .putString("artistPlay", s.artistPlay.name)
+            .putBoolean("artistSongs", s.artistSongs)
             .putString("themeStyle", s.themeStyle.name)
             .also { e ->
                 for ((style, c) in s.themeColors) {

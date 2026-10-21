@@ -182,7 +182,7 @@ private fun UpdateRow() {
                             val release = Updater.latest()
                             when {
                                 release == null -> UpdateStep.Failed(
-                                    "No release found. (Until the project's GitHub page is public, the app can't see its releases.)"
+                                    "No release found on GitHub yet."
                                 )
                                 release.build > installed -> UpdateStep.Found(release)
                                 else -> UpdateStep.UpToDate

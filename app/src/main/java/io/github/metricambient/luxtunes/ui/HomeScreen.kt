@@ -67,6 +67,7 @@ import io.github.metricambient.luxtunes.data.Artist
 import io.github.metricambient.luxtunes.data.GroupAction
 import io.github.metricambient.luxtunes.data.GroupSort
 import io.github.metricambient.luxtunes.data.LibraryState
+import io.github.metricambient.luxtunes.data.Playlist
 import io.github.metricambient.luxtunes.data.SongSort
 import io.github.metricambient.luxtunes.data.Track
 import io.github.metricambient.luxtunes.data.sortText
@@ -232,7 +233,7 @@ private fun SortItem(label: String, current: Boolean, onClick: () -> Unit) {
     )
 }
 
-/** The top bar in select mode: close, how many, add to Now Playing / playlist, delete. */
+/** The top bar in select mode: close, how many, add to queue / playlist, delete. */
 @Composable
 private fun SelectBar(count: Int, onClose: () -> Unit, onQueue: () -> Unit, onPlaylist: () -> Unit, onDelete: () -> Unit) {
     Row(
@@ -242,7 +243,7 @@ private fun SelectBar(count: Int, onClose: () -> Unit, onQueue: () -> Unit, onPl
         IconButton(onClick = onClose) { Icon(Icons.Filled.Close, "Done", tint = Lux.text) }
         Text("$count selected", color = Lux.text, fontSize = 18.sp, modifier = Modifier.weight(1f))
         IconButton(onClick = onQueue, enabled = count > 0) {
-            Icon(Icons.AutoMirrored.Filled.QueueMusic, "Add to Now Playing", tint = Lux.icon)
+            Icon(Icons.AutoMirrored.Filled.QueueMusic, "Add to Queue", tint = Lux.icon)
         }
         IconButton(onClick = onPlaylist, enabled = count > 0) {
             Icon(Icons.AutoMirrored.Filled.PlaylistAdd, "Add to playlist", tint = Lux.icon)
@@ -396,7 +397,7 @@ private fun PlaylistsTab(nav: NavHostController, library: LibraryState, settings
     LazyColumn(Modifier.fillMaxSize()) {
         item {
             ListRow(
-                title = "Now Playing",
+                title = "Play Queue - Up Next",
                 subtitle = plural(playerState.queue.size, "song"),
                 onClick = { nav.go(Routes.QUEUE) },
                 leading = optional(icons) { PlaylistIcon(Icons.AutoMirrored.Filled.PlaylistPlay, Lux.text) },
@@ -410,25 +411,8 @@ private fun PlaylistsTab(nav: NavHostController, library: LibraryState, settings
                 leading = optional(icons) { PlaylistIcon(Icons.Filled.Bolt, Lux.accent) },
             )
         }
-        items(lists, key = { it.id }) { p ->
-            val tracks = p.trackIds.mapNotNull { library.byId[it] }
-            ListRow(
-                title = p.name,
-                subtitle = when {
-                    p.isSmart -> "Smart playlist · "
-                    p.onPhone -> "Made on this phone · "
-                    else -> ""
-                } + plural(tracks.size, "song") + if (p.changed) " · not synced yet" else "",
-                onClick = { tapGroup(app, nav, tracks, settings.playlistAction, Routes.playlist(p.id)) },
-                leading = optional(icons) {
-                    PlaylistIcon(
-                        if (p.isSmart) Icons.Filled.Bolt else Icons.AutoMirrored.Filled.QueueMusic,
-                        if (p.isSmart) Lux.accent else Lux.text,
-                    )
-                },
-                menu = playlistMenu(p, nav),
-            )
-        }
+        // Smart playlists first, then Create Playlist, then the others.
+        items(lists.filter { it.isSmart }, key = { it.id }) { p -> PlaylistRow(p, nav, library, settings) }
         item {
             ListRow(
                 title = "Create Playlist",
@@ -437,7 +421,30 @@ private fun PlaylistsTab(nav: NavHostController, library: LibraryState, settings
                 leading = optional(icons) { PlaylistIcon(Icons.Filled.Add, Lux.accent) },
             )
         }
+        items(lists.filter { !it.isSmart }, key = { it.id }) { p -> PlaylistRow(p, nav, library, settings) }
     }
+}
+
+@Composable
+private fun PlaylistRow(p: Playlist, nav: NavHostController, library: LibraryState, settings: AppSettings) {
+    val app = app()
+    val tracks = p.trackIds.mapNotNull { library.byId[it] }
+    ListRow(
+        title = p.name,
+        subtitle = when {
+            p.isSmart -> "Smart playlist · "
+            p.onPhone -> "Made on this phone · "
+            else -> ""
+        } + plural(tracks.size, "song") + if (p.changed) " · not synced yet" else "",
+        onClick = { tapGroup(app, nav, tracks, settings.playlistAction, Routes.playlist(p.id)) },
+        leading = optional(settings.playlistIcons) {
+            PlaylistIcon(
+                if (p.isSmart) Icons.Filled.Bolt else Icons.AutoMirrored.Filled.QueueMusic,
+                if (p.isSmart) Lux.accent else Lux.text,
+            )
+        },
+        menu = playlistMenu(p, nav),
+    )
 }
 
 /** Podcasts (one row per show) or audiobooks (one per book); a tap opens its episodes or chapters. */

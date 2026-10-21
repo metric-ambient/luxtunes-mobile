@@ -29,10 +29,12 @@ syncs to your phone. Plays, skips and ratings go back to LuxTunes at the next sy
   next sync (LuxTunes 0.6.0 or newer). Smart playlists use LuxTunes' own rules and stay
   up to date on the phone.
 - Movies and TV shows play full screen.
+- Dark, Material and Light themes with your own colors, or an accent color taken from the
+  album art.
 - Tabs for artists, album artists, genres, composers, podcasts, audiobooks, movies and TV
   shows (choose them in Settings → Tabs), select mode, sorting, Get Info, and deleting songs from the
   phone (LuxTunes puts them back at the next sync if they're still chosen there).
-- Picks up where you left off: the Now Playing list, the song and the position.
+- Picks up where you left off: the play queue, the song and the position.
 - Goes online only when you ask it to (Settings → Check for Updates), and says so first.
   No Google services, so it also runs on de-Googled phones.
 

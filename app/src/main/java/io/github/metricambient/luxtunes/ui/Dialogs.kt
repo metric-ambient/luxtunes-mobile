@@ -88,7 +88,7 @@ private fun AddToPlaylistDialog(ids: List<String>) {
         title = { Text("Add to Playlist") },
         text = {
             LazyColumn(Modifier.heightIn(max = 420.dp)) {
-                item { PickRow("Now Playing") { app.player.addToQueue(tracks); Dialogs.close() } }
+                item { PickRow("Play Queue") { app.player.addToQueue(tracks); Dialogs.close() } }
                 item { PickRow("New…") { Dialogs.show(DialogRequest.NewPlaylist(ids)) } }
                 items(mine, key = { it.id }) { p ->
                     PickRow(p.name) {

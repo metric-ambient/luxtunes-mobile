@@ -61,8 +61,8 @@ fun songMenu(t: Track, nav: NavHostController, extra: Menu = emptyList()): Menu 
     val app = app()
     return listOf(
         "Play" to { app.player.play(listOf(t)); nav.go(if (t.isVideo) Routes.VIDEO else Routes.NOW) },
-        "Play next" to { app.player.playNext(listOf(t)) },
-        "Add to Now Playing" to { app.player.addToQueue(listOf(t)) },
+        "Add to Queue" to { app.player.addToQueue(listOf(t)) },
+        "Add to End of Queue" to { app.player.addToEnd(listOf(t)) },
         "Add to playlist…" to { Dialogs.show(DialogRequest.AddToPlaylist(listOf(t.id))) },
         "Go to album" to { nav.go(Routes.album(t.albumKey)) },
         "Go to artist" to { nav.go(Routes.artist(t.albumArtist)) },
@@ -80,8 +80,8 @@ fun groupMenu(tracks: List<Track>, nav: NavHostController): Menu {
     return listOf(
         "Play" to { playGroup(app, nav, tracks, GroupAction.PLAY) },
         "Shuffle" to { playGroup(app, nav, tracks, GroupAction.SHUFFLE) },
-        "Play next" to { app.player.playNext(tracks) },
-        "Add to Now Playing" to { app.player.addToQueue(tracks) },
+        "Add to Queue" to { app.player.addToQueue(tracks) },
+        "Add to End of Queue" to { app.player.addToEnd(tracks) },
         "Add to playlist…" to { Dialogs.show(DialogRequest.AddToPlaylist(ids)) },
         "Delete from phone" to { Dialogs.show(DialogRequest.Delete(ids)) },
     )
@@ -96,7 +96,7 @@ fun playlistMenu(p: Playlist, nav: NavHostController): Menu {
     val base: Menu = listOf(
         "Play" to { playGroup(app, nav, tracks, GroupAction.PLAY) },
         "Shuffle" to { playGroup(app, nav, tracks, GroupAction.SHUFFLE) },
-        "Add to Now Playing" to { app.player.addToQueue(tracks) },
+        "Add to Queue" to { app.player.addToQueue(tracks) },
     )
     if (!library.canEdit(p)) return base
     val smart: Menu = if (p.isSmart && p.smart != null) {

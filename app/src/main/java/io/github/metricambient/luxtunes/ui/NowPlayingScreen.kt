@@ -98,7 +98,7 @@ fun NowPlayingScreen(nav: NavHostController) {
                 }
             }
             IconButton(onClick = { nav.go(Routes.QUEUE) }) {
-                Icon(Icons.AutoMirrored.Filled.QueueMusic, "Now Playing list", tint = Lux.icon)
+                Icon(Icons.AutoMirrored.Filled.QueueMusic, "Play Queue - Up Next", tint = Lux.icon)
             }
             val menu = mutableListOf<Pair<String, () -> Unit>>()
             if (track != null) {

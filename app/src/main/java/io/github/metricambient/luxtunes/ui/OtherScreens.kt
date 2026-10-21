@@ -90,6 +90,7 @@ fun MiniPlayer(nav: NavHostController, showMenu: Boolean) {
                 MoreMenu(listOf(
                     "Search" to { nav.go(Routes.SEARCH) },
                     "Rescan Device" to { app.repository.refreshAsync() },
+                    "Switch Theme" to { nav.go(Routes.SETTINGS_THEME) },
                     "Settings" to { nav.go(Routes.SETTINGS) },
                 ))
             } else {

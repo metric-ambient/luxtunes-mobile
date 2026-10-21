@@ -31,6 +31,7 @@ object Updater {
     suspend fun latest(): Release? = withContext(Dispatchers.IO) {
         val conn = (URL(LATEST).openConnection() as HttpURLConnection).apply {
             setRequestProperty("Accept", "application/vnd.github+json")
+            setRequestProperty("User-Agent", "LuxTunes-Mobile")      // GitHub refuses requests without one
             connectTimeout = 15_000
             readTimeout = 15_000
         }
@@ -69,7 +70,8 @@ object Updater {
             val conn = (URL(release.apkUrl).openConnection() as HttpURLConnection).apply {
                 connectTimeout = 15_000
                 readTimeout = 30_000
-                instanceFollowRedirects = true
+                instanceFollowRedirects = true      // GitHub sends the file from another address
+                setRequestProperty("User-Agent", "LuxTunes-Mobile")
             }
             try {
                 if (conn.responseCode != 200) throw IOException("download failed (${conn.responseCode})")

@@ -30,6 +30,15 @@ data class PlayerState(
     val queueIndex: Int = -1,
 )
 
+/**
+ * Playing, or about to be: also true for the moment it buffers after a seek or
+ * between songs, so the play button doesn't flicker to "paused" then.
+ */
+private val Player.wantsToPlay: Boolean
+    get() = playWhenReady &&
+        playbackState != Player.STATE_IDLE && playbackState != Player.STATE_ENDED &&
+        playbackSuppressionReason == Player.PLAYBACK_SUPPRESSION_REASON_NONE
+
 /** The screens' link to PlaybackService. Connected while the app is on screen. */
 class PlayerConnection(private val context: Context) {
     private var future: ListenableFuture<MediaController>? = null
@@ -111,7 +120,7 @@ class PlayerConnection(private val context: Context) {
         _state.value = PlayerState(
             connected = true,
             currentId = c.currentMediaItem?.mediaId,
-            isPlaying = c.isPlaying,
+            isPlaying = c.wantsToPlay,
             shuffle = c.shuffleModeEnabled,
             repeatMode = c.repeatMode,
             queue = ids,
@@ -135,6 +144,7 @@ class PlayerConnection(private val context: Context) {
         val items = tracks.map { repository.requestItem(it) }
         withController { c ->
             c.shuffleModeEnabled = false
+            upNextEnd = 0
             c.setMediaItems(items, start.coerceIn(0, items.size - 1), 0L)
             c.prepare()
             c.play()
@@ -148,21 +158,32 @@ class PlayerConnection(private val context: Context) {
     fun shuffleFrom(tracks: List<Track>, first: Track) =
         play(listOf(first) + spreadShuffle(tracks.filter { it.id != first.id }, key = ::artistKey))
 
-    /** Put these songs right after the current one. */
-    fun playNext(tracks: List<Track>) {
+    // Where the songs added with "Add to Queue" end, so the next ones go after them.
+    private var upNextEnd = 0
+
+    /**
+     * Add to Queue, as in LuxTunes: these songs play after the current one and after
+     * anything queued before them, then the list carries on.
+     */
+    fun addToQueue(tracks: List<Track>) {
         val items = tracks.map { repository.requestItem(it) }
+        if (items.isEmpty()) return
         withController { c ->
             if (c.mediaItemCount == 0) {
                 c.setMediaItems(items)
                 c.prepare()
                 c.play()
+                upNextEnd = items.size
             } else {
-                c.addMediaItems(c.currentMediaItemIndex + 1, items)
+                val at = maxOf(c.currentMediaItemIndex + 1, upNextEnd).coerceAtMost(c.mediaItemCount)
+                c.addMediaItems(at, items)
+                upNextEnd = at + items.size
             }
         }
     }
 
-    fun addToQueue(tracks: List<Track>) {
+    /** Add these songs at the very end of the play queue. */
+    fun addToEnd(tracks: List<Track>) {
         val items = tracks.map { repository.requestItem(it) }
         withController { c ->
             c.addMediaItems(items)
@@ -173,7 +194,7 @@ class PlayerConnection(private val context: Context) {
     fun pause() = withController { it.pause() }
 
     fun togglePlay() = withController { c ->
-        if (c.isPlaying) c.pause() else {
+        if (c.wantsToPlay) c.pause() else {
             if (c.playbackState == Player.STATE_IDLE) c.prepare()
             if (c.playbackState == Player.STATE_ENDED) c.seekToDefaultPosition(0)
             c.play()

@@ -6,17 +6,19 @@ import kotlin.math.pow
 import kotlin.math.sqrt
 
 /**
- * Picks an accent color from album art pixels (ARGB) that stands out on `background`:
- * 1. the cover's most prominent color, if it's readable on the background;
+ * Picks an accent color from album art pixels (ARGB) that stands out on `background`.
+ * It's always a real color, never a grey, so "on" buttons (accent) can't be mistaken
+ * for "off" ones (grey):
+ * 1. the cover's most prominent color, if it's colorful and readable on the background;
  * 2. else its strongest readable splash of color (a bit of red on a black cover);
- * 3. else its readable shade furthest from the background (the lightest grey on dark);
- * 4. else the prominent color, lightened or darkened until it's readable.
+ * 3. else its most colorful part, lightened or darkened until it's readable;
+ * 4. else null (an all-grey cover): the app uses the default blue.
  */
 object AccentPicker {
     /** Contrast needed against the background (the usual minimum for icons and lines). */
     const val MIN_CONTRAST = 3.0
     private const val MIN_SHARE = 0.003      // ignore specks smaller than this part of the picture
-    private const val COLORFUL = 0.25        // chroma that counts as "a color" rather than a grey
+    private const val COLORFUL = 0.15        // chroma that counts as "a color" rather than a grey
 
     private class Swatch(val color: Int, val share: Double) {
         val chroma: Double = run {
@@ -49,25 +51,49 @@ object AccentPicker {
             val c = (0xFF shl 24) or ((rs[i] / n).toInt() shl 16) or ((gs[i] / n).toInt() shl 8) or (bs[i] / n).toInt()
             Swatch(c, n.toDouble() / total)
         }
-        val prominent = swatches.maxBy { it.score }
+        val colorful = swatches.filter { it.chroma >= COLORFUL && it.share >= MIN_SHARE }
+        val prominent = colorful.maxByOrNull { it.score } ?: return null
         if (contrast(prominent.color, background) >= MIN_CONTRAST) return prominent.color
 
-        val readable = swatches.filter { it.share >= MIN_SHARE && contrast(it.color, background) >= MIN_CONTRAST }
-        readable.filter { it.chroma >= COLORFUL }.maxByOrNull { sqrt(it.share) * it.chroma }?.let { return it.color }
-        readable.maxByOrNull { contrast(it.color, background) }?.let { return it.color }
-        return readableVersion(prominent.color, background)
+        colorful.filter { contrast(it.color, background) >= MIN_CONTRAST }
+            .maxByOrNull { sqrt(it.share) * it.chroma }?.let { return it.color }
+        // Lightening or darkening washes a color out; give up if it turns grey.
+        return readableVersion(colorful.maxBy { sqrt(it.share) * it.chroma }.color, background)
+            .takeIf { chromaOf(it) >= MIN_CHROMA_AFTER }
     }
 
-    /** `color` moved toward white (dark background) or black (light one) until readable. */
+    private const val MIN_CHROMA_AFTER = 0.18
+
+    private fun chromaOf(c: Int): Double {
+        val r = (c shr 16) and 0xFF; val g = (c shr 8) and 0xFF; val b = c and 0xFF
+        return (max(r, max(g, b)) - min(r, min(g, b))) / 255.0
+    }
+
+    /**
+     * `color` made readable: first brightened (on a dark background) or darkened (on a
+     * light one) keeping its hue, then, if that's not enough, mixed toward white or black.
+     */
     fun readableVersion(color: Int, background: Int): Int {
-        val target = if (luminance(background) > 0.4) 0xFF000000.toInt() else 0xFFFFFFFF.toInt()
-        var t = 0.0
+        val dark = luminance(background) <= 0.4
         var c = color
+        var step = 1
+        while (contrast(c, background) < MIN_CONTRAST && step <= 20) {
+            c = scale(color, if (dark) 1 + step * 0.25 else maxOf(0.0, 1 - step * 0.05))
+            step++
+        }
+        val base = c
+        val target = if (dark) 0xFFFFFFFF.toInt() else 0xFF000000.toInt()
+        var t = 0.0
         while (contrast(c, background) < MIN_CONTRAST && t < 1.0) {
             t += 0.05
-            c = mix(color, target, t)
+            c = mix(base, target, t)
         }
         return c
+    }
+
+    private fun scale(c: Int, f: Double): Int {
+        fun s(sh: Int) = (((c shr sh) and 0xFF) * f).toInt().coerceIn(0, 255)
+        return (0xFF shl 24) or (s(16) shl 16) or (s(8) shl 8) or s(0)
     }
 
     fun contrast(a: Int, b: Int): Double {

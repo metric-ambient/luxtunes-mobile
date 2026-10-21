@@ -1,6 +1,5 @@
 package io.github.metricambient.luxtunes.data
 
-import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -31,14 +30,17 @@ class AccentPickerTest {
         assertTrue("red expected, got ${Integer.toHexString(c)}", r > 200 && g < 60 && b < 60)
     }
 
-    @Test fun greyCoverOnDarkGivesLightestGrey() {
-        val c = AccentPicker.pick(cover(0xFF080808 to 700, 0xFF333333 to 200, 0xFF999999 to 100), black)!!
-        assertEquals(0xFF999999.toInt(), c)
+    @Test fun greyCoverGivesNothing() {
+        // Grey would look like the "off" grey of the shuffle and repeat buttons.
+        assertNull(AccentPicker.pick(cover(0xFF080808 to 700, 0xFF333333 to 200, 0xFF999999 to 100), black))
+        assertNull(AccentPicker.pick(cover(0xFF101010 to 1000), black))
     }
 
-    @Test fun allBlackCoverIsMadeReadable() {
-        val c = AccentPicker.pick(cover(0xFF101010 to 1000), black)!!
+    @Test fun darkNavyCoverIsLightenedOnDark() {
+        val c = AccentPicker.pick(cover(0xFF0A1440 to 1000), black)!!
         assertTrue(AccentPicker.contrast(c, black) >= AccentPicker.MIN_CONTRAST)
+        val (r, _, b) = rgb(c)
+        assertTrue("still blue, got ${Integer.toHexString(c)}", b - r > 45)
     }
 
     @Test fun smallRedOnWhiteIsUsedOnLight() {
@@ -50,13 +52,15 @@ class AccentPickerTest {
     @Test fun resultIsAlwaysReadable() {
         val covers = listOf(
             cover(0xFFFFFF00 to 1000),                       // yellow: fine on black, not on light
-            cover(0xFF202040 to 600, 0xFF404060 to 400),
-            cover(0xFFEEEEEE to 1000),
+            cover(0xFF202060 to 600, 0xFF404090 to 400),
+            cover(0xFFE0F0FF to 900, 0xFF3070C0 to 100),
         )
         for (bg in listOf(black, lightBg, 0xFF303030.toInt())) {
             for (px in covers) {
-                val c = AccentPicker.pick(px, bg)!!
+                val c = AccentPicker.pick(px, bg) ?: continue
                 assertTrue(AccentPicker.contrast(c, bg) >= AccentPicker.MIN_CONTRAST)
+                val (r, g, b) = rgb(c)
+                assertTrue("not grey: ${Integer.toHexString(c)}", maxOf(r, g, b) - minOf(r, g, b) >= 40)
             }
         }
     }
