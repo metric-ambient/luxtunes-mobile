@@ -75,7 +75,11 @@ object Routes {
     const val SETTINGS_TABS = "settings/tabs"
     const val SETTINGS_ABOUT = "settings/about"
     fun album(key: String) = "album/${Uri.encode(key)}"
-    fun artist(name: String) = "artist/${Uri.encode(name)}"
+    /** An album artist's page. */
+    fun artist(name: String) = group("artist", name)
+    /** kind: artist (album artist), trackartist, genre, composer or tvshow. */
+    fun group(kind: String, name: String) = "group/$kind/${Uri.encode(name)}"
+    const val VIDEO = "video"
     fun playlist(id: String) = "playlist/${Uri.encode(id)}"
     const val SMART_NEW = "smart/new"
     fun smartEdit(id: String) = "smart/edit/${Uri.encode(id)}"
@@ -138,15 +142,21 @@ private fun MainScreens() {
                 composable("album/{key}", listOf(navArgument("key") { type = NavType.StringType })) {
                     AlbumScreen(nav, it.arguments?.getString("key").orEmpty())
                 }
-                composable("artist/{name}", listOf(navArgument("name") { type = NavType.StringType })) {
-                    ArtistScreen(nav, it.arguments?.getString("name").orEmpty())
+                composable(
+                    "group/{kind}/{name}",
+                    listOf(navArgument("kind") { type = NavType.StringType }, navArgument("name") { type = NavType.StringType }),
+                ) {
+                    GroupScreen(nav, it.arguments?.getString("kind").orEmpty(), it.arguments?.getString("name").orEmpty())
                 }
+                composable(Routes.VIDEO) { VideoScreen(nav) }
                 composable("playlist/{id}", listOf(navArgument("id") { type = NavType.StringType })) {
                     PlaylistScreen(nav, it.arguments?.getString("id").orEmpty())
                 }
             }
         }
-        if (route != Routes.NOW && route?.startsWith(Routes.SETTINGS) != true && route?.startsWith("smart/") != true) {
+        if (route != Routes.NOW && route != Routes.VIDEO && route?.startsWith(Routes.SETTINGS) != true &&
+            route?.startsWith("smart/") != true
+        ) {
             MiniPlayer(nav, showMenu = route == Routes.HOME)
         }
     }
@@ -166,13 +176,13 @@ private fun PermissionScreen(onRecheck: () -> Unit) {
         verticalArrangement = Arrangement.Center,
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        Text("Welcome to LuxTunes Mobile", fontSize = 24.sp, color = Lux.text)
+        Text("Welcome to LuxTunes", fontSize = 24.sp, color = Lux.text)
         Spacer(Modifier.height(16.dp))
         Text(
             "To play the music LuxTunes syncs to this phone, the app needs to read the " +
                 "LuxTunes folder, and write one file there (changes.json) so your plays, " +
                 "skips and ratings reach LuxTunes at the next sync.\n\n" +
-                "On the next screen, turn on “Allow access to manage all files” for LuxTunes Mobile, " +
+                "On the next screen, turn on “Allow access to manage all files” for LuxTunes, " +
                 "then come back.",
             color = Lux.dim, textAlign = TextAlign.Center,
         )

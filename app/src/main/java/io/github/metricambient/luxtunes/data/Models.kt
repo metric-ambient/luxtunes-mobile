@@ -33,6 +33,9 @@ data class Track(
     /** Albums of different kinds (a podcast and an album with the same name) stay apart. */
     val albumKey: String get() = (if (mediaKind == "music") "" else "$mediaKind\u0002") + albumKeyOf(albumArtist, album)
 
+    /** Movies and TV episodes play in the video screen. */
+    val isVideo: Boolean get() = mediaKind == "movie" || mediaKind == "tvshow"
+
     /** What smart playlist rules see: LuxTunes' values with the phone's plays and rating. */
     fun smartValue(column: String): Any? = when (column) {
         "play_count" -> playCount.toLong()

@@ -122,6 +122,9 @@ class PlayerConnection(private val context: Context) {
     // ---- Position (polled by the screens that show it) --------------------------------
 
     val position: Long get() = controller?.currentPosition ?: 0L
+
+    /** For the video screen, which shows the picture through it. */
+    val controllerOrNull: MediaController? get() = controller
     val duration: Long get() = controller?.duration?.takeIf { it > 0 } ?: 0L
 
     // ---- Commands --------------------------------------------------------------------------
@@ -166,6 +169,8 @@ class PlayerConnection(private val context: Context) {
             if (c.playbackState == Player.STATE_IDLE) c.prepare()
         }
     }
+
+    fun pause() = withController { it.pause() }
 
     fun togglePlay() = withController { c ->
         if (c.isPlaying) c.pause() else {

@@ -19,6 +19,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.PlaylistAdd
 import androidx.compose.material.icons.automirrored.filled.QueueMusic
 import androidx.compose.material.icons.filled.Info
@@ -62,6 +63,10 @@ fun NowPlayingScreen(nav: NavHostController) {
     val state by app.player.state.collectAsState()
     val fileLyrics by app.repository.fileLyrics.collectAsState()
     val track = state.currentId?.let { library.byId[it] }
+    // A movie or TV episode belongs in the video screen.
+    LaunchedEffect(track?.id) {
+        if (track?.isVideo == true) nav.navigate(Routes.VIDEO) { popUpTo(Routes.NOW) { inclusive = true } }
+    }
     var overlay by remember { mutableStateOf(false) }
 
     // Position, polled while this screen is showing.
@@ -78,20 +83,12 @@ fun NowPlayingScreen(nav: NavHostController) {
     }
 
     Column(Modifier.fillMaxSize().background(Lux.background)) {
-        // Title and actions
-        Row(Modifier.fillMaxWidth().padding(start = 12.dp, top = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-            Column(Modifier.weight(1f)) {
-                Text(
-                    track?.name ?: "Not playing", color = Lux.text, fontSize = 20.sp,
-                    maxLines = 1, overflow = TextOverflow.Ellipsis,
-                )
-                if (track != null) {
-                    Text(
-                        "${track.artist} / ${track.album}", color = Lux.dim, fontSize = 14.sp,
-                        maxLines = 1, overflow = TextOverflow.Ellipsis,
-                    )
-                }
+        // Back, then the actions
+        Row(Modifier.fillMaxWidth().padding(top = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+            IconButton(onClick = { nav.popBackStack() }) {
+                Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back", tint = Lux.text)
             }
+            Spacer(Modifier.weight(1f))
             if (track != null) {
                 IconButton(onClick = { Dialogs.show(DialogRequest.Info(track.id)) }) {
                     Icon(Icons.Filled.Info, "Get Info", tint = Lux.icon)
@@ -115,13 +112,28 @@ fun NowPlayingScreen(nav: NavHostController) {
             menu += "Settings" to { nav.go(Routes.SETTINGS) }
             MoreMenu(menu)
         }
+        // The song on its own line, artist / album below it
+        Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp)) {
+            Text(
+                track?.name ?: "Not playing", color = Lux.text, fontSize = 22.sp,
+                maxLines = 1, overflow = TextOverflow.Ellipsis,
+            )
+            if (track != null) {
+                Text(
+                    "${track.artist} / ${track.album}", color = Lux.dim, fontSize = 15.sp,
+                    maxLines = 1, overflow = TextOverflow.Ellipsis,
+                )
+            }
+        }
         Spacer(Modifier.height(8.dp))
 
         // Art; tap it for the rating (and lyrics, when LuxTunes has them)
         Box(
             Modifier
-                .fillMaxWidth()
-                .aspectRatio(1f)
+                .align(Alignment.CenterHorizontally)
+                // Square, as big as fits: the full width on tall phones, smaller on short ones.
+                .weight(1f, fill = false)
+                .aspectRatio(1f, matchHeightConstraintsFirst = true)
                 .clickable(
                     interactionSource = remember { MutableInteractionSource() },
                     indication = null,
@@ -152,7 +164,7 @@ fun NowPlayingScreen(nav: NavHostController) {
             }
         }
 
-        Spacer(Modifier.weight(1f))
+        Spacer(Modifier.height(24.dp))
 
         // Controls
         Row(
@@ -193,7 +205,7 @@ fun NowPlayingScreen(nav: NavHostController) {
             }
         }
 
-        Spacer(Modifier.weight(1f))
+        Spacer(Modifier.height(8.dp))
 
         // Seek bar
         Row(

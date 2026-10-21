@@ -24,7 +24,18 @@ fun tapSong(app: LuxTunesApp, nav: NavHostController, list: List<Track>, index: 
         SongAction.PLAY_ONE -> app.player.play(listOf(t))
         SongAction.SHUFFLE -> app.player.shuffleFrom(list, t)
     }
-    nav.go(Routes.NOW)
+    nav.go(if (t.isVideo) Routes.VIDEO else Routes.NOW)
+}
+
+/** After starting playback: Now Playing (or the video screen for movies and TV). */
+fun showPlayer(nav: NavHostController, tracks: List<Track>) {
+    nav.go(if (tracks.firstOrNull()?.isVideo == true) Routes.VIDEO else Routes.NOW)
+}
+
+/** Movies and TV episodes: just this one (or the season from here), in the video screen. */
+fun playVideo(app: LuxTunesApp, nav: NavHostController, list: List<Track>, index: Int) {
+    app.player.play(list, index)
+    nav.go(Routes.VIDEO)
 }
 
 /** Play a group of songs (artist, album, playlist) the way an action asks. */
@@ -36,7 +47,7 @@ fun playGroup(app: LuxTunesApp, nav: NavHostController, tracks: List<Track>, act
         GroupAction.SHUFFLE_ALBUMS -> app.player.play(shuffleGroups(tracks) { it.albumKey })
         GroupAction.SHUFFLE_ARTISTS -> app.player.play(shuffleGroups(tracks) { it.albumArtist.lowercase() })
     }
-    nav.go(Routes.NOW)
+    nav.go(if (tracks.first().isVideo) Routes.VIDEO else Routes.NOW)
 }
 
 /** A tap on an artist, album or playlist: open it, or play it (Settings → Tabs). */
@@ -49,7 +60,7 @@ fun tapGroup(app: LuxTunesApp, nav: NavHostController, tracks: List<Track>, acti
 fun songMenu(t: Track, nav: NavHostController, extra: Menu = emptyList()): Menu {
     val app = app()
     return listOf(
-        "Play" to { app.player.play(listOf(t)); nav.go(Routes.NOW) },
+        "Play" to { app.player.play(listOf(t)); nav.go(if (t.isVideo) Routes.VIDEO else Routes.NOW) },
         "Play next" to { app.player.playNext(listOf(t)) },
         "Add to Now Playing" to { app.player.addToQueue(listOf(t)) },
         "Add to playlist…" to { Dialogs.show(DialogRequest.AddToPlaylist(listOf(t.id))) },

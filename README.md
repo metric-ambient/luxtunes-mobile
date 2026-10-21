@@ -28,7 +28,9 @@ syncs to your phone. Plays, skips and ratings go back to LuxTunes at the next sy
 - Playlists and smart playlists made or changed on the phone go back to LuxTunes at the
   next sync (LuxTunes 0.6.0 or newer). Smart playlists use LuxTunes' own rules and stay
   up to date on the phone.
-- Podcasts and audiobooks tabs, select mode, sorting, Get Info, and deleting songs from the
+- Movies and TV shows play full screen.
+- Tabs for artists, album artists, genres, composers, podcasts, audiobooks, movies and TV
+  shows (choose them in Settings → Tabs), select mode, sorting, Get Info, and deleting songs from the
   phone (LuxTunes puts them back at the next sync if they're still chosen there).
 - Picks up where you left off: the Now Playing list, the song and the position.
 - Goes online only when you ask it to (Settings → Check for Updates), and says so first.

@@ -62,10 +62,10 @@ private fun LazyListScope.pageHeader(
                 IconButton(onClick = { player.addToQueue(tracks) }) {
                     Icon(Icons.AutoMirrored.Filled.PlaylistAdd, "Add to queue", tint = Lux.text)
                 }
-                IconButton(onClick = { player.shuffle(tracks) }) {
+                IconButton(onClick = { player.shuffle(tracks); showPlayer(nav, tracks) }) {
                     Icon(Icons.Filled.Shuffle, "Shuffle", tint = Lux.text)
                 }
-                IconButton(onClick = { player.play(tracks) }) {
+                IconButton(onClick = { player.play(tracks); showPlayer(nav, tracks) }) {
                     Icon(Icons.Filled.PlayArrow, "Play", tint = Lux.text)
                 }
             }
@@ -80,7 +80,7 @@ private fun LazyListScope.pageHeader(
                     .padding(vertical = 6.dp),
             )
             FloatingActionButton(
-                onClick = { player.play(tracks) },
+                onClick = { player.play(tracks); showPlayer(nav, tracks) },
                 shape = CircleShape,
                 containerColor = Lux.accent,
                 contentColor = Color.White,
@@ -127,10 +127,12 @@ fun AlbumScreen(nav: NavHostController, key: String) {
 }
 
 @Composable
-fun ArtistScreen(nav: NavHostController, name: String) {
+fun GroupScreen(nav: NavHostController, kind: String, name: String) {
     val app = app()
     val library by app.repository.state.collectAsState()
-    val artist = library.artistByName[name] ?: return Missing(nav, "artist")
+    val artist = library.group(kind, name) ?: return Missing(nav, when (kind) {
+        "genre" -> "genre"; "composer" -> "composer"; "tvshow" -> "show"; else -> "artist"
+    })
     val tracks = artist.tracks
     val years = artist.albums.map { it.year }.filter { it > 0 }
     LazyColumn(Modifier.fillMaxSize()) {
@@ -145,7 +147,7 @@ fun ArtistScreen(nav: NavHostController, name: String) {
         itemsIndexed(artist.albums, key = { _, a -> a.key }) { _, album ->
             ListRow(
                 title = album.name,
-                subtitle = if (album.year > 0) "${album.year}" else plural(album.tracks.size, "song"),
+                subtitle = if (album.year > 0) "${album.year}" else plural(album.tracks.size, if (kind == "tvshow") "episode" else "song"),
                 onClick = { nav.go(Routes.album(album.key)) },
                 leading = { Artwork(album.artwork, Modifier.size(64.dp), noteSize = 32.dp) },
                 menu = groupMenu(album.tracks, nav),

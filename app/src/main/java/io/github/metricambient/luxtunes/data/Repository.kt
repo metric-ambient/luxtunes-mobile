@@ -26,7 +26,12 @@ data class LibraryState(
     val syncedAt: String? = null,
     val tracks: List<Track> = emptyList(),          // music, name order
     val albums: List<Album> = emptyList(),          // name order
-    val artists: List<Artist> = emptyList(),        // name order
+    val artists: List<Artist> = emptyList(),        // album artists, name order
+    val trackArtists: List<Artist> = emptyList(),   // song artists ("Artists" tab)
+    val genres: List<Artist> = emptyList(),         // a genre and its albums
+    val composers: List<Artist> = emptyList(),
+    val movies: List<Track> = emptyList(),          // name order
+    val tvShows: List<Artist> = emptyList(),        // a show; its "albums" are its seasons
     val podcasts: List<Album> = emptyList(),        // one per show
     val audiobooks: List<Album> = emptyList(),      // one per book
     val allTracks: List<Track> = emptyList(),       // every kind
@@ -41,11 +46,22 @@ data class LibraryState(
     val message: String? = null,                    // shown when there's nothing to play
 ) {
     val byId: Map<String, Track> by lazy { allTracks.associateBy { it.id } }
-    val albumByKey: Map<String, Album> by lazy { (albums + podcasts + audiobooks).associateBy { it.key } }
+    val albumByKey: Map<String, Album> by lazy {
+        (albums + podcasts + audiobooks + tvShows.flatMap { it.albums }).associateBy { it.key }
+    }
 
     /** LuxTunes 0.6+ takes playlist changes back; before that only playlists made here can change. */
     fun canEdit(p: Playlist): Boolean = p.onPhone || formatVersion >= 2
     val artistByName: Map<String, Artist> by lazy { artists.associateBy { it.name } }
+
+    /** A named group of songs for a group page: kind is artist, trackartist, genre, composer or tvshow. */
+    fun group(kind: String, name: String): Artist? = when (kind) {
+        "trackartist" -> trackArtists
+        "genre" -> genres
+        "composer" -> composers
+        "tvshow" -> tvShows
+        else -> artists
+    }.firstOrNull { it.name == name }
 }
 
 /**
@@ -94,7 +110,7 @@ class Repository(private val context: Context, private val prefs: Prefs) {
     suspend fun refresh() = lock.withLock {
         try {
             if (!LuxFolder.hasAccess(context)) {
-                publish(null, "LuxTunes Mobile needs “All files access” to read your music.")
+                publish(null, "LuxTunes needs “All files access” to read your music.")
                 return@withLock
             }
             ensureLoaded()
@@ -283,6 +299,40 @@ class Repository(private val context: Context, private val prefs: Prefs) {
             )
         }.sortedBy { sortText(it.tracks.first().sortAlbumArtist) }
         val podcasts = albumsOf(all.filter { it.mediaKind == "podcast" }).sortedBy { sortText(it.name) }
+        // Artists by the songs' own artist, genres and composers: each a group of (parts of) albums.
+        fun groups(key: (Track) -> String?): List<Artist> =
+            music.mapNotNull { t -> key(t)?.trim()?.ifEmpty { null }?.let { it to t } }
+                .groupBy({ it.first.lowercase() }, { it })
+                .map { (_, pairs) ->
+                    Artist(
+                        name = pairs.first().first,
+                        albums = albumsOf(pairs.map { it.second })
+                            .sortedWith(compareBy({ if (it.year == 0) Int.MAX_VALUE else it.year }, { sortText(it.name) })),
+                    )
+                }
+                .sortedBy { sortText(it.name) }
+        val trackArtists = groups { it.artist }
+        val genres = groups { it.genre }
+        val composers = groups { it.raw["composer"] as? String }
+        val movies = all.filter { it.mediaKind == "movie" }
+        val tvShows = all.filter { it.mediaKind == "tvshow" }
+            .groupBy { ((it.raw["show"] as? String)?.ifBlank { null } ?: it.album).lowercase() }
+            .map { (_, episodes) ->
+                val show = (episodes.first().raw["show"] as? String)?.ifBlank { null } ?: episodes.first().album
+                val seasons = episodes.groupBy { (it.raw["season"] as? Long) ?: 0L }.toSortedMap().map { (season, list) ->
+                    val ordered = list.sortedWith(compareBy({ (it.raw["episode_number"] as? Long) ?: it.trackNumber.toLong() }, { sortText(it.name) }))
+                    Album(
+                        key = "tvshow\u0003${show.lowercase()}\u0003$season",
+                        name = if (season > 0) "Season $season" else show,
+                        artist = show,
+                        year = ordered.maxOf { it.year },
+                        artwork = ordered.firstNotNullOfOrNull { it.artwork },
+                        tracks = ordered,
+                    )
+                }
+                Artist(show, seasons)
+            }
+            .sortedBy { sortText(it.name) }
         val audiobooks = albumsOf(all.filter { it.mediaKind == "audiobook" }).sortedBy { sortText(it.name) }
         val references = db.loadReferences()
         _state.value = LibraryState(
@@ -293,6 +343,11 @@ class Repository(private val context: Context, private val prefs: Prefs) {
             tracks = music,
             albums = albums,
             artists = artists,
+            trackArtists = trackArtists,
+            genres = genres,
+            composers = composers,
+            movies = movies,
+            tvShows = tvShows,
             podcasts = podcasts,
             audiobooks = audiobooks,
             allTracks = all,

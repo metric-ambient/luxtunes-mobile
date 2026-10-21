@@ -50,6 +50,7 @@ import androidx.compose.ui.unit.sp
 import androidx.navigation.NavHostController
 import io.github.metricambient.luxtunes.BuildConfigInfo
 import io.github.metricambient.luxtunes.data.ALL_TABS
+import io.github.metricambient.luxtunes.data.Actions
 import io.github.metricambient.luxtunes.data.AppSettings
 import io.github.metricambient.luxtunes.data.GroupAction
 import io.github.metricambient.luxtunes.data.LuxFolder
@@ -99,6 +100,7 @@ fun SettingsScreen(nav: NavHostController) {
         item { ScreenTitle(nav, "Settings") }
         item { SettingRow(Icons.Filled.Album, "Sound", "EQ, fade in/out, customize playback · $later") }
         item { SettingRow(Icons.Filled.Build, "Operation", "Lock screen, font, shuffle… · $later") }
+        item { SettingRow(Icons.Filled.Folder, "Tabs", "Choose which tabs to see, and what a tap does") { nav.go(Routes.SETTINGS_TABS) } }
         item { SettingRow(Icons.Filled.Palette, "Theme Color", later) }
         item { SettingRow(Icons.Filled.Headphones, "Headset/Bluetooth", "Set volume on connect and more · $later") }
         item {
@@ -130,8 +132,6 @@ fun SettingsScreen(nav: NavHostController) {
             )
         }
         item { SettingRow(Icons.Filled.Refresh, "Rescan Device", "Look for a new sync from LuxTunes now") { app.repository.refreshAsync() } }
-        item { SettingRow(Icons.Filled.Image, "Album Art", later) }
-        item { SettingRow(Icons.Filled.Folder, "Tabs", "Choose which tabs to see, and what a tap does") { nav.go(Routes.SETTINGS_TABS) } }
         item { UpdateRow() }
         item { SettingRow(Icons.Filled.Info, "About / Legal", "Version, license") { nav.go(Routes.SETTINGS_ABOUT) } }
     }
@@ -171,7 +171,7 @@ private fun UpdateRow() {
             text = {
                 Text(
                     "This connects to the internet: it asks github.com for the latest release of " +
-                        "LuxTunes Mobile. Nothing about you or your music is sent."
+                        "LuxTunes. Nothing about you or your music is sent."
                 )
             },
             confirmButton = {
@@ -247,7 +247,7 @@ private fun UpdateRow() {
             text = {
                 Text(
                     if (Updater.canInstall(context)) "Android will ask you to confirm the update."
-                    else "First allow LuxTunes Mobile to install apps (\"Install unknown apps\"), " +
+                    else "First allow LuxTunes to install apps (\"Install unknown apps\"), " +
                         "then come back and tap Install."
                 )
             },
@@ -276,12 +276,13 @@ fun TabsSettingsScreen(nav: NavHostController) {
     val s by prefs.settings.collectAsState()
 
     fun showTab(name: String, on: Boolean) = prefs.update { cur ->
-        val tabs = if (on) ALL_TABS.filter { it in cur.tabs || it == name } else cur.tabs - name
+        // Shown again: back at the end of the row (drag it elsewhere in the overview).
+        val tabs = if (on) (if (name in cur.tabs) cur.tabs else cur.tabs + name) else cur.tabs - name
         cur.copy(tabs = tabs.ifEmpty { cur.tabs })          // at least one tab stays
     }
 
-    fun chooseGroup(title: String, current: GroupAction, options: List<GroupAction>, set: (AppSettings, GroupAction) -> AppSettings) {
-        Dialogs.show(DialogRequest.Choose(title, options.map { it.label }, options.indexOf(current)) { i ->
+    fun chooseGroup(current: GroupAction, options: List<GroupAction>, set: (AppSettings, GroupAction) -> AppSettings) {
+        Dialogs.show(DialogRequest.Choose("Select Action", options.map { it.label }, options.indexOf(current)) { i ->
             prefs.update { set(it, options[i]) }
         })
     }
@@ -293,60 +294,77 @@ fun TabsSettingsScreen(nav: NavHostController) {
         })
     }
 
-    val allGroup = GroupAction.entries.toList()
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
         ScreenTitle(nav, "Tabs")
 
-        Heading("Songs")
-        CheckRow("Display songs tab", "Songs" in s.tabs) { showTab("Songs", it) }
-        CheckRow("Display album art", s.songArt) { v -> prefs.update { it.copy(songArt = v) } }
-        ChoiceRow("Default Song Action", s.songAction.label) {
-            val options = SongAction.entries.toList()
-            Dialogs.show(DialogRequest.Choose("Select Action", options.map { it.label }, options.indexOf(s.songAction)) { i ->
-                prefs.update { it.copy(songAction = options[i]) }
-            })
-        }
-        HorizontalDivider(color = Lux.panel)
-
-        Heading("Playlists")
-        CheckRow("Display playlists tab", "Playlists" in s.tabs) { showTab("Playlists", it) }
-        CheckRow("Display playlist icon", s.playlistIcons) { v -> prefs.update { it.copy(playlistIcons = v) } }
-        ChoiceRow("Default Playlist Action", s.playlistAction.label) {
-            chooseGroup("Select Action", s.playlistAction, listOf(GroupAction.VIEW, GroupAction.PLAY, GroupAction.SHUFFLE)) { cur, a ->
-                cur.copy(playlistAction = a)
+        TabSection("Songs", "Display songs tab", "Songs" in s.tabs, { showTab("Songs", it) }) {
+            CheckRow("Display album art", s.songArt) { v -> prefs.update { it.copy(songArt = v) } }
+            ChoiceRow("Default Song Action", s.songAction.label) {
+                val options = SongAction.entries.toList()
+                Dialogs.show(DialogRequest.Choose("Select Action", options.map { it.label }, options.indexOf(s.songAction)) { i ->
+                    prefs.update { it.copy(songAction = options[i]) }
+                })
             }
         }
-        HorizontalDivider(color = Lux.panel)
-
-        Heading("Albums")
-        CheckRow("Display albums tab", "Albums" in s.tabs) { showTab("Albums", it) }
-        ChoiceRow("Number of portrait grid items", "${s.gridPortrait}") {
-            chooseColumns("Portrait grid items", s.gridPortrait) { cur, n -> cur.copy(gridPortrait = n) }
+        TabSection("Playlists", "Display playlists tab", "Playlists" in s.tabs, { showTab("Playlists", it) }) {
+            CheckRow("Display playlist icon", s.playlistIcons) { v -> prefs.update { it.copy(playlistIcons = v) } }
+            ChoiceRow("Default Playlist Action", s.playlistAction.label) {
+                chooseGroup(s.playlistAction, Actions.ALL) { cur, a -> cur.copy(playlistAction = a) }
+            }
         }
-        ChoiceRow("Number of landscape grid items", "${s.gridLandscape}") {
-            chooseColumns("Landscape grid items", s.gridLandscape) { cur, n -> cur.copy(gridLandscape = n) }
+        TabSection("Albums", "Display albums tab", "Albums" in s.tabs, { showTab("Albums", it) }) {
+            ChoiceRow("Number of portrait grid items", "${s.gridPortrait}") {
+                chooseColumns("Portrait grid items", s.gridPortrait) { cur, n -> cur.copy(gridPortrait = n) }
+            }
+            ChoiceRow("Number of landscape grid items", "${s.gridLandscape}") {
+                chooseColumns("Landscape grid items", s.gridLandscape) { cur, n -> cur.copy(gridLandscape = n) }
+            }
+            CheckRow("Display album art", s.albumArt) { v -> prefs.update { it.copy(albumArt = v) } }
+            ChoiceRow("Default Album Action", s.albumAction.label) {
+                chooseGroup(s.albumAction, Actions.BASIC) { cur, a -> cur.copy(albumAction = a) }
+            }
         }
-        CheckRow("Display album art", s.albumArt) { v -> prefs.update { it.copy(albumArt = v) } }
-        ChoiceRow("Default Album Action", s.albumAction.label) {
-            chooseGroup("Select Action", s.albumAction, allGroup) { cur, a -> cur.copy(albumAction = a) }
+        TabSection("Artists", "Display artists tab", "Artists" in s.tabs, { showTab("Artists", it) }) {
+            CheckRow("Display artist icon", s.artistIcons) { v -> prefs.update { it.copy(artistIcons = v) } }
         }
-        HorizontalDivider(color = Lux.panel)
-
-        Heading("Artists")
-        CheckRow("Display artists tab", "Artists" in s.tabs) { showTab("Artists", it) }
-        ChoiceRow("Default Artist Action", s.artistAction.label) {
-            chooseGroup("Select Action", s.artistAction, allGroup) { cur, a -> cur.copy(artistAction = a) }
+        TabSection("Album Artists", "Display album artists tab", "Album Artists" in s.tabs, { showTab("Album Artists", it) }) {
+            CheckRow("Display album artist icon", s.albumArtistIcons) { v -> prefs.update { it.copy(albumArtistIcons = v) } }
         }
-        HorizontalDivider(color = Lux.panel)
-
-        Heading("Podcasts")
-        CheckRow("Display podcasts tab", "Podcasts" in s.tabs) { showTab("Podcasts", it) }
-        HorizontalDivider(color = Lux.panel)
-
-        Heading("Audiobooks")
-        CheckRow("Display audiobooks tab", "Audiobooks" in s.tabs) { showTab("Audiobooks", it) }
+        TabSection("Genres", "Display genres tab", "Genres" in s.tabs, { showTab("Genres", it) }) {
+            CheckRow("Display genre icon", s.genreIcons) { v -> prefs.update { it.copy(genreIcons = v) } }
+            ChoiceRow("Default Genre Action", s.genreAction.label) {
+                chooseGroup(s.genreAction, Actions.ALL) { cur, a -> cur.copy(genreAction = a) }
+            }
+        }
+        TabSection("Composers", "Display composers tab", "Composers" in s.tabs, { showTab("Composers", it) }) {
+            CheckRow("Display composer icon", s.composerIcons) { v -> prefs.update { it.copy(composerIcons = v) } }
+            ChoiceRow("Default Composer Action", s.composerAction.label) {
+                chooseGroup(s.composerAction, Actions.NO_ARTISTS) { cur, a -> cur.copy(composerAction = a) }
+            }
+        }
+        TabSection("Podcasts", "Display podcasts tab", "Podcasts" in s.tabs, { showTab("Podcasts", it) }) {
+            ChoiceRow("Default Podcast Action", s.podcastAction.label) {
+                chooseGroup(s.podcastAction, Actions.BASIC) { cur, a -> cur.copy(podcastAction = a) }
+            }
+        }
+        TabSection("Audiobooks", "Display audiobooks tab", "Audiobooks" in s.tabs, { showTab("Audiobooks", it) }) {
+            ChoiceRow("Default Audiobook Action", s.audiobookAction.label) {
+                chooseGroup(s.audiobookAction, Actions.BASIC) { cur, a -> cur.copy(audiobookAction = a) }
+            }
+        }
+        TabSection("Movies", "Display Movies tab", "Movies" in s.tabs, { showTab("Movies", it) })
+        TabSection("TV Shows", "Display TV Shows tab", "TV Shows" in s.tabs, { showTab("TV Shows", it) })
         Spacer(Modifier.height(24.dp))
     }
+}
+
+/** One tab's settings: a heading, "Display … tab", then its own options. */
+@Composable
+private fun TabSection(title: String, label: String, shown: Boolean, onShow: (Boolean) -> Unit, content: @Composable () -> Unit = {}) {
+    Heading(title)
+    CheckRow(label, shown, onShow)
+    content()
+    HorizontalDivider(color = Lux.panel)
 }
 
 @Composable
@@ -379,7 +397,7 @@ fun AboutScreen(nav: NavHostController) {
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
         ScreenTitle(nav, "About")
         Column(Modifier.padding(20.dp)) {
-            Text("LuxTunes Mobile ${BuildConfigInfo.versionName(context)}", color = Lux.text, fontSize = 20.sp)
+            Text("LuxTunes for Android ${BuildConfigInfo.versionName(context)}", color = Lux.text, fontSize = 20.sp)
             Text("Signed by ${BuildConfigInfo.signer(context)}", color = Lux.dim, fontSize = 13.sp)
             Spacer(Modifier.height(12.dp))
             Text(

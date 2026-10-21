@@ -94,7 +94,7 @@ object Updater {
             val info = context.packageManager.getPackageArchiveInfo(target.path, 0)
             if (info?.packageName != context.packageName) {
                 target.delete()
-                throw IOException("the download isn't a LuxTunes Mobile APK")
+                throw IOException("the download isn't a LuxTunes APK")
             }
             target
         }

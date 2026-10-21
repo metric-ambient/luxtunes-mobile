@@ -1,8 +1,10 @@
 package io.github.metricambient.luxtunes.ui
 
+import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.graphics.Color
 
 /** The app's colors: black background, light grey text, blue accent. */
@@ -32,6 +34,9 @@ fun LuxTheme(content: @Composable () -> Unit) {
             onSurfaceVariant = Lux.dim,
             surfaceContainer = Lux.panel,
         ),
-        content = content,
-    )
+    ) {
+        // Light content colour everywhere: it also gives taps their light "flash"
+        // (with the default black, the tap ripple was invisible on the black background).
+        CompositionLocalProvider(LocalContentColor provides Lux.text, content = content)
+    }
 }

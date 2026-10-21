@@ -26,6 +26,10 @@ import androidx.compose.material.icons.automirrored.filled.QueueMusic
 import androidx.compose.material.icons.automirrored.filled.Sort
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Bolt
+import androidx.compose.material.icons.filled.Category
+import androidx.compose.material.icons.filled.Movie
+import androidx.compose.material.icons.filled.Piano
+import androidx.compose.material.icons.filled.Tv
 import androidx.compose.material.icons.filled.CheckBox
 import androidx.compose.material.icons.filled.CheckBoxOutlineBlank
 import androidx.compose.material.icons.filled.Checklist
@@ -60,6 +64,7 @@ import androidx.navigation.NavHostController
 import io.github.metricambient.luxtunes.data.Album
 import io.github.metricambient.luxtunes.data.AppSettings
 import io.github.metricambient.luxtunes.data.Artist
+import io.github.metricambient.luxtunes.data.GroupAction
 import io.github.metricambient.luxtunes.data.GroupSort
 import io.github.metricambient.luxtunes.data.LibraryState
 import io.github.metricambient.luxtunes.data.SongSort
@@ -103,7 +108,6 @@ fun HomeScreen(nav: NavHostController) {
     val tabs = settings.tabs.ifEmpty { listOf("Songs") }
     var tabName by rememberSaveable { mutableStateOf(tabs.first()) }
     if (tabName !in tabs) tabName = tabs.first()
-    val tab = tabs.indexOf(tabName)
     val queries = remember { mutableStateOf(mapOf<String, String>()) }
     val query = queries.value[tabName].orEmpty()
     val setQuery = { q: String -> queries.value = queries.value + (tabName to q) }
@@ -116,7 +120,8 @@ fun HomeScreen(nav: NavHostController) {
 
     // The songs the ticked rows stand for, in a sensible order.
     fun selectedTracks(): List<Track> = when (tabName) {
-        "Artists" -> library.artists.filter { it.name in selected }.flatMap { it.tracks }
+        "Artists" -> library.trackArtists.filter { it.name in selected }.flatMap { it.tracks }
+        "Album Artists" -> library.artists.filter { it.name in selected }.flatMap { it.tracks }
         "Albums" -> library.albums.filter { it.key in selected }.flatMap { it.tracks }
         else -> library.tracks.filter { it.id in selected }
     }
@@ -131,17 +136,12 @@ fun HomeScreen(nav: NavHostController) {
                 onDelete = { Dialogs.show(DialogRequest.Delete(selectedTracks().map { it.id })); stopSelecting() },
             )
         } else {
-            ScrollableTabRow(selectedTabIndex = tab, edgePadding = 0.dp, containerColor = Lux.background) {
-                tabs.forEach { name ->
-                    Tab(
-                        selected = name == tabName,
-                        onClick = { tabName = name },
-                        text = { Text(name.uppercase(), fontSize = 16.sp, maxLines = 1) },
-                        selectedContentColor = Lux.text,
-                        unselectedContentColor = Lux.dim,
-                    )
-                }
-            }
+            DraggableTabs(
+                tabs = tabs,
+                selected = tabName,
+                onSelect = { tabName = it },
+                onReorder = { order -> app.prefs.update { it.copy(tabs = order) } },
+            )
         }
         if (library.allTracks.isEmpty()) {
             Empty(library)
@@ -150,22 +150,31 @@ fun HomeScreen(nav: NavHostController) {
         SearchField(query, setQuery, Modifier.padding(vertical = 4.dp))
         Box(Modifier.weight(1f)) {
             when (tabName) {
-                "Artists" -> ArtistsTab(nav, library, settings, query, selecting, selected, toggle)
+                "Artists" -> GroupTab(nav, library.trackArtists, "trackartist", Icons.Filled.Person,
+                    settings.artistIcons, GroupAction.VIEW, settings.artistSort, query, selecting, selected, toggle)
+                "Album Artists" -> GroupTab(nav, library.artists, "artist", Icons.Filled.Person,
+                    settings.albumArtistIcons, GroupAction.VIEW, settings.artistSort, query, selecting, selected, toggle)
+                "Genres" -> GroupTab(nav, library.genres, "genre", Icons.Filled.Category,
+                    settings.genreIcons, settings.genreAction, GroupSort.NAME, query, false, emptySet(), toggle)
+                "Composers" -> GroupTab(nav, library.composers, "composer", Icons.Filled.Piano,
+                    settings.composerIcons, settings.composerAction, GroupSort.NAME, query, false, emptySet(), toggle)
+                "Movies" -> MoviesTab(nav, library.movies, query)
+                "TV Shows" -> TvShowsTab(nav, library.tvShows, query)
                 "Playlists" -> PlaylistsTab(nav, library, settings, query)
                 "Songs" -> SongsTab(nav, library, settings, query, selecting, selected, toggle)
                 "Albums" -> AlbumsTab(nav, library, settings, query, selecting, selected, toggle)
-                "Podcasts" -> ShowsTab(nav, library.podcasts, query, "No podcasts on this phone. Choose some on the Podcasts tab of the phone's page in LuxTunes.")
-                "Audiobooks" -> ShowsTab(nav, library.audiobooks, query, "No audiobooks on this phone. Choose some on the Books tab of the phone's page in LuxTunes.")
+                "Podcasts" -> ShowsTab(nav, library.podcasts, query, settings.podcastAction, "No podcasts on this phone. Choose some on the Podcasts tab of the phone's page in LuxTunes.")
+                "Audiobooks" -> ShowsTab(nav, library.audiobooks, query, settings.audiobookAction, "No audiobooks on this phone. Choose some on the Books tab of the phone's page in LuxTunes.")
             }
         }
-        if (tabName in listOf("Artists", "Songs", "Albums") && !selecting) {
-            BottomBar(tabName, library, settings, query, onSelect = { selecting = true })
+        if (tabName in listOf("Artists", "Album Artists", "Songs", "Albums") && !selecting) {
+            BottomBar(nav, tabName, library, settings, query, onSelect = { selecting = true })
         }
     }
 }
 
 @Composable
-private fun BottomBar(tabName: String, library: LibraryState, settings: AppSettings, query: String, onSelect: () -> Unit) {
+private fun BottomBar(nav: NavHostController, tabName: String, library: LibraryState, settings: AppSettings, query: String, onSelect: () -> Unit) {
     val app = app()
     val songs = when (tabName) {
         "Songs" -> sortSongs(library.tracks.filter { matches(query, it.name, it.artist, it.album) }, settings.songSort)
@@ -173,14 +182,14 @@ private fun BottomBar(tabName: String, library: LibraryState, settings: AppSetti
         else -> byArtist(library)
     }
     val playIcon = if (tabName == "Songs") Icons.AutoMirrored.Filled.PlaylistPlay else Icons.Filled.PlayArrow
-    val playLabel = when (tabName) { "Artists" -> "Play by artist"; "Albums" -> "Play by album"; else -> "Play all" }
+    val playLabel = when (tabName) { "Songs" -> "Play all"; "Albums" -> "Play by album"; else -> "Play by artist" }
     Row(
         Modifier.fillMaxWidth().height(56.dp).background(Lux.bar),
         horizontalArrangement = Arrangement.SpaceEvenly,
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        BarButton(playIcon, playLabel) { app.player.play(songs) }
-        BarButton(Icons.Filled.Shuffle, "Shuffle") { app.player.shuffle(songs) }
+        BarButton(playIcon, playLabel) { app.player.play(songs); showPlayer(nav, songs) }
+        BarButton(Icons.Filled.Shuffle, "Shuffle") { app.player.shuffle(songs); showPlayer(nav, songs) }
         SortButton(tabName, settings)
         BarButton(Icons.Filled.Checklist, "Select", onSelect)
     }
@@ -204,7 +213,7 @@ private fun SortButton(tabName: String, settings: AppSettings) {
                 "Songs" -> SongSort.entries.forEach { s ->
                     SortItem(s.label, s == settings.songSort) { prefs.update { it.copy(songSort = s) }; open = false }
                 }
-                "Artists" -> listOf(GroupSort.NAME, GroupSort.SONGS).forEach { s ->
+                "Artists", "Album Artists" -> listOf(GroupSort.NAME, GroupSort.SONGS).forEach { s ->
                     SortItem(s.label, s == settings.artistSort) { prefs.update { it.copy(artistSort = s) }; open = false }
                 }
                 else -> listOf(GroupSort.NAME, GroupSort.ARTIST, GroupSort.YEAR, GroupSort.SONGS).forEach { s ->
@@ -264,29 +273,89 @@ private fun Tick(on: Boolean) {
 
 // ---- The tabs -------------------------------------------------------------------------------
 
+/** Artists, album artists, genres or composers: one row per name; a tap opens (or plays) it. */
 @Composable
-private fun ArtistsTab(
-    nav: NavHostController, library: LibraryState, settings: AppSettings, query: String,
+private fun GroupTab(
+    nav: NavHostController, groups: List<Artist>, kind: String, icon: ImageVector, showIcon: Boolean,
+    action: GroupAction, sort: GroupSort, query: String,
     selecting: Boolean, selected: Set<String>, toggle: (String) -> Unit,
 ) {
     val app = app()
-    val artists = sortArtists(library.artists.filter { matches(query, it.name) }, settings.artistSort)
+    val list = sortArtists(groups.filter { matches(query, it.name) }, sort)
+    if (groups.isEmpty()) {
+        Box(Modifier.fillMaxSize().padding(32.dp), contentAlignment = Alignment.Center) {
+            Text("Nothing here yet.", color = Lux.dim)
+        }
+        return
+    }
     LazyColumn(Modifier.fillMaxSize()) {
-        items(artists, key = { it.name }) { artist ->
+        items(list, key = { it.name }) { group ->
             ListRow(
-                title = artist.name,
-                subtitle = plural(artist.albums.size, "album"),
+                title = group.name,
+                subtitle = plural(group.albums.size, "album") + " · " + plural(group.tracks.size, "song"),
                 onClick = {
-                    if (selecting) toggle(artist.name)
-                    else tapGroup(app, nav, artist.tracks, settings.artistAction, Routes.artist(artist.name))
+                    if (selecting) toggle(group.name)
+                    else tapGroup(app, nav, group.tracks, action, Routes.group(kind, group.name))
                 },
-                leading = {
+                leading = optional(selecting || showIcon) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        if (selecting) { Tick(artist.name in selected); Spacer(Modifier.size(12.dp)) }
-                        Icon(Icons.Filled.Person, null, tint = Lux.text, modifier = Modifier.size(48.dp))
+                        if (selecting) { Tick(group.name in selected); Spacer(Modifier.size(12.dp)) }
+                        if (showIcon) Icon(icon, null, tint = Lux.text, modifier = Modifier.size(48.dp))
                     }
                 },
-                menu = if (selecting) emptyList() else groupMenu(artist.tracks, nav),
+                menu = if (selecting) emptyList() else groupMenu(group.tracks, nav),
+            )
+        }
+    }
+}
+
+/** Movies: one row each; a tap plays it full screen. */
+@Composable
+private fun MoviesTab(nav: NavHostController, movies: List<Track>, query: String) {
+    val app = app()
+    val list = movies.filter { matches(query, it.name, it.genre) }
+    if (movies.isEmpty()) {
+        Box(Modifier.fillMaxSize().padding(32.dp), contentAlignment = Alignment.Center) {
+            Text("No movies on this phone. Choose some on the Movies tab of the phone's page in LuxTunes.",
+                color = Lux.dim, textAlign = TextAlign.Center)
+        }
+        return
+    }
+    LazyColumn(Modifier.fillMaxSize()) {
+        items(list, key = { it.id }) { m ->
+            ListRow(
+                title = m.name,
+                subtitle = listOfNotNull(m.year.takeIf { it > 0 }?.toString(), m.genre.ifEmpty { null }, formatTime(m.totalTime))
+                    .joinToString(" · "),
+                onClick = { playVideo(app, nav, listOf(m), 0) },
+                leading = {
+                    if (m.artwork != null) Artwork(m.artwork, Modifier.size(56.dp), noteSize = 28.dp)
+                    else Icon(Icons.Filled.Movie, null, tint = Lux.text, modifier = Modifier.size(48.dp))
+                },
+                menu = songMenu(m, nav),
+            )
+        }
+    }
+}
+
+/** TV shows: one row per show; a tap opens its seasons. */
+@Composable
+private fun TvShowsTab(nav: NavHostController, shows: List<Artist>, query: String) {
+    val list = shows.filter { matches(query, it.name) }
+    if (shows.isEmpty()) {
+        Box(Modifier.fillMaxSize().padding(32.dp), contentAlignment = Alignment.Center) {
+            Text("No TV shows on this phone. Choose some on the TV Shows tab of the phone's page in LuxTunes.",
+                color = Lux.dim, textAlign = TextAlign.Center)
+        }
+        return
+    }
+    LazyColumn(Modifier.fillMaxSize()) {
+        items(list, key = { it.name }) { show ->
+            ListRow(
+                title = show.name,
+                subtitle = plural(show.albums.size, "season") + " · " + plural(show.tracks.size, "episode"),
+                onClick = { nav.go(Routes.group("tvshow", show.name)) },
+                leading = { Icon(Icons.Filled.Tv, null, tint = Lux.text, modifier = Modifier.size(48.dp)) },
             )
         }
     }
@@ -374,7 +443,8 @@ private fun PlaylistsTab(nav: NavHostController, library: LibraryState, settings
 
 /** Podcasts (one row per show) or audiobooks (one per book); a tap opens its episodes or chapters. */
 @Composable
-private fun ShowsTab(nav: NavHostController, shows: List<Album>, query: String, empty: String) {
+private fun ShowsTab(nav: NavHostController, shows: List<Album>, query: String, action: GroupAction, empty: String) {
+    val app = app()
     val list = shows.filter { matches(query, it.name, it.artist) }
     if (shows.isEmpty()) {
         Box(Modifier.fillMaxSize().padding(32.dp), contentAlignment = Alignment.Center) {
@@ -387,7 +457,7 @@ private fun ShowsTab(nav: NavHostController, shows: List<Album>, query: String, 
             ListRow(
                 title = show.name,
                 subtitle = "${show.artist} · ${plural(show.tracks.size, "item")}",
-                onClick = { nav.go(Routes.album(show.key)) },
+                onClick = { tapGroup(app, nav, show.tracks, action, Routes.album(show.key)) },
                 leading = { Artwork(show.artwork, Modifier.size(56.dp), noteSize = 28.dp) },
                 menu = groupMenu(show.tracks, nav),
             )

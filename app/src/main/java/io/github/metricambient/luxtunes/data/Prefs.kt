@@ -15,13 +15,20 @@ enum class SongAction(val label: String) {
     SHUFFLE("Shuffle"),       // the list, shuffled
 }
 
-/** What a tap on an artist or album does. */
+/** What a tap on a playlist, album, genre, composer, podcast or book does. */
 enum class GroupAction(val label: String) {
     VIEW("View"),
     PLAY("Play"),
     SHUFFLE("Shuffle"),
-    SHUFFLE_ALBUMS("Shuffling by albums"),
-    SHUFFLE_ARTISTS("Shuffling by artists"),
+    SHUFFLE_ALBUMS("Shuffle by albums"),
+    SHUFFLE_ARTISTS("Shuffle by artists"),
+}
+
+/** The choices each kind of row offers (Settings → Tabs). */
+object Actions {
+    val BASIC = listOf(GroupAction.VIEW, GroupAction.PLAY, GroupAction.SHUFFLE)
+    val ALL = GroupAction.entries.toList()
+    val NO_ARTISTS = listOf(GroupAction.VIEW, GroupAction.PLAY, GroupAction.SHUFFLE, GroupAction.SHUFFLE_ALBUMS)
 }
 
 enum class SongSort(val label: String) {
@@ -31,18 +38,29 @@ enum class SongSort(val label: String) {
 
 enum class GroupSort(val label: String) { NAME("Name"), ARTIST("Artist"), YEAR("Year"), SONGS("Number of songs") }
 
-val ALL_TABS = listOf("Artists", "Playlists", "Songs", "Albums", "Podcasts", "Audiobooks")
+/** Every tab, in their first order (the user can drag them into another). */
+val ALL_TABS = listOf(
+    "Artists", "Album Artists", "Playlists", "Songs", "Albums", "Genres", "Composers",
+    "Podcasts", "Audiobooks", "Movies", "TV Shows",
+)
 
 data class AppSettings(
     val storage: StorageChoice? = null,          // null: not chosen yet
-    val tabs: List<String> = ALL_TABS,           // shown, in this order
+    val tabs: List<String> = listOf("Artists", "Playlists", "Songs", "Albums"),   // shown
     val songArt: Boolean = false,                // album art in the Songs tab
     val playlistIcons: Boolean = true,
     val albumArt: Boolean = true,                // art in the Albums grid
+    val artistIcons: Boolean = true,
+    val albumArtistIcons: Boolean = true,
+    val genreIcons: Boolean = true,
+    val composerIcons: Boolean = true,
     val songAction: SongAction = SongAction.PLAY,
     val playlistAction: GroupAction = GroupAction.VIEW,
-    val artistAction: GroupAction = GroupAction.VIEW,
     val albumAction: GroupAction = GroupAction.VIEW,
+    val genreAction: GroupAction = GroupAction.VIEW,
+    val composerAction: GroupAction = GroupAction.VIEW,
+    val podcastAction: GroupAction = GroupAction.VIEW,
+    val audiobookAction: GroupAction = GroupAction.VIEW,
     val gridPortrait: Int = 2,
     val gridLandscape: Int = 4,
     val songSort: SongSort = SongSort.NAME,
@@ -59,16 +77,25 @@ class Prefs(context: Context) {
 
     private fun load(): AppSettings {
         val d = AppSettings()
+        val saved = sp.getString("tabs", null)?.split(',')
         return AppSettings(
             storage = sp.getString("storage", null)?.let { name -> StorageChoice.entries.firstOrNull { it.name == name } },
-            tabs = sp.getString("tabs", null)?.split(',')?.filter { it in ALL_TABS } ?: d.tabs,
+            tabs = saved?.filter { it in ALL_TABS }?.distinct() ?: d.tabs,       // in the user's order
             songArt = sp.getBoolean("songArt", d.songArt),
             playlistIcons = sp.getBoolean("playlistIcons", d.playlistIcons),
             albumArt = sp.getBoolean("albumArt", d.albumArt),
+            artistIcons = sp.getBoolean("artistIcons", d.artistIcons),
+            albumArtistIcons = sp.getBoolean("albumArtistIcons", d.albumArtistIcons),
+            genreIcons = sp.getBoolean("genreIcons", d.genreIcons),
+            composerIcons = sp.getBoolean("composerIcons", d.composerIcons),
             songAction = enumOf(sp.getString("songAction", null), d.songAction),
             playlistAction = enumOf(sp.getString("playlistAction", null), d.playlistAction),
-            artistAction = enumOf(sp.getString("artistAction", null), d.artistAction),
-            albumAction = enumOf(sp.getString("albumAction", null), d.albumAction),
+            albumAction = enumOf(sp.getString("albumAction", null), d.albumAction).let { if (it in Actions.BASIC) it else d.albumAction },
+            genreAction = enumOf(sp.getString("genreAction", null), d.genreAction),
+            composerAction = enumOf(sp.getString("composerAction", null), d.composerAction)
+                .let { if (it in Actions.NO_ARTISTS) it else d.composerAction },
+            podcastAction = enumOf(sp.getString("podcastAction", null), d.podcastAction),
+            audiobookAction = enumOf(sp.getString("audiobookAction", null), d.audiobookAction),
             gridPortrait = sp.getInt("gridPortrait", d.gridPortrait),
             gridLandscape = sp.getInt("gridLandscape", d.gridLandscape),
             songSort = enumOf(sp.getString("songSort", null), d.songSort),
@@ -86,10 +113,17 @@ class Prefs(context: Context) {
             .putBoolean("songArt", s.songArt)
             .putBoolean("playlistIcons", s.playlistIcons)
             .putBoolean("albumArt", s.albumArt)
+            .putBoolean("artistIcons", s.artistIcons)
+            .putBoolean("albumArtistIcons", s.albumArtistIcons)
+            .putBoolean("genreIcons", s.genreIcons)
+            .putBoolean("composerIcons", s.composerIcons)
             .putString("songAction", s.songAction.name)
             .putString("playlistAction", s.playlistAction.name)
-            .putString("artistAction", s.artistAction.name)
             .putString("albumAction", s.albumAction.name)
+            .putString("genreAction", s.genreAction.name)
+            .putString("composerAction", s.composerAction.name)
+            .putString("podcastAction", s.podcastAction.name)
+            .putString("audiobookAction", s.audiobookAction.name)
             .putInt("gridPortrait", s.gridPortrait)
             .putInt("gridLandscape", s.gridLandscape)
             .putString("songSort", s.songSort.name)

@@ -72,7 +72,7 @@ fun MiniPlayer(nav: NavHostController, showMenu: Boolean) {
             Box(Modifier.fillMaxHeight().fillMaxWidth(progress).background(Lux.accent))
         }
         Row(
-            Modifier.fillMaxWidth().height(64.dp).clickable { nav.go(Routes.NOW) },
+            Modifier.fillMaxWidth().height(64.dp).clickable { nav.go(if (track?.isVideo == true) Routes.VIDEO else Routes.NOW) },
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Artwork(track?.artwork, Modifier.size(64.dp), noteSize = 36.dp)

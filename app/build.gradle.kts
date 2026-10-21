@@ -25,7 +25,7 @@ android {
         versionName = System.getenv("GITHUB_REF_NAME")
             ?.takeIf { System.getenv("GITHUB_REF_TYPE") == "tag" }
             ?.removePrefix("v")
-            ?: "0.3.0"
+            ?: "0.4.0"
     }
 
     signingConfigs {
@@ -76,6 +76,7 @@ dependencies {
     implementation("androidx.media3:media3-exoplayer:1.5.1")
     implementation("androidx.media3:media3-session:1.5.1")
     implementation("androidx.media3:media3-extractor:1.5.1")
+    implementation("androidx.media3:media3-ui:1.5.1")
     implementation("com.google.guava:guava:33.3.1-android")
     implementation("io.coil-kt:coil-compose:2.7.0")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.9.0")
