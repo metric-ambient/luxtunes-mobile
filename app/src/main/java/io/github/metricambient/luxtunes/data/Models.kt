@@ -59,7 +59,13 @@ data class Album(
     val year: Int,
     val artwork: String?,
     val tracks: List<Track>,        // disc, then track number
-)
+) {
+    /** The song whose cover (or embedded art) pictures the album. */
+    val artTrack: Track? get() = artTrackOf(tracks)
+}
+
+/** The first song with a cover, else the first song (for its embedded art). */
+fun artTrackOf(tracks: List<Track>): Track? = tracks.firstOrNull { it.artwork != null } ?: tracks.firstOrNull()
 
 data class Artist(
     val name: String,

@@ -1,6 +1,8 @@
 package io.github.metricambient.luxtunes
 
 import android.app.Application
+import coil.ImageLoader
+import coil.ImageLoaderFactory
 import androidx.lifecycle.DefaultLifecycleObserver
 import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.ProcessLifecycleOwner
@@ -8,8 +10,10 @@ import io.github.metricambient.luxtunes.data.Prefs
 import io.github.metricambient.luxtunes.data.Repository
 import io.github.metricambient.luxtunes.data.UsbState
 import io.github.metricambient.luxtunes.playback.PlayerConnection
+import io.github.metricambient.luxtunes.ui.ArtFetcher
+import io.github.metricambient.luxtunes.ui.ArtKeyer
 
-class LuxTunesApp : Application() {
+class LuxTunesApp : Application(), ImageLoaderFactory {
     lateinit var prefs: Prefs
         private set
     lateinit var repository: Repository
@@ -30,4 +34,12 @@ class LuxTunesApp : Application() {
             }
         })
     }
+
+    /** Pictures: album covers, falling back to the art inside the song file. */
+    override fun newImageLoader(): ImageLoader = ImageLoader.Builder(this)
+        .components {
+            add(ArtKeyer())
+            add(ArtFetcher.Factory())
+        }
+        .build()
 }

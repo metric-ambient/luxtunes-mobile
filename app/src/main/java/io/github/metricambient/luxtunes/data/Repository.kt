@@ -16,6 +16,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import io.github.metricambient.luxtunes.ui.Art
 import java.io.File
 
 /** Everything the screens show. */
@@ -633,13 +634,17 @@ class Repository(private val context: Context, private val prefs: Prefs) {
             .setArtist(t.artist)
             .setAlbumTitle(t.album)
             .setAlbumArtist(t.albumArtist)
-        if (folder != null && t.artwork != null) b.setArtworkUri(Uri.fromFile(File(folder, t.artwork)))
+        // No cover yet: leave it unset so the player uses the art inside the file.
+        val cover = if (folder != null && t.artwork != null) File(folder, t.artwork) else null
+        if (cover != null && cover.isFile) b.setArtworkUri(Uri.fromFile(cover))
         return b.build()
     }
 
-    fun artworkFile(path: String?): File? {
+    /** A song's picture: its album cover, else the art inside the file. */
+    fun art(t: Track?): Art? {
         val folder = _state.value.folder ?: return null
-        return if (path == null) null else File(folder, path)
+        if (t == null) return null
+        return Art(t.artwork?.let { File(folder, it) }, File(folder, t.path))
     }
 
     companion object {

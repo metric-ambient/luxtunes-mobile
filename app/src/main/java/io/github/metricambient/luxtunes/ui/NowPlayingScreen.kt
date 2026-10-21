@@ -139,7 +139,7 @@ fun NowPlayingScreen(nav: NavHostController) {
                     indication = null,
                 ) { if (track != null) overlay = !overlay },
         ) {
-            Artwork(track?.artwork, Modifier.fillMaxSize(), noteSize = 220.dp)
+            Artwork(track, Modifier.fillMaxSize(), noteSize = 220.dp)
             if (overlay && track != null) {
                 val lyrics = track.lyrics ?: fileLyrics[track.id]
                 if (lyrics != null) {

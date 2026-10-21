@@ -329,8 +329,7 @@ private fun MoviesTab(nav: NavHostController, movies: List<Track>, query: String
                     .joinToString(" · "),
                 onClick = { playVideo(app, nav, listOf(m), 0) },
                 leading = {
-                    if (m.artwork != null) Artwork(m.artwork, Modifier.size(56.dp), noteSize = 28.dp)
-                    else Icon(Icons.Filled.Movie, null, tint = Lux.text, modifier = Modifier.size(48.dp))
+                    Artwork(m, Modifier.size(56.dp), noteSize = 40.dp, note = Icons.Filled.Movie)
                 },
                 menu = songMenu(m, nav),
             )
@@ -380,7 +379,7 @@ private fun SongsTab(
                 leading = optional(selecting || showArt) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         if (selecting) { Tick(t.id in selected); Spacer(Modifier.size(12.dp)) }
-                        if (showArt) Artwork(t.artwork, Modifier.size(48.dp), noteSize = 24.dp)
+                        if (showArt) Artwork(t, Modifier.size(48.dp), noteSize = 24.dp)
                     }
                 },
             )
@@ -458,7 +457,7 @@ private fun ShowsTab(nav: NavHostController, shows: List<Album>, query: String, 
                 title = show.name,
                 subtitle = "${show.artist} · ${plural(show.tracks.size, "item")}",
                 onClick = { tapGroup(app, nav, show.tracks, action, Routes.album(show.key)) },
-                leading = { Artwork(show.artwork, Modifier.size(56.dp), noteSize = 28.dp) },
+                leading = { Artwork(show.artTrack, Modifier.size(56.dp), noteSize = 28.dp) },
                 menu = groupMenu(show.tracks, nav),
             )
         }
@@ -490,7 +489,7 @@ private fun AlbumsTab(
                         else tapGroup(app, nav, album.tracks, settings.albumAction, Routes.album(album.key))
                     },
             ) {
-                if (settings.albumArt) Artwork(album.artwork, Modifier.fillMaxSize(), noteSize = (96 / columns * 2).dp)
+                if (settings.albumArt) Artwork(album.artTrack, Modifier.fillMaxSize(), noteSize = (96 / columns * 2).dp)
                 else Box(Modifier.fillMaxSize().background(Lux.panel))
                 Text(
                     album.name,

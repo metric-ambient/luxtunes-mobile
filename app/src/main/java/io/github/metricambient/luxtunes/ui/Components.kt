@@ -69,15 +69,23 @@ fun plural(n: Int, one: String, many: String = one + "s") = "$n ${if (n == 1) on
 
 // ---- Pictures ----------------------------------------------------------------------------
 
-/** Album art from the LuxTunes folder, or a music note when there's none. */
+/**
+ * A song's picture: the album cover LuxTunes copied, else the art inside the
+ * song file, else `note` (a music note).
+ */
 @Composable
-fun Artwork(path: String?, modifier: Modifier = Modifier, noteSize: Dp = 48.dp) {
-    val file = app().repository.artworkFile(path)
+fun Artwork(
+    song: Track?,
+    modifier: Modifier = Modifier,
+    noteSize: Dp = 48.dp,
+    note: ImageVector = Icons.Filled.MusicNote,
+) {
+    val art = app().repository.art(song)
     Box(modifier.background(Color(0xFF1F1F1F)), contentAlignment = Alignment.Center) {
-        Icon(Icons.Filled.MusicNote, null, tint = Color(0xFF555555), modifier = Modifier.size(noteSize))
-        if (file != null) {
+        Icon(note, null, tint = Color(0xFF555555), modifier = Modifier.size(noteSize))
+        if (art != null) {
             AsyncImage(
-                model = file,
+                model = art,
                 contentDescription = null,
                 contentScale = ContentScale.Crop,
                 modifier = Modifier.fillMaxSize(),

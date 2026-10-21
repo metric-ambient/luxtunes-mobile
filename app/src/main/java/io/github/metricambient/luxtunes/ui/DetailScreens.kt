@@ -37,6 +37,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavHostController
 import io.github.metricambient.luxtunes.data.Track
+import io.github.metricambient.luxtunes.data.artTrackOf
 
 /**
  * The top of an album, artist or playlist page: the art over a blurred copy of
@@ -44,16 +45,16 @@ import io.github.metricambient.luxtunes.data.Track
  */
 private fun LazyListScope.pageHeader(
     nav: NavHostController,
-    artwork: String?,
+    art: Track?,
     summary: String,
     tracks: List<Track>,
 ) {
     item {
         val player = app().player
         Box(Modifier.fillMaxWidth().height(330.dp)) {
-            Artwork(artwork, Modifier.fillMaxWidth().height(330.dp).blur(24.dp).alpha(0.6f), noteSize = 0.dp)
+            Artwork(art, Modifier.fillMaxWidth().height(330.dp).blur(24.dp).alpha(0.6f), noteSize = 0.dp)
             Box(Modifier.fillMaxWidth().height(330.dp).background(Color.Black.copy(alpha = 0.25f)))
-            Artwork(artwork, Modifier.align(Alignment.TopCenter).padding(top = 40.dp).size(225.dp), noteSize = 120.dp)
+            Artwork(art, Modifier.align(Alignment.TopCenter).padding(top = 40.dp).size(225.dp), noteSize = 120.dp)
             Row(Modifier.fillMaxWidth().padding(4.dp), verticalAlignment = Alignment.CenterVertically) {
                 IconButton(onClick = { nav.popBackStack() }) {
                     Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back", tint = Lux.text)
@@ -112,7 +113,7 @@ fun AlbumScreen(nav: NavHostController, key: String) {
     val playerState by app.player.state.collectAsState()
     val album = library.albumByKey[key] ?: return Missing(nav, "album")
     LazyColumn(Modifier.fillMaxSize()) {
-        pageHeader(nav, album.artwork, summaryOf(album.tracks, album.year), album.tracks)
+        pageHeader(nav, album.artTrack, summaryOf(album.tracks, album.year), album.tracks)
         item { Spacer(Modifier.height(16.dp)) }
         itemsIndexed(album.tracks, key = { _, t -> t.id }) { i, t ->
             SongRow(
@@ -136,7 +137,7 @@ fun GroupScreen(nav: NavHostController, kind: String, name: String) {
     val tracks = artist.tracks
     val years = artist.albums.map { it.year }.filter { it > 0 }
     LazyColumn(Modifier.fillMaxSize()) {
-        pageHeader(nav, artist.albums.firstNotNullOfOrNull { it.artwork }, summaryOf(tracks), tracks)
+        pageHeader(nav, artTrackOf(tracks), summaryOf(tracks), tracks)
         item {
             Text(
                 artist.name + if (years.isNotEmpty()) "  ·  ${years.min()}–${years.max()}" else "",
@@ -149,7 +150,7 @@ fun GroupScreen(nav: NavHostController, kind: String, name: String) {
                 title = album.name,
                 subtitle = if (album.year > 0) "${album.year}" else plural(album.tracks.size, if (kind == "tvshow") "episode" else "song"),
                 onClick = { nav.go(Routes.album(album.key)) },
-                leading = { Artwork(album.artwork, Modifier.size(64.dp), noteSize = 32.dp) },
+                leading = { Artwork(album.artTrack, Modifier.size(64.dp), noteSize = 32.dp) },
                 menu = groupMenu(album.tracks, nav),
             )
         }
@@ -166,7 +167,7 @@ fun PlaylistScreen(nav: NavHostController, id: String) {
     val entries = playlist.trackIds.mapIndexedNotNull { pos, tid -> library.byId[tid]?.let { pos to it } }
     val tracks = entries.map { it.second }
     LazyColumn(Modifier.fillMaxSize()) {
-        pageHeader(nav, tracks.firstNotNullOfOrNull { it.artwork }, summaryOf(tracks), tracks)
+        pageHeader(nav, artTrackOf(tracks), summaryOf(tracks), tracks)
         item {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(

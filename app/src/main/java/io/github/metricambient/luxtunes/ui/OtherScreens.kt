@@ -75,7 +75,7 @@ fun MiniPlayer(nav: NavHostController, showMenu: Boolean) {
             Modifier.fillMaxWidth().height(64.dp).clickable { nav.go(if (track?.isVideo == true) Routes.VIDEO else Routes.NOW) },
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Artwork(track?.artwork, Modifier.size(64.dp), noteSize = 36.dp)
+            Artwork(track, Modifier.size(64.dp), noteSize = 36.dp)
             Column(Modifier.weight(1f).padding(horizontal = 12.dp)) {
                 Text(track?.name ?: "Not playing", color = Lux.text, fontSize = 17.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 if (track != null) Text(track.artist, color = Lux.dim, fontSize = 14.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
@@ -125,7 +125,7 @@ fun SearchScreen(nav: NavHostController) {
             if (albums.isNotEmpty()) item { Heading("Albums") }
             items(albums, key = { "al:" + it.key }) { a ->
                 ListRow(a.name, a.artist, onClick = { nav.go(Routes.album(a.key)) },
-                    leading = { Artwork(a.artwork, Modifier.size(48.dp), noteSize = 24.dp) })
+                    leading = { Artwork(a.artTrack, Modifier.size(48.dp), noteSize = 24.dp) })
             }
             if (songs.isNotEmpty()) item { Heading("Songs") }
             items(songs, key = { "so:" + it.id }) { t ->
