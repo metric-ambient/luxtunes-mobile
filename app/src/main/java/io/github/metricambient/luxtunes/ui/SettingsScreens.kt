@@ -61,7 +61,7 @@ import kotlinx.coroutines.launch
 import java.io.File
 
 @Composable
-private fun ScreenTitle(nav: NavHostController, title: String) {
+internal fun ScreenTitle(nav: NavHostController, title: String) {
     Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(vertical = 8.dp)) {
         IconButton(onClick = { nav.popBackStack() }) {
             Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back", tint = Lux.text)
@@ -79,7 +79,7 @@ private fun SettingRow(icon: ImageVector, title: String, subtitle: String, onCli
             .padding(horizontal = 16.dp, vertical = 14.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Icon(icon, null, tint = if (onClick != null) Lux.icon else Color(0xFF666666), modifier = Modifier.size(48.dp))
+        Icon(icon, null, tint = if (onClick != null) Lux.icon else Lux.faint, modifier = Modifier.size(48.dp))
         Column(Modifier.padding(start = 20.dp)) {
             Text(title, color = if (onClick != null) Lux.text else Lux.dim, fontSize = 19.sp)
             Text(subtitle, color = Lux.dim, fontSize = 14.sp)
@@ -101,7 +101,7 @@ fun SettingsScreen(nav: NavHostController) {
         item { SettingRow(Icons.Filled.Album, "Sound", "EQ, fade in/out, customize playback · $later") }
         item { SettingRow(Icons.Filled.Build, "Operation", "Lock screen, font, shuffle… · $later") }
         item { SettingRow(Icons.Filled.Folder, "Tabs", "Choose which tabs to see, and what a tap does") { nav.go(Routes.SETTINGS_TABS) } }
-        item { SettingRow(Icons.Filled.Palette, "Theme Color", later) }
+        item { SettingRow(Icons.Filled.Palette, "Theme", "${settings.themeStyle.label} · style and colors") { nav.go(Routes.SETTINGS_THEME) } }
         item { SettingRow(Icons.Filled.Headphones, "Headset/Bluetooth", "Set volume on connect and more · $later") }
         item {
             val folder = library.folder?.path ?: "not found"

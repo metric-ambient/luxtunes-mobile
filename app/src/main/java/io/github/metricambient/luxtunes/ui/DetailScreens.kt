@@ -53,7 +53,7 @@ private fun LazyListScope.pageHeader(
         val player = app().player
         Box(Modifier.fillMaxWidth().height(330.dp)) {
             Artwork(art, Modifier.fillMaxWidth().height(330.dp).blur(24.dp).alpha(0.6f), noteSize = 0.dp)
-            Box(Modifier.fillMaxWidth().height(330.dp).background(Color.Black.copy(alpha = 0.25f)))
+            Box(Modifier.fillMaxWidth().height(330.dp).background(Lux.background.copy(alpha = 0.25f)))
             Artwork(art, Modifier.align(Alignment.TopCenter).padding(top = 40.dp).size(225.dp), noteSize = 120.dp)
             Row(Modifier.fillMaxWidth().padding(4.dp), verticalAlignment = Alignment.CenterVertically) {
                 IconButton(onClick = { nav.popBackStack() }) {
@@ -84,7 +84,7 @@ private fun LazyListScope.pageHeader(
                 onClick = { player.play(tracks); showPlayer(nav, tracks) },
                 shape = CircleShape,
                 containerColor = Lux.accent,
-                contentColor = Color.White,
+                contentColor = Lux.onAccent,
                 modifier = Modifier.align(Alignment.TopEnd).offset(x = (-24).dp, y = 270.dp).size(58.dp),
             ) {
                 Icon(Icons.Filled.MusicNote, "Play")
@@ -112,6 +112,7 @@ fun AlbumScreen(nav: NavHostController, key: String) {
     val library by app.repository.state.collectAsState()
     val playerState by app.player.state.collectAsState()
     val album = library.albumByKey[key] ?: return Missing(nav, "album")
+    PageAccent(album.artTrack)
     LazyColumn(Modifier.fillMaxSize()) {
         pageHeader(nav, album.artTrack, summaryOf(album.tracks, album.year), album.tracks)
         item { Spacer(Modifier.height(16.dp)) }
@@ -136,6 +137,7 @@ fun GroupScreen(nav: NavHostController, kind: String, name: String) {
     })
     val tracks = artist.tracks
     val years = artist.albums.map { it.year }.filter { it > 0 }
+    PageAccent(artTrackOf(tracks))
     LazyColumn(Modifier.fillMaxSize()) {
         pageHeader(nav, artTrackOf(tracks), summaryOf(tracks), tracks)
         item {

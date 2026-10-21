@@ -38,6 +38,22 @@ enum class SongSort(val label: String) {
 
 enum class GroupSort(val label: String) { NAME("Name"), ARTIST("Artist"), YEAR("Year"), SONGS("Number of songs") }
 
+/** The look of the app (Settings → Theme). */
+enum class ThemeStyle(val label: String) { DARK("Dark"), MATERIAL("Material"), LIGHT("Light") }
+
+/** A style's three colors (ARGB). `autoAccent`: take the accent from the album art. */
+data class ThemeColors(val background: Int, val accent: Int, val text: Int, val autoAccent: Boolean = false) {
+    companion object {
+        val BLUE = 0xFF0099CC.toInt()
+        // Light's background is the soft white of LuxTunes' light theme (its "alt_base").
+        fun defaults(style: ThemeStyle) = when (style) {
+            ThemeStyle.DARK -> ThemeColors(0xFF000000.toInt(), BLUE, 0xFFFFFFFF.toInt())
+            ThemeStyle.MATERIAL -> ThemeColors(0xFF303030.toInt(), BLUE, 0xFFFFFFFF.toInt())
+            ThemeStyle.LIGHT -> ThemeColors(0xFFF1F5FA.toInt(), BLUE, 0xFF000000.toInt())
+        }
+    }
+}
+
 /** Every tab, in their first order (the user can drag them into another). */
 val ALL_TABS = listOf(
     "Artists", "Album Artists", "Playlists", "Songs", "Albums", "Genres", "Composers",
@@ -66,7 +82,12 @@ data class AppSettings(
     val songSort: SongSort = SongSort.NAME,
     val artistSort: GroupSort = GroupSort.NAME,
     val albumSort: GroupSort = GroupSort.NAME,
-)
+    val themeStyle: ThemeStyle = ThemeStyle.DARK,
+    // Each style keeps its own colors, so switching back and forth loses nothing.
+    val themeColors: Map<ThemeStyle, ThemeColors> = ThemeStyle.entries.associateWith { ThemeColors.defaults(it) },
+) {
+    val colors: ThemeColors get() = themeColors[themeStyle] ?: ThemeColors.defaults(themeStyle)
+}
 
 /** The app's settings, kept in SharedPreferences. */
 class Prefs(context: Context) {
@@ -101,6 +122,16 @@ class Prefs(context: Context) {
             songSort = enumOf(sp.getString("songSort", null), d.songSort),
             artistSort = enumOf(sp.getString("artistSort", null), d.artistSort),
             albumSort = enumOf(sp.getString("albumSort", null), d.albumSort),
+            themeStyle = enumOf(sp.getString("themeStyle", null), d.themeStyle),
+            themeColors = ThemeStyle.entries.associateWith { style ->
+                val def = ThemeColors.defaults(style)
+                ThemeColors(
+                    background = sp.getInt("theme.${style.name}.background", def.background),
+                    accent = sp.getInt("theme.${style.name}.accent", def.accent),
+                    text = sp.getInt("theme.${style.name}.text", def.text),
+                    autoAccent = sp.getBoolean("theme.${style.name}.auto", def.autoAccent),
+                )
+            },
         )
     }
 
@@ -129,6 +160,15 @@ class Prefs(context: Context) {
             .putString("songSort", s.songSort.name)
             .putString("artistSort", s.artistSort.name)
             .putString("albumSort", s.albumSort.name)
+            .putString("themeStyle", s.themeStyle.name)
+            .also { e ->
+                for ((style, c) in s.themeColors) {
+                    e.putInt("theme.${style.name}.background", c.background)
+                    e.putInt("theme.${style.name}.accent", c.accent)
+                    e.putInt("theme.${style.name}.text", c.text)
+                    e.putBoolean("theme.${style.name}.auto", c.autoAccent)
+                }
+            }
             .apply()
     }
 

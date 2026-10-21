@@ -68,7 +68,7 @@ fun MiniPlayer(nav: NavHostController, showMenu: Boolean) {
         }
     }
     Column(Modifier.fillMaxWidth().background(Lux.background)) {
-        Box(Modifier.fillMaxWidth().height(3.dp).background(Color(0xFF9E9E9E))) {
+        Box(Modifier.fillMaxWidth().height(3.dp).background(Lux.track)) {
             Box(Modifier.fillMaxHeight().fillMaxWidth(progress).background(Lux.accent))
         }
         Row(

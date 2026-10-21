@@ -33,6 +33,7 @@ import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.zIndex
+import io.github.metricambient.luxtunes.data.ThemeStyle
 import kotlin.math.roundToInt
 
 /**
@@ -48,7 +49,8 @@ fun DraggableTabs(tabs: List<String>, selected: String, onSelect: (String) -> Un
     val haptics = LocalHapticFeedback.current
     val density = LocalDensity.current
 
-    Column(Modifier.fillMaxWidth().background(Lux.background)) {
+    val material = Lux.style == ThemeStyle.MATERIAL
+    Column(Modifier.fillMaxWidth().background(Lux.tabBar)) {
         Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState())) {
             for (name in order) {
                 val isDragged = name == dragging
@@ -57,7 +59,7 @@ fun DraggableTabs(tabs: List<String>, selected: String, onSelect: (String) -> Un
                         .onSizeChanged { widths[name] = it.width }
                         .zIndex(if (isDragged) 1f else 0f)
                         .offset { IntOffset(if (isDragged) offset.roundToInt() else 0, 0) }
-                        .then(if (isDragged) Modifier.shadow(6.dp).background(Lux.panel) else Modifier)
+                        .then(if (isDragged) Modifier.shadow(6.dp).background(if (material) Lux.tabBar else Lux.panel) else Modifier)
                         .pointerInput(name) {
                             detectDragGesturesAfterLongPress(
                                 onDragStart = {
@@ -102,19 +104,22 @@ fun DraggableTabs(tabs: List<String>, selected: String, onSelect: (String) -> Un
                             name.uppercase(),
                             fontSize = 16.sp,
                             maxLines = 1,
-                            color = if (name == selected) Lux.text else Lux.dim,
+                            color = when {
+                                material -> if (name == selected) Lux.onAccent else Lux.onAccent.copy(alpha = 0.7f)
+                                else -> if (name == selected) Lux.text else Lux.dim
+                            },
                             modifier = Modifier.padding(horizontal = 20.dp, vertical = 14.dp),
                         )
                         Box(
                             Modifier
                                 .height(3.dp)
                                 .width(with(density) { (widths[name] ?: 0).toDp() })
-                                .background(if (name == selected) Lux.accent else Color.Transparent)
+                                .background(if (name != selected) Color.Transparent else if (material) Lux.onAccent else Lux.accent)
                         )
                     }
                 }
             }
         }
-        Box(Modifier.fillMaxWidth().height(1.dp).background(Lux.panel))
+        if (!material) Box(Modifier.fillMaxWidth().height(1.dp).background(Lux.panel))
     }
 }

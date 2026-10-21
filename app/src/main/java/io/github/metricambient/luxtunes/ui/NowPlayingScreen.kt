@@ -182,14 +182,14 @@ fun NowPlayingScreen(nav: NavHostController) {
                 Modifier
                     .size(104.dp)
                     .clip(CircleShape)
-                    .background(if (state.isPlaying) Lux.accent else Color(0xFFAAAAAA))
+                    .background(if (state.isPlaying) Lux.accent else Lux.dim)
                     .clickable { app.player.togglePlay() },
                 contentAlignment = Alignment.Center,
             ) {
                 Icon(
                     if (state.isPlaying) Icons.Filled.Pause else Icons.Filled.PlayArrow,
                     if (state.isPlaying) "Pause" else "Play",
-                    tint = Color.White, modifier = Modifier.size(70.dp),
+                    tint = if (state.isPlaying) Lux.onAccent else Lux.background, modifier = Modifier.size(70.dp),
                 )
             }
             IconButton(onClick = { app.player.next() }, modifier = Modifier.size(64.dp)) {
@@ -222,7 +222,7 @@ fun NowPlayingScreen(nav: NavHostController) {
                     position = (dragValue * duration).toLong()
                     dragging = false
                 },
-                colors = SliderDefaults.colors(thumbColor = Lux.accent, activeTrackColor = Lux.accent, inactiveTrackColor = Color(0xFF444444)),
+                colors = SliderDefaults.colors(thumbColor = Lux.accent, activeTrackColor = Lux.accent, inactiveTrackColor = Lux.track),
                 modifier = Modifier.weight(1f),
             )
             Text(

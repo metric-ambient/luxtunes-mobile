@@ -12,6 +12,8 @@ import io.github.metricambient.luxtunes.data.UsbState
 import io.github.metricambient.luxtunes.playback.PlayerConnection
 import io.github.metricambient.luxtunes.ui.ArtFetcher
 import io.github.metricambient.luxtunes.ui.ArtKeyer
+import io.github.metricambient.luxtunes.ui.Lux
+import io.github.metricambient.luxtunes.ui.LuxPalette
 
 class LuxTunesApp : Application(), ImageLoaderFactory {
     lateinit var prefs: Prefs
@@ -26,6 +28,7 @@ class LuxTunesApp : Application(), ImageLoaderFactory {
         prefs = Prefs(this)
         repository = Repository(this, prefs)
         player = PlayerConnection(this)
+        prefs.current.let { Lux.use(LuxPalette(it.themeStyle, it.colors)) }
         UsbState.watch(this) { repository.transferMode = it }
         // Check for a new sync whenever the app comes to the front.
         ProcessLifecycleOwner.get().lifecycle.addObserver(object : DefaultLifecycleObserver {

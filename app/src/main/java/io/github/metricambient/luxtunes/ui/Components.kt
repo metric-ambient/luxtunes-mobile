@@ -81,8 +81,8 @@ fun Artwork(
     note: ImageVector = Icons.Filled.MusicNote,
 ) {
     val art = app().repository.art(song)
-    Box(modifier.background(Color(0xFF1F1F1F)), contentAlignment = Alignment.Center) {
-        Icon(note, null, tint = Color(0xFF555555), modifier = Modifier.size(noteSize))
+    Box(modifier.background(Lux.bar), contentAlignment = Alignment.Center) {
+        Icon(note, null, tint = Lux.faint, modifier = Modifier.size(noteSize))
         if (art != null) {
             AsyncImage(
                 model = art,
@@ -235,7 +235,7 @@ fun ActionBar(actions: List<BarAction>) {
     ) {
         for (a in actions) {
             IconButton(onClick = a.onClick, enabled = a.enabled) {
-                Icon(a.icon, a.label, tint = if (a.enabled) Lux.icon else Color(0xFF555555), modifier = Modifier.size(30.dp))
+                Icon(a.icon, a.label, tint = if (a.enabled) Lux.icon else Lux.faint, modifier = Modifier.size(30.dp))
             }
         }
     }

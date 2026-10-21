@@ -74,6 +74,7 @@ object Routes {
     const val QUEUE = "queue"
     const val SETTINGS_TABS = "settings/tabs"
     const val SETTINGS_ABOUT = "settings/about"
+    const val SETTINGS_THEME = "settings/theme"
     fun album(key: String) = "album/${Uri.encode(key)}"
     /** An album artist's page. */
     fun artist(name: String) = group("artist", name)
@@ -137,6 +138,7 @@ private fun MainScreens() {
                     SmartEditorScreen(nav, it.arguments?.getString("id"))
                 }
                 composable(Routes.SETTINGS_ABOUT) { AboutScreen(nav) }
+                composable(Routes.SETTINGS_THEME) { ThemeSettingsScreen(nav) }
                 composable(Routes.SEARCH) { SearchScreen(nav) }
                 composable(Routes.QUEUE) { QueueScreen(nav) }
                 composable("album/{key}", listOf(navArgument("key") { type = NavType.StringType })) {
