@@ -71,7 +71,7 @@ fun songMenu(t: Track, nav: NavHostController, extra: Menu = emptyList()): Menu 
         "Add to playlist…" to { Dialogs.show(DialogRequest.AddToPlaylist(listOf(t.id))) },
         "Go to album" to { nav.go(Routes.album(t.albumKey)) },
         "Go to artist" to { nav.go(Routes.artist(t.albumArtist)) },
-        "Get info" to { Dialogs.show(DialogRequest.Info(t.id)) },
+        "Get info" to { Dialogs.show(DialogRequest.Info(listOf(t.id))) },
     ) + extra + listOf(
         "Delete from phone" to { Dialogs.show(DialogRequest.Delete(listOf(t.id))) },
     )
@@ -88,6 +88,7 @@ fun groupMenu(tracks: List<Track>, nav: NavHostController): Menu {
         "Add to Queue" to { app.player.addToQueue(tracks) },
         "Add to End of Queue" to { app.player.addToEnd(tracks) },
         "Add to playlist…" to { Dialogs.show(DialogRequest.AddToPlaylist(ids)) },
+        "Get info" to { Dialogs.show(DialogRequest.Info(ids)) },
         "Delete from phone" to { Dialogs.show(DialogRequest.Delete(ids)) },
     )
 }

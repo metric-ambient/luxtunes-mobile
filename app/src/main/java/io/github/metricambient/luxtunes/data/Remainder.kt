@@ -9,6 +9,7 @@ import org.json.JSONObject
 data class Remainder(
     val tracks: Map<String, Kept>,       // song ID (upper case) -> what's still in the file
     val playlists: Set<String>,          // playlist IDs (upper case) still in the file
+    val edited: Set<String> = emptySet(),   // song IDs (upper case) whose edited details are still in the file
 ) {
     data class Kept(val plays: Int, val skips: Int, val rated: Boolean)
 
@@ -31,7 +32,13 @@ data class Remainder(
                     list.optJSONObject(i)?.optString("id")?.uppercase()?.takeIf { it.isNotEmpty() }?.let { playlists += it }
                 }
             }
-            Remainder(tracks, playlists)
+            val edited = mutableSetOf<String>()
+            json.optJSONArray("edited_tracks")?.let { list ->
+                for (i in 0 until list.length()) {
+                    list.optJSONObject(i)?.optString("id")?.uppercase()?.takeIf { it.isNotEmpty() }?.let { edited += it }
+                }
+            }
+            Remainder(tracks, playlists, edited)
         } catch (e: Exception) {
             null
         }

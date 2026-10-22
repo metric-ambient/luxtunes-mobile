@@ -43,6 +43,7 @@ data class LibraryState(
     val formatVersion: Int = 1,                     // library.db format; 2+ = playlists go back to LuxTunes
     val pendingCount: Int = 0,                      // songs with changes not yet sent
     val pendingPlaylists: Int = 0,                  // playlist changes not yet taken by LuxTunes
+    val takesTagEdits: Boolean = false,             // this LuxTunes takes details edited on the phone
     val changesWritten: Long = 0,                   // when changes.json was last written (Unix ms)
     val changesError: String? = null,               // why it couldn't be written, if it couldn't
     val transferMode: Boolean = false,              // phone is in USB file-transfer mode
@@ -57,13 +58,25 @@ data class LibraryState(
     fun canEdit(p: Playlist): Boolean = p.onPhone || formatVersion >= 2
 
     /** A named group of songs for a group page: kind is artist, trackartist, genre, composer or tvshow. */
-    fun group(kind: String, name: String): Artist? = when (kind) {
+    fun group(kind: String, name: String): Artist? = groupsOf(kind).firstOrNull { it.name == name }
+
+    /** The group of this kind a song is in now (to follow a group renamed in Edit). */
+    fun groupWith(kind: String, trackIds: List<String>): Artist? {
+        val id = trackIds.firstOrNull { it in byId } ?: return null
+        return groupsOf(kind).firstOrNull { g -> g.albums.any { a -> a.tracks.any { it.id == id } } }
+    }
+
+    /** The album a song is in now (to follow an album renamed in Edit). */
+    fun albumWith(trackIds: List<String>): Album? =
+        trackIds.firstNotNullOfOrNull { byId[it] }?.let { albumByKey[it.albumKey] }
+
+    private fun groupsOf(kind: String): List<Artist> = when (kind) {
         "trackartist" -> trackArtists
         "genre" -> genres
         "composer" -> composers
         "tvshow" -> tvShows
         else -> artists
-    }.firstOrNull { it.name == name }
+    }
 }
 
 /**
@@ -92,6 +105,7 @@ class Repository(private val context: Context, private val prefs: Prefs) {
     private var libraryTracks: List<Track> = emptyList()
     private var pending: MutableMap<String, PendingEntry> = mutableMapOf()
     private var edits: MutableMap<String, PlaylistEdit> = mutableMapOf()
+    private var tagEdits: MutableMap<String, TagEdit> = mutableMapOf()
 
     /** Set by UsbState: true while the phone is in USB file-transfer mode. */
     @Volatile var transferMode: Boolean = false
@@ -198,6 +212,7 @@ class Repository(private val context: Context, private val prefs: Prefs) {
         libraryTracks = withPhoneTracks(db.loadTracks())
         pending = db.loadPending().toMutableMap()
         edits = db.loadEdits().associateBy { it.id }.toMutableMap()
+        tagEdits = db.loadTagEdits().associateBy { it.id }.toMutableMap()
         refreshEqualizer()
         loadedFromDb = true
     }
@@ -277,6 +292,7 @@ class Repository(private val context: Context, private val prefs: Prefs) {
                 pending.clear()
                 db.clearEdits()
                 edits.clear()
+                tagEdits.clear()
             }
             // What LuxTunes took is in this library.db now. A playlist made on the
             // phone that isn't there (LuxTunes skipped it, or the sync stopped
@@ -302,6 +318,12 @@ class Repository(private val context: Context, private val prefs: Prefs) {
                 PlaylistEdit.NEW,
             )
             db.setMeta("phone_imports", info["phone_imports"])
+            // Details edited on the phone: a LuxTunes that takes them has them in this
+            // library.db now; an older one ignored them, so they're sent again.
+            val takenEdits = tagEdits.values.filter { it.state == PlaylistEdit.DELIVERED }.map { it.id }
+            if (info["phone_edits"] == "1") db.deleteTagEdits(takenEdits) else db.setTagEditStates(takenEdits, PlaylistEdit.NEW)
+            tagEdits = db.loadTagEdits().associateBy { it.id }.toMutableMap()
+            db.setMeta("phone_edits", info["phone_edits"])
             // The computer's equalizer; the phone's changes stay until LuxTunes has applied them.
             db.setMeta("eq_library", runCatching { db.readEqualizer(copy, info) }.getOrNull()?.toJson()?.toString())
             if (db.meta("eq_state") == "delivered") {
@@ -356,6 +378,9 @@ class Repository(private val context: Context, private val prefs: Prefs) {
         db.setEditStates(arrived.map { it.id }, PlaylistEdit.DELIVERED)
         for (e in arrived) edits[e.id] = e.copy(state = PlaylistEdit.DELIVERED)
         if (db.meta("eq_state") == "written") db.setMeta("eq_state", "delivered")
+        val editsArrived = tagEdits.values.filter { it.state == PlaylistEdit.WRITTEN && it.id.uppercase() !in remainder.edited }
+        db.setTagEditStates(editsArrived.map { it.id }, PlaylistEdit.DELIVERED)
+        for (e in editsArrived) tagEdits[e.id] = e.copy(state = PlaylistEdit.DELIVERED)
         db.setPhoneTrackStates(
             db.loadPhoneTrackRows().filter { it.second == PlaylistEdit.WRITTEN }.map { it.first["id"] as String },
             PlaylistEdit.DELIVERED,
@@ -386,12 +411,14 @@ class Repository(private val context: Context, private val prefs: Prefs) {
         val eqState = db.meta("eq_state").orEmpty()
         val eqJson = if (v2 && (eqState == "new" || eqState == "written")) db.meta("eq_phone") else null
         val added = if (v2) db.loadPhoneTrackRows().filter { it.second != PlaylistEdit.DELIVERED } else emptyList()
+        val edited = if (v2) tagEdits.values.filter { it.state != PlaylistEdit.DELIVERED }.sortedBy { it.id } else emptyList()
         val text = ChangesJson.build(
             entries, db.meta("library_id"), if (v2) waiting.map { ChangesJson.playlistEntry(it) } else null, eqJson,
             if (v2) added.map { ChangesJson.addedTrackEntry(it.first) } else null,
+            if (v2) edited.map { TagFields.entry(it) } else null,
         )
         val current = if (file.isFile) runCatching { file.readText() }.getOrNull() else null
-        if (entries.isEmpty() && waiting.isEmpty() && eqJson == null && added.isEmpty() &&
+        if (entries.isEmpty() && waiting.isEmpty() && eqJson == null && added.isEmpty() && edited.isEmpty() &&
             (current == null || ChangesJson.isEmptied(current))
         ) return
         if (text != current) {
@@ -414,6 +441,9 @@ class Repository(private val context: Context, private val prefs: Prefs) {
         }
         if (eqJson != null && eqState == "new") db.setMeta("eq_state", "written")
         db.setPhoneTrackStates(added.filter { it.second == PlaylistEdit.NEW }.map { it.first["id"] as String }, PlaylistEdit.WRITTEN)
+        val newTagEdits = edited.filter { it.state == PlaylistEdit.NEW }
+        db.setTagEditStates(newTagEdits.map { it.id }, PlaylistEdit.WRITTEN)
+        for (e in newTagEdits) tagEdits[e.id] = e.copy(state = PlaylistEdit.WRITTEN)
         val newEdits = waiting.filter { it.state == PlaylistEdit.NEW }
         if (newEdits.isNotEmpty()) {
             db.setEditStates(newEdits.map { it.id }, PlaylistEdit.WRITTEN)
@@ -424,7 +454,7 @@ class Repository(private val context: Context, private val prefs: Prefs) {
     // ---- Building what the screens show ------------------------------------------------
 
     private fun publish(folder: File?, message: String?) {
-        val all = libraryTracks.map { withPending(it) }
+        val all = libraryTracks.map { withPending(withTags(it)) }
             .sortedWith(compareBy({ sortText(it.sortName) }, { sortText(it.sortArtist) }))
         val music = all.filter { it.mediaKind == "music" }
         val albums = albumsOf(music).sortedWith(compareBy({ sortText(it.tracks.first().sortAlbum) }, { sortText(it.artist) }))
@@ -490,8 +520,10 @@ class Repository(private val context: Context, private val prefs: Prefs) {
             playlists = playlistsShown(all, references),
             references = references.mapValues { it.value.first },
             formatVersion = db.meta("format_version")?.toIntOrNull() ?: 1,
-            pendingCount = pending.values.count { !it.isEmpty },
+            pendingCount = (pending.values.filter { !it.isEmpty }.map { it.id } +
+                tagEdits.values.filter { it.state != PlaylistEdit.DELIVERED }.map { it.id }).toSet().size,
             pendingPlaylists = edits.values.count { it.state != PlaylistEdit.DELIVERED },
+            takesTagEdits = db.meta("phone_edits") == "1",
             changesWritten = changesWritten,
             changesError = changesError,
             transferMode = transferMode,
@@ -578,6 +610,15 @@ class Repository(private val context: Context, private val prefs: Prefs) {
         isSmart = e.isSmart,
         changed = e.state != PlaylistEdit.DELIVERED,
     )
+
+    /** The song with the details edited on the phone (kept until LuxTunes' library.db has them). */
+    private fun withTags(t: Track): Track {
+        val e = tagEdits[t.id] ?: return t
+        // As in LuxTunes: a renamed field's old sort name no longer applies.
+        val sortCleared = listOf("name", "artist", "album_artist", "album", "composer")
+            .filter { it in e.fields && e.fields[it] != t.raw[it] }.associate { "sort_$it" to null }
+        return trackOf(t.raw + sortCleared + e.fields) ?: t
+    }
 
     private fun withPending(t: Track): Track {
         val p = pending[t.id] ?: return t
@@ -729,30 +770,33 @@ class Repository(private val context: Context, private val prefs: Prefs) {
         return library + db.loadTracks("phone_tracks").filter { it.id.uppercase() !in have }
     }
 
-    /** How Add Folder is going: found, done so far, added, skipped (already in the library). */
-    data class Adding(val found: Int, val done: Int, val added: Int, val skipped: Int, val failed: Int, val finished: Boolean)
+    /** How Add Folder is going: found, done so far, added, skipped (already in the library); moved or copied. */
+    data class Adding(
+        val found: Int, val done: Int, val added: Int, val skipped: Int, val failed: Int, val finished: Boolean,
+        val moving: Boolean = true,
+    )
 
     private val _adding = MutableStateFlow<Adding?>(null)
     val adding: StateFlow<Adding?> = _adding.asStateFlow()
-
-    /** Does this phone's LuxTunes take songs added on the phone? (It says so in library.db.) */
-    val takesPhoneSongs: Boolean get() = db.meta("phone_imports") == "1"
 
     fun clearAdding() {
         if (_adding.value?.finished == true) _adding.value = null
     }
 
     /**
-     * Copy the songs in `dir` into the LuxTunes folder (where LuxTunes would put them)
-     * and add them to the library. They go to LuxTunes at the next sync.
+     * Move the songs in `dir` into the LuxTunes folder (where LuxTunes would put them)
+     * and add them to the library; copy them instead with "Do not move original files
+     * on import" on. They go to LuxTunes at the next sync. Songs already in the
+     * library are left where they are.
      */
     fun addFolder(dir: File) {
         if (_adding.value?.finished == false) return
-        _adding.value = Adding(0, 0, 0, 0, 0, false)
+        val moving = !prefs.current.keepOriginals
+        _adding.value = Adding(0, 0, 0, 0, 0, false, moving)
         scope.launch {
             val folder = _state.value.folder
             if (folder == null) {
-                _adding.value = Adding(0, 0, 0, 0, 0, true)
+                _adding.value = Adding(0, 0, 0, 0, 0, true, moving)
                 return@launch
             }
             val files = FolderImport.scan(dir, skip = folder)
@@ -762,7 +806,7 @@ class Repository(private val context: Context, private val prefs: Prefs) {
             var skipped = 0
             var failed = 0
             for ((i, file) in files.withIndex()) {
-                _adding.value = Adding(files.size, i, rows.size, skipped, failed, false)
+                _adding.value = Adding(files.size, i, rows.size, skipped, failed, false, moving)
                 val tags = FolderImport.readTags(file)
                 if (tags == null) { failed++; continue }
                 val key = "${tags["name"]}\u0001${(tags["artist"] as? String) ?: "Unknown artist"}\u0001${(tags["album"] as? String) ?: "Unknown album"}".lowercase()
@@ -772,10 +816,11 @@ class Repository(private val context: Context, private val prefs: Prefs) {
                 try {
                     if (target.exists()) { skipped++; continue }
                     target.parentFile?.mkdirs()
-                    file.copyTo(target)
-                    MediaScannerConnection.scanFile(context, arrayOf(target.path), null, null)
+                    if (moving) FolderImport.move(file, target) else file.copyTo(target)
+                    val changed = if (moving) arrayOf(target.path, file.path) else arrayOf(target.path)
+                    MediaScannerConnection.scanFile(context, changed, null, null)
                 } catch (e: Exception) {
-                    Log.w(TAG, "couldn't copy ${file.path}", e)
+                    Log.w(TAG, "couldn't ${if (moving) "move" else "copy"} ${file.path}", e)
                     failed++
                     continue
                 }
@@ -791,7 +836,28 @@ class Repository(private val context: Context, private val prefs: Prefs) {
                     publish(folder, _state.value.message)
                 }
             }
-            _adding.value = Adding(files.size, files.size, rows.size, skipped, failed, true)
+            _adding.value = Adding(files.size, files.size, rows.size, skipped, failed, true, moving)
+        }
+    }
+
+    // ---- Editing song details (Get Info → Edit) ---------------------------------------------
+
+    /**
+     * New details for these songs (library.db columns, see TagFields). Shown at once
+     * and sent to LuxTunes in changes.json; LuxTunes writes them into its library and
+     * the song files, and the next sync brings the updated songs back.
+     */
+    fun editTags(ids: Collection<String>, fields: Map<String, Any?>) {
+        val clean = TagFields.clean(fields)
+        if (ids.isEmpty() || clean.isEmpty()) return
+        scope.launch {
+            lock.withLock {
+                ensureLoaded()
+                val changed = ids.map { id -> TagEdit(id, (tagEdits[id]?.fields ?: emptyMap()) + clean) }
+                db.saveTagEdits(changed)
+                for (e in changed) tagEdits[e.id] = e
+                catchUpSoon()
+            }
         }
     }
 

@@ -140,7 +140,10 @@ fun AlbumScreen(nav: NavHostController, key: String) {
     val app = app()
     val library by app.repository.state.collectAsState()
     val playerState by app.player.state.collectAsState()
-    val album = library.albumByKey[key] ?: return Missing(nav, "album")
+    // Its songs, to follow the album if Edit renames it.
+    val seen = remember(key) { mutableListOf<String>() }
+    val album = library.albumByKey[key] ?: library.albumWith(seen) ?: return Missing(nav, "album")
+    if (seen.isEmpty()) seen += album.tracks.map { it.id }
     PageAccent(album.artTrack)
     val menu = groupMenu(album.tracks, nav)
     val settings by app.prefs.settings.collectAsState()
@@ -171,9 +174,11 @@ fun GroupScreen(nav: NavHostController, kind: String, name: String) {
     val library by app.repository.state.collectAsState()
     val settings by app.prefs.settings.collectAsState()
     val playerState by app.player.state.collectAsState()
-    val artist = library.group(kind, name) ?: return Missing(nav, when (kind) {
+    val seen = remember(kind, name) { mutableListOf<String>() }
+    val artist = library.group(kind, name) ?: library.groupWith(kind, seen) ?: return Missing(nav, when (kind) {
         "genre" -> "genre"; "composer" -> "composer"; "tvshow" -> "show"; else -> "artist"
     })
+    if (seen.isEmpty()) seen += artist.tracks.map { it.id }
     val tracks = artist.tracks                       // by album, oldest album first
     val years = artist.albums.map { it.year }.filter { it > 0 }
     PageAccent(artTrackOf(tracks))

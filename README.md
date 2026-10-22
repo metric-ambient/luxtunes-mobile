@@ -35,8 +35,10 @@ syncs to your phone. Plays, skips and ratings go back to LuxTunes at the next sy
 - Dark, Material and Light themes with your own colors, or an accent color taken from the
   album art.
 - Tabs for artists, album artists, genres, composers, podcasts, audiobooks, movies and TV
-  shows (choose them in Settings → Tabs), select mode, sorting, Get Info, and deleting songs from the
-  phone (LuxTunes puts them back at the next sync if they're still chosen there).
+  shows (choose them in Settings → Tabs), select mode, sorting, Get Info with editing of song details (sent to LuxTunes at the next
+  sync), and deleting songs from the phone (LuxTunes puts them back at the next sync if
+  they're still chosen there).
+- Add Folder to Library moves (or copies) songs already on the phone into the library.
 - Picks up where you left off: the play queue, the song and the position.
 - Goes online only when you ask it to (Settings → Check for Updates), and says so first.
   No Google services, so it also runs on de-Googled phones.

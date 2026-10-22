@@ -105,7 +105,7 @@ fun NowPlayingScreen(nav: NavHostController) {
             }
             Spacer(Modifier.weight(1f))
             if (track != null) {
-                IconButton(onClick = { Dialogs.show(DialogRequest.Info(track.id)) }) {
+                IconButton(onClick = { Dialogs.show(DialogRequest.Info(listOf(track.id))) }) {
                     Icon(Icons.Filled.Info, "Get Info", tint = Lux.icon)
                 }
                 IconButton(onClick = { Dialogs.show(DialogRequest.AddToPlaylist(listOf(track.id))) }) {
@@ -121,7 +121,7 @@ fun NowPlayingScreen(nav: NavHostController) {
             }
             val menu = mutableListOf<Pair<String, () -> Unit>>()
             if (track != null) {
-                menu += "Get Info" to { Dialogs.show(DialogRequest.Info(track.id)) }
+                menu += "Get Info" to { Dialogs.show(DialogRequest.Info(listOf(track.id))) }
                 menu += "Go to Album" to { nav.go(Routes.album(track.albumKey)) }
                 menu += "Go to Artist" to { nav.go(Routes.artist(track.albumArtist)) }
                 menu += "Add to playlist…" to { Dialogs.show(DialogRequest.AddToPlaylist(listOf(track.id))) }

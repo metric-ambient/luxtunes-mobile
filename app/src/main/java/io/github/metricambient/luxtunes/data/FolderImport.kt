@@ -28,6 +28,20 @@ object FolderImport {
             .sortedBy { it.path.lowercase() }
             .toList()
 
+    /**
+     * Move `file` to `target`: a rename when both are on the same storage, else a copy
+     * that's checked before the original is deleted. On failure the original stays.
+     */
+    fun move(file: File, target: File) {
+        if (file.renameTo(target)) return
+        file.copyTo(target)
+        if (target.length() != file.length()) {
+            target.delete()
+            throw java.io.IOException("the copy of ${file.name} came out the wrong size")
+        }
+        if (!file.delete()) android.util.Log.w("FolderImport", "copied ${file.path} but couldn't delete it")
+    }
+
     /** One folder or file name (LuxTunes' organize.safe_name). */
     fun safeName(text: String, limit: Int, folder: Boolean): String {
         var t = text.map { if (it in INVALID || it.code < 32) '_' else it }.joinToString("")

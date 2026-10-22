@@ -41,6 +41,7 @@ import androidx.compose.material.icons.filled.CheckBoxOutlineBlank
 import androidx.compose.material.icons.filled.Checklist
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Shuffle
@@ -169,6 +170,7 @@ fun HomeScreen(nav: NavHostController) {
                 onClose = { stopSelecting() },
                 onQueue = { app.player.addToQueue(selectedTracks()); stopSelecting() },
                 onPlaylist = { Dialogs.show(DialogRequest.AddToPlaylist(selectedTracks().map { it.id })); stopSelecting() },
+                onInfo = { Dialogs.show(DialogRequest.Info(selectedTracks().map { it.id })); stopSelecting() },
                 onDelete = { Dialogs.show(DialogRequest.Delete(selectedTracks().map { it.id })); stopSelecting() },
             )
         } else {
@@ -302,9 +304,11 @@ private fun SortItem(label: String, current: Boolean, onClick: () -> Unit) {
     )
 }
 
-/** The top bar in select mode: close, how many, add to queue / playlist, delete. */
+/** The top bar in select mode: close, how many, add to queue / playlist, get info, delete. */
 @Composable
-private fun SelectBar(count: Int, onClose: () -> Unit, onQueue: () -> Unit, onPlaylist: () -> Unit, onDelete: () -> Unit) {
+private fun SelectBar(
+    count: Int, onClose: () -> Unit, onQueue: () -> Unit, onPlaylist: () -> Unit, onInfo: () -> Unit, onDelete: () -> Unit,
+) {
     Row(
         Modifier.fillMaxWidth().height(56.dp).background(Lux.bar),
         verticalAlignment = Alignment.CenterVertically,
@@ -316,6 +320,9 @@ private fun SelectBar(count: Int, onClose: () -> Unit, onQueue: () -> Unit, onPl
         }
         IconButton(onClick = onPlaylist, enabled = count > 0) {
             Icon(Icons.AutoMirrored.Filled.PlaylistAdd, "Add to playlist", tint = Lux.icon)
+        }
+        IconButton(onClick = onInfo, enabled = count > 0) {
+            Icon(Icons.Filled.Info, "Get info", tint = Lux.icon)
         }
         IconButton(onClick = onDelete, enabled = count > 0) {
             Icon(Icons.Filled.Delete, "Delete from phone", tint = Lux.icon)

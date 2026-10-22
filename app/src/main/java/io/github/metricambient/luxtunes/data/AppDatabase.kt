@@ -33,7 +33,7 @@ data class PlaylistEdit(
  * (`playlist_edits`). The copy is replaced whenever LuxTunes writes a new
  * library.db; the other two only shrink once LuxTunes has taken the changes.
  */
-class AppDatabase(context: Context) : SQLiteOpenHelper(context, "app.db", null, 5) {
+class AppDatabase(context: Context) : SQLiteOpenHelper(context, "app.db", null, 6) {
 
     override fun onCreate(db: SQLiteDatabase) {
         createLibraryTables(db)
@@ -46,6 +46,7 @@ class AppDatabase(context: Context) : SQLiteOpenHelper(context, "app.db", null, 
         db.execSQL("CREATE TABLE meta (key TEXT PRIMARY KEY, value TEXT)")
         createEditTable(db)
         createPhoneTrackTable(db)
+        createTagEditTable(db)
     }
 
     override fun onUpgrade(db: SQLiteDatabase, oldVersion: Int, newVersion: Int) {
@@ -65,6 +66,12 @@ class AppDatabase(context: Context) : SQLiteOpenHelper(context, "app.db", null, 
             db.delete("meta", "key = ?", arrayOf("imported_stamp"))
         }
         if (oldVersion < 5) createPhoneTrackTable(db)
+        if (oldVersion < 6) createTagEditTable(db)
+    }
+
+    /** Song details changed on the phone (TagEdit), as JSON, with their state. */
+    private fun createTagEditTable(db: SQLiteDatabase) {
+        db.execSQL("CREATE TABLE IF NOT EXISTS tag_edits (id TEXT PRIMARY KEY, fields TEXT, state INTEGER, created INTEGER)")
     }
 
     private fun createLibraryTables(db: SQLiteDatabase) {
@@ -231,11 +238,7 @@ class AppDatabase(context: Context) : SQLiteOpenHelper(context, "app.db", null, 
         val out = ArrayList<Track>()
         readableDatabase.rawQuery("SELECT * FROM $table", null).use { c ->
             val names = c.columnNames
-            fun str(col: String): String? = c.getColumnIndex(col).let { if (it < 0 || c.isNull(it)) null else c.getString(it) }
-            fun num(col: String): Long = c.getColumnIndex(col).let { if (it < 0 || c.isNull(it)) 0L else c.getLong(it) }
             while (c.moveToNext()) {
-                val id = str("id") ?: continue
-                val path = str("path") ?: continue
                 val raw = HashMap<String, Any?>(names.size)
                 names.forEachIndexed { i, n ->
                     raw[n] = when (c.getType(i)) {
@@ -245,40 +248,7 @@ class AppDatabase(context: Context) : SQLiteOpenHelper(context, "app.db", null, 
                         else -> null
                     }
                 }
-                val artist = str("artist").orEmpty().ifBlank { "Unknown artist" }
-                val albumArtist = str("album_artist").orEmpty().ifBlank { artist }
-                val name = str("name").orEmpty().ifBlank { File(path).nameWithoutExtension }
-                val album = str("album").orEmpty().ifBlank { "Unknown album" }
-                out += Track(
-                    id = id,
-                    path = path,
-                    artwork = str("artwork")?.ifBlank { null },
-                    name = name,
-                    artist = artist,
-                    albumArtist = albumArtist,
-                    album = album,
-                    genre = str("genre").orEmpty(),
-                    year = num("year").toInt(),
-                    trackNumber = num("track_number").toInt(),
-                    discNumber = num("disc_number").toInt(),
-                    totalTime = num("total_time"),
-                    rating = num("rating").toInt(),
-                    ratingComputed = num("rating_computed") != 0L,
-                    playCount = num("play_count").toInt(),
-                    playDate = str("play_date"),
-                    skipCount = num("skip_count").toInt(),
-                    skipDate = str("skip_date"),
-                    lyrics = str("lyrics")?.replace("\r\n", "\n")?.replace('\r', '\n')?.trim()?.ifBlank { null },
-                    sortName = str("sort_name")?.ifBlank { null } ?: name,
-                    sortArtist = str("sort_artist")?.ifBlank { null } ?: artist,
-                    sortAlbumArtist = str("sort_album_artist")?.ifBlank { null }
-                        ?: str("sort_artist")?.ifBlank { null } ?: albumArtist,
-                    sortAlbum = str("sort_album")?.ifBlank { null } ?: album,
-                    startTime = num("start_time"),
-                    stopTime = num("stop_time"),
-                    mediaKind = str("media_kind")?.ifBlank { null } ?: "music",
-                    raw = raw,
-                )
+                trackOf(raw)?.let { out += it }
             }
         }
         return out
@@ -512,6 +482,41 @@ class AppDatabase(context: Context) : SQLiteOpenHelper(context, "app.db", null, 
 
     fun clearEdits() {
         writableDatabase.delete("playlist_edits", null, null)
+        writableDatabase.delete("tag_edits", null, null)
+    }
+
+    // ---- Song details changed on the phone -------------------------------------------------
+
+    fun loadTagEdits(): List<TagEdit> {
+        val out = ArrayList<TagEdit>()
+        readableDatabase.rawQuery("SELECT id, fields, state FROM tag_edits ORDER BY created", null).use { c ->
+            while (c.moveToNext()) out += TagEdit(c.getString(0), TagFields.fromJson(c.getString(1)), c.getInt(2))
+        }
+        return out
+    }
+
+    fun saveTagEdits(edits: Collection<TagEdit>) {
+        val db = writableDatabase
+        db.beginTransaction()
+        try {
+            for (e in edits) db.insertWithOnConflict("tag_edits", null, ContentValues().apply {
+                put("id", e.id); put("fields", TagFields.toJson(e.fields)); put("state", e.state)
+                put("created", System.currentTimeMillis())
+            }, SQLiteDatabase.CONFLICT_REPLACE)
+            db.setTransactionSuccessful()
+        } finally {
+            db.endTransaction()
+        }
+    }
+
+    fun setTagEditStates(ids: Collection<String>, state: Int) {
+        val db = writableDatabase
+        for (id in ids) db.update("tag_edits", ContentValues().apply { put("state", state) }, "id = ?", arrayOf(id))
+    }
+
+    fun deleteTagEdits(ids: Collection<String>) {
+        val db = writableDatabase
+        for (id in ids) db.delete("tag_edits", "id = ?", arrayOf(id))
     }
 
     companion object {

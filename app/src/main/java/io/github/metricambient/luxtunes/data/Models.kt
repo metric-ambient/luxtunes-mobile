@@ -1,5 +1,7 @@
 package io.github.metricambient.luxtunes.data
 
+import java.io.File
+
 /** One song, as the app shows it: LuxTunes' details plus what happened on the phone since the last sync. */
 data class Track(
     val id: String,                 // LuxTunes' persistent ID (16 hex digits)
@@ -47,6 +49,52 @@ data class Track(
         "media_kind" -> mediaKind
         else -> raw[column]
     }
+}
+
+/** A song from its library.db columns (null without an id and path). */
+fun trackOf(raw: Map<String, Any?>): Track? {
+    fun str(col: String): String? = raw[col]?.let { if (it is Double && it == Math.floor(it)) it.toLong().toString() else it.toString() }
+    fun num(col: String): Long = when (val v = raw[col]) {
+        is Number -> v.toLong()
+        is String -> v.trim().toLongOrNull() ?: v.trim().toDoubleOrNull()?.toLong() ?: 0L
+        else -> 0L
+    }
+    val id = str("id") ?: return null
+    val path = str("path") ?: return null
+    val artist = str("artist").orEmpty().ifBlank { "Unknown artist" }
+    val albumArtist = str("album_artist").orEmpty().ifBlank { artist }
+    val name = str("name").orEmpty().ifBlank { File(path).nameWithoutExtension }
+    val album = str("album").orEmpty().ifBlank { "Unknown album" }
+    return Track(
+        id = id,
+        path = path,
+        artwork = str("artwork")?.ifBlank { null },
+        name = name,
+        artist = artist,
+        albumArtist = albumArtist,
+        album = album,
+        genre = str("genre").orEmpty(),
+        year = num("year").toInt(),
+        trackNumber = num("track_number").toInt(),
+        discNumber = num("disc_number").toInt(),
+        totalTime = num("total_time"),
+        rating = num("rating").toInt(),
+        ratingComputed = num("rating_computed") != 0L,
+        playCount = num("play_count").toInt(),
+        playDate = str("play_date"),
+        skipCount = num("skip_count").toInt(),
+        skipDate = str("skip_date"),
+        lyrics = str("lyrics")?.replace("\r\n", "\n")?.replace('\r', '\n')?.trim()?.ifBlank { null },
+        sortName = str("sort_name")?.ifBlank { null } ?: name,
+        sortArtist = str("sort_artist")?.ifBlank { null } ?: artist,
+        sortAlbumArtist = str("sort_album_artist")?.ifBlank { null }
+            ?: str("sort_artist")?.ifBlank { null } ?: albumArtist,
+        sortAlbum = str("sort_album")?.ifBlank { null } ?: album,
+        startTime = num("start_time"),
+        stopTime = num("stop_time"),
+        mediaKind = str("media_kind")?.ifBlank { null } ?: "music",
+        raw = raw,
+    )
 }
 
 fun albumKeyOf(albumArtist: String, album: String): String =

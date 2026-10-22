@@ -27,8 +27,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import io.github.metricambient.luxtunes.data.StorageChoice
-import io.github.metricambient.luxtunes.data.Track
-import java.io.File
 
 /** The pop-ups any screen can ask for. Only one shows at a time. */
 sealed interface DialogRequest {
@@ -37,7 +35,8 @@ sealed interface DialogRequest {
     data class NewPlaylist(val ids: List<String>) : DialogRequest
     data class RenamePlaylist(val id: String, val name: String) : DialogRequest
     data class DeletePlaylist(val id: String, val name: String) : DialogRequest
-    data class Info(val id: String) : DialogRequest
+    data class Info(val ids: List<String>) : DialogRequest
+    data class EditTags(val ids: List<String>) : DialogRequest
     data class Delete(val ids: List<String>) : DialogRequest
     data class ChooseStorage(val firstTime: Boolean) : DialogRequest
     data class Choose(
@@ -70,7 +69,8 @@ fun DialogHost() {
             app.repository.renamePlaylist(r.id, name)
         }
         is DialogRequest.DeletePlaylist -> DeletePlaylistDialog(r)
-        is DialogRequest.Info -> InfoDialog(r.id)
+        is DialogRequest.Info -> InfoDialog(r.ids)
+        is DialogRequest.EditTags -> EditTagsDialog(r.ids)
         is DialogRequest.Delete -> DeleteDialog(r.ids)
         is DialogRequest.ChooseStorage -> StorageDialog(r.firstTime)
         is DialogRequest.Choose -> ChooseDialog(r)
@@ -227,55 +227,6 @@ private fun DeleteDialog(ids: List<String>) {
         },
         dismissButton = { TextButton(onClick = { Dialogs.close() }) { Text("Cancel") } },
     )
-}
-
-/** Get Info: everything the app knows about a song. */
-@Composable
-private fun InfoDialog(id: String) {
-    val app = app()
-    val library by app.repository.state.collectAsState()
-    val t: Track = library.byId[id] ?: run { Dialogs.close(); return }
-    val file = library.folder?.let { File(it, t.path) }
-    val lines = listOf(
-        "Name" to t.name,
-        "Artist" to t.artist,
-        "Album Artist" to t.albumArtist,
-        "Album" to t.album,
-        "Genre" to t.genre,
-        "Year" to (if (t.year > 0) "${t.year}" else ""),
-        "Track" to (if (t.trackNumber > 0) "${t.trackNumber}" else ""),
-        "Disc" to (if (t.discNumber > 0) "${t.discNumber}" else ""),
-        "Time" to formatTime(t.totalTime),
-        "Rating" to ratingText(t),
-        "Plays" to "${t.playCount}",
-        "Last Played" to niceDate(t.playDate),
-        "Skips" to "${t.skipCount}",
-        "Last Skipped" to niceDate(t.skipDate),
-        "Kind" to t.path.substringAfterLast('.', "").uppercase(),
-        "Size" to (file?.takeIf { it.isFile }?.let { "%.1f MB".format(it.length() / 1_048_576.0) } ?: "file missing"),
-        "File" to t.path,
-    ).filter { it.second.isNotEmpty() }
-    AlertDialog(
-        onDismissRequest = { Dialogs.close() },
-        title = { Text("Get Info") },
-        text = {
-            Column(Modifier.verticalScroll(rememberScrollState())) {
-                for ((label, value) in lines) {
-                    Row(Modifier.padding(vertical = 3.dp)) {
-                        Text(label, color = Lux.dim, fontSize = 14.sp, modifier = Modifier.weight(0.38f))
-                        Text(value, color = Lux.text, fontSize = 14.sp, modifier = Modifier.weight(0.62f))
-                    }
-                }
-            }
-        },
-        confirmButton = { TextButton(onClick = { Dialogs.close() }) { Text("OK") } },
-    )
-}
-
-private fun ratingText(t: Track): String {
-    if (t.rating <= 0) return "none"
-    val stars = "★".repeat((t.rating + 10) / 20)
-    return if (t.ratingComputed) "$stars (album)" else stars
 }
 
 /** "2026-10-18T21:04:00Z" -> "2026-10-18 21:04 UTC" */

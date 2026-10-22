@@ -109,11 +109,20 @@ private val HELP: List<Pair<String, String>> = listOf(
         "The sort button at the bottom has Inverse sort, to turn any order around: least played " +
         "first, oldest first, Z to A. Each tab remembers where you were in it.",
     "Adding songs from the phone" to
-        "Settings → My Library → Add Folder to Library (also in the ⋮ menus) copies the songs in " +
+        "Settings → My Library → Add Folder to Library (also in the ⋮ menus) moves the songs in " +
         "a folder on the phone into the LuxTunes folder, sorted into artist and album folders the " +
         "way LuxTunes does, and adds them to the library straight away.\n\n" +
-        "At the next sync, LuxTunes on your computer adds them to its library too. (This needs a " +
-        "LuxTunes that supports it; the app warns you if yours doesn't yet.)",
+        "To keep the originals where they are, turn on Do not move original files on import " +
+        "(Settings → My Library). The songs are then copied, so each one takes up twice the space.\n\n" +
+        "At the next sync, LuxTunes on your computer adds them to its library too.",
+    "Editing song details" to
+        "Get Info (in a song's ⋮ menu, an album's or artist's ⋮ menu, Now Playing, or the info " +
+        "button in select mode) has an Edit button. Change the name, artist, album, genre, year, " +
+        "track and disc numbers and more.\n\n" +
+        "With several songs, only the details you change are changed; a box showing Mixed means " +
+        "the songs differ there.\n\n" +
+        "The changes show straight away and go to LuxTunes at the next sync, which writes them " +
+        "into the song files.",
     "Queue (Up Next)" to
         "In any ⋮ menu, Add to Queue plays songs right after the current one (and after anything " +
         "you queued before). Add to End of Queue puts them at the very end.\n\n" +

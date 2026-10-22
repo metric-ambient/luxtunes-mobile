@@ -169,12 +169,20 @@ fun LibrarySettingsScreen(nav: NavHostController) {
             colors = ButtonDefaults.buttonColors(containerColor = Lux.accent, contentColor = Lux.onAccent),
             modifier = Modifier.padding(start = 16.dp, top = 8.dp),
         ) { Text("Add Folder to Library…") }
+        Spacer(Modifier.height(8.dp))
+        ToggleRow(
+            "Do not move original files on import",
+            "Add Folder copies the songs and leaves the originals where they are. This duplicates " +
+                "each file, so the songs take up twice the space.",
+            settings.keepOriginals,
+        ) { on -> app.prefs.update { it.copy(keepOriginals = on) } }
         Text(
             (if (canChoose) "Choose whether the LuxTunes folder is on the phone's own storage or the SD card."
             else "There's no SD card in the phone, so the library can only be on its own storage.") +
-                "\n\nAdd Folder to Library copies the songs in a folder on the phone into the LuxTunes " +
-                "folder, sorted by artist and album as LuxTunes does, and adds them to the library. They " +
-                "go to LuxTunes on your computer at the next sync.",
+                "\n\nAdd Folder to Library moves the songs in a folder on the phone into the LuxTunes " +
+                "folder (or copies them, with the switch above on), sorted by artist and album as " +
+                "LuxTunes does, and adds them to the library. They go to LuxTunes on your computer at " +
+                "the next sync.",
             color = Lux.dim, fontSize = 14.sp, modifier = Modifier.padding(16.dp),
         )
     }

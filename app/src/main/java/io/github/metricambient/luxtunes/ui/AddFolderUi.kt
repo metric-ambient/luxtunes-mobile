@@ -49,12 +49,11 @@ fun AddFolderHost() {
     val repo = app().repository
     val adding by repo.adding.collectAsState()
     var open by AddFolder.open
-    var confirm by remember { mutableStateOf<File?>(null) }
 
     adding?.let { a ->
         AlertDialog(
             onDismissRequest = { if (a.finished) repo.clearAdding() },
-            title = { Text(if (a.finished) "Songs added" else "Adding songs…") },
+            title = { Text(if (a.finished) "Songs added" else if (a.moving) "Moving songs…" else "Copying songs…") },
             text = {
                 Column {
                     if (!a.finished) {
@@ -66,9 +65,12 @@ fun AddFolderHost() {
                     } else {
                         Text(
                             buildString {
-                                append(if (a.added == 0) "No new songs were added." else "${plural(a.added, "song")} added to your library.")
-                                if (a.skipped > 0) append("\n${plural(a.skipped, "song")} already in the library, skipped.")
-                                if (a.failed > 0) append("\n${plural(a.failed, "file")} couldn't be read or copied.")
+                                append(
+                                    if (a.added == 0) "No new songs were added."
+                                    else "${plural(a.added, "song")} ${if (a.moving) "moved" else "copied"} into your library."
+                                )
+                                if (a.skipped > 0) append("\n${plural(a.skipped, "song")} already in the library, left where they are.")
+                                if (a.failed > 0) append("\n${plural(a.failed, "file")} couldn't be read or ${if (a.moving) "moved" else "copied"}.")
                                 if (a.added > 0) append("\n\nThey go to LuxTunes on your computer at the next sync.")
                             }
                         )
@@ -81,30 +83,12 @@ fun AddFolderHost() {
         )
     }
 
-    confirm?.let { dir ->
-        AlertDialog(
-            onDismissRequest = { confirm = null },
-            title = { Text("LuxTunes isn't ready for this yet") },
-            text = {
-                Text(
-                    "The LuxTunes on your computer doesn't take songs added on the phone yet. Until it " +
-                        "does, a sync may offer to remove them from the phone (\"Not synced by LuxTunes\"). " +
-                        "Add them anyway?"
-                )
-            },
-            confirmButton = {
-                TextButton(onClick = { repo.addFolder(dir); confirm = null }) { Text("Add Anyway", color = Lux.accent) }
-            },
-            dismissButton = { TextButton(onClick = { confirm = null }) { Text("Cancel", color = Lux.accent) } },
-        )
-    }
-
     if (open) {
         FolderPicker(
             onDismiss = { open = false },
             onPick = { dir ->
                 open = false
-                if (repo.takesPhoneSongs) repo.addFolder(dir) else confirm = dir
+                repo.addFolder(dir)
             },
         )
     }
@@ -114,6 +98,7 @@ fun AddFolderHost() {
 @Composable
 private fun FolderPicker(onDismiss: () -> Unit, onPick: (File) -> Unit) {
     val context = LocalContext.current
+    val keep = app().prefs.current.keepOriginals
     val roots = remember { LuxFolder.storageRoots(context) }
     var dir by remember { mutableStateOf<File?>(null) }
     val here = dir
@@ -130,6 +115,11 @@ private fun FolderPicker(onDismiss: () -> Unit, onPick: (File) -> Unit) {
                 Text(
                     here?.path ?: "Choose where to look",
                     color = Lux.dim, fontSize = 13.sp, maxLines = 2, overflow = TextOverflow.Ellipsis,
+                )
+                Text(
+                    if (keep) "The songs are copied; the originals stay here."
+                    else "The songs are moved into the LuxTunes folder.",
+                    color = Lux.dim, fontSize = 13.sp,
                 )
             }
         },
