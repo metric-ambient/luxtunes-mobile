@@ -128,6 +128,7 @@ fun NowPlayingScreen(nav: NavHostController) {
                 menu += "Delete from phone" to { Dialogs.show(DialogRequest.Delete(listOf(track.id))) }
             }
             menu += sleepTimerMenu()
+            menu += "Add Folder to Library…" to { AddFolder.show() }
             menu += "Search" to { nav.go(Routes.SEARCH) }
             menu += "Settings" to { nav.go(Routes.SETTINGS) }
             MoreMenu(menu)

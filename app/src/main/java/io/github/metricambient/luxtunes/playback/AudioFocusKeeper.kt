@@ -12,6 +12,10 @@ import io.github.metricambient.luxtunes.data.AppSettings
  * Settings → Sound → Audio Priority: what to do when another app or a phone call
  * wants the sound. The app asks Android for "audio focus" itself (instead of the
  * player's own handling) so these choices can be followed.
+ *
+ * With Ignore Other Apps, it doesn't ask for focus at all, so other apps neither stop
+ * LuxTunes nor get stopped by it; calls are then noticed by watching the phone's
+ * audio mode (ringing, in a call) every second while playing.
  */
 class AudioFocusKeeper(
     context: Context,
@@ -35,15 +39,46 @@ class AudioFocusKeeper(
         .setOnAudioFocusChangeListener({ onChange(it) }, Handler(Looper.getMainLooper()))
         .build()
 
+    private val handler = Handler(Looper.getMainLooper())
+
     /** The player was told to play or to stop. */
     fun playingChanged(play: Boolean) {
         if (play) {
             if (pausedByUs()) return
             pausedForCall = false
             pausedForOther = false
-            take()
+            if (settings().ignoreOtherApps) release() else take()
+            watchCalls()
         } else if (!pausedByUs()) {
             release()
+            if (!pausedForCall) handler.removeCallbacks(callWatch)
+        }
+    }
+
+    /** Ignore Other Apps was switched: hand back focus, or take it. */
+    fun settingsChanged() {
+        if (!player.playWhenReady) return
+        if (settings().ignoreOtherApps) release() else take()
+        watchCalls()
+    }
+
+    private fun watchCalls() {
+        handler.removeCallbacks(callWatch)
+        if (settings().ignoreOtherApps) handler.post(callWatch)
+    }
+
+    /** Without focus: pause for a call and carry on after it, from the phone's audio mode. */
+    private val callWatch = object : Runnable {
+        override fun run() {
+            val s = settings()
+            if (!s.ignoreOtherApps) return
+            if (inCall()) {
+                if (s.pauseOnCall && player.playWhenReady) pause(call = true)
+            } else if (pausedForCall) {
+                pausedForCall = false
+                if (s.resumeAfterCall) player.play()
+            }
+            if (player.playWhenReady || pausedForCall) handler.postDelayed(this, 1000)
         }
     }
 
@@ -52,7 +87,7 @@ class AudioFocusKeeper(
     private fun pausedByUs() = pausing
 
     private fun take() {
-        if (has) return
+        if (has || settings().ignoreOtherApps) return
         has = audio.requestAudioFocus(request) == AudioManager.AUDIOFOCUS_REQUEST_GRANTED
         // Refused (a call is on): stop, unless other apps are to be ignored.
         if (!has && !settings().ignoreOtherApps && inCall() && settings().pauseOnCall) pause(call = true)
@@ -62,6 +97,12 @@ class AudioFocusKeeper(
         if (has) audio.abandonAudioFocusRequest(request)
         has = false
         duck(false)
+    }
+
+    /** The service is closing. */
+    fun close() {
+        handler.removeCallbacks(callWatch)
+        release()
     }
 
     private fun inCall(): Boolean = when (audio.mode) {

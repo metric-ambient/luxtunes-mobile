@@ -33,7 +33,7 @@ data class PlaylistEdit(
  * (`playlist_edits`). The copy is replaced whenever LuxTunes writes a new
  * library.db; the other two only shrink once LuxTunes has taken the changes.
  */
-class AppDatabase(context: Context) : SQLiteOpenHelper(context, "app.db", null, 4) {
+class AppDatabase(context: Context) : SQLiteOpenHelper(context, "app.db", null, 5) {
 
     override fun onCreate(db: SQLiteDatabase) {
         createLibraryTables(db)
@@ -45,6 +45,7 @@ class AppDatabase(context: Context) : SQLiteOpenHelper(context, "app.db", null, 
         )
         db.execSQL("CREATE TABLE meta (key TEXT PRIMARY KEY, value TEXT)")
         createEditTable(db)
+        createPhoneTrackTable(db)
     }
 
     override fun onUpgrade(db: SQLiteDatabase, oldVersion: Int, newVersion: Int) {
@@ -63,6 +64,7 @@ class AppDatabase(context: Context) : SQLiteOpenHelper(context, "app.db", null, 
             db.execSQL("ALTER TABLE tracks ADD COLUMN equalizer")
             db.delete("meta", "key = ?", arrayOf("imported_stamp"))
         }
+        if (oldVersion < 5) createPhoneTrackTable(db)
     }
 
     private fun createLibraryTables(db: SQLiteDatabase) {
@@ -73,6 +75,16 @@ class AppDatabase(context: Context) : SQLiteOpenHelper(context, "app.db", null, 
         db.execSQL("CREATE TABLE playlist_items (playlist_id TEXT, position INTEGER, track_id TEXT)")
         db.execSQL("CREATE TABLE reference_playlists (id TEXT PRIMARY KEY, name TEXT, is_smart INTEGER, is_folder INTEGER)")
         db.execSQL("CREATE TABLE reference_items (playlist_id TEXT, track_id TEXT)")
+    }
+
+    /**
+     * Songs added on the phone (Add Folder to Library), waiting to go to LuxTunes:
+     * the same columns as `tracks`, plus their state (as playlist edits: new, in
+     * changes.json, taken by LuxTunes) and when they were added.
+     */
+    private fun createPhoneTrackTable(db: SQLiteDatabase) {
+        db.execSQL("CREATE TABLE IF NOT EXISTS phone_tracks (id TEXT PRIMARY KEY, path TEXT NOT NULL, artwork TEXT, " +
+            TRACK_COLUMNS.joinToString(", ") + ", state INTEGER, created INTEGER)")
     }
 
     private fun createEditTable(db: SQLiteDatabase) {
@@ -215,9 +227,9 @@ class AppDatabase(context: Context) : SQLiteOpenHelper(context, "app.db", null, 
     }
 
     /** Every song (music, podcasts, audiobooks…), with LuxTunes' values (pending changes not applied). */
-    fun loadTracks(): List<Track> {
+    fun loadTracks(table: String = "tracks"): List<Track> {
         val out = ArrayList<Track>()
-        readableDatabase.rawQuery("SELECT * FROM tracks", null).use { c ->
+        readableDatabase.rawQuery("SELECT * FROM $table", null).use { c ->
             val names = c.columnNames
             fun str(col: String): String? = c.getColumnIndex(col).let { if (it < 0 || c.isNull(it)) null else c.getString(it) }
             fun num(col: String): Long = c.getColumnIndex(col).let { if (it < 0 || c.isNull(it)) 0L else c.getLong(it) }
@@ -314,11 +326,76 @@ class AppDatabase(context: Context) : SQLiteOpenHelper(context, "app.db", null, 
     }
 
     /** Songs deleted on the phone: gone from the copy until the next sync brings them back. */
+    // ---- Songs added on the phone --------------------------------------------------------
+
+    fun addPhoneTracks(rows: List<Map<String, Any?>>) {
+        val db = writableDatabase
+        db.beginTransaction()
+        try {
+            for (row in rows) {
+                val v = ContentValues()
+                for ((k, value) in row) when (value) {
+                    null -> v.putNull(k)
+                    is Int -> v.put(k, value)
+                    is Long -> v.put(k, value)
+                    is Double -> v.put(k, value)
+                    is Boolean -> v.put(k, if (value) 1 else 0)
+                    else -> v.put(k, value.toString())
+                }
+                v.put("state", PlaylistEdit.NEW)
+                v.put("created", System.currentTimeMillis())
+                db.insertWithOnConflict("phone_tracks", null, v, SQLiteDatabase.CONFLICT_REPLACE)
+            }
+            db.setTransactionSuccessful()
+        } finally {
+            db.endTransaction()
+        }
+    }
+
+    /** Each song added on the phone: its columns (for changes.json) and its state. */
+    fun loadPhoneTrackRows(): List<Pair<Map<String, Any?>, Int>> {
+        val out = ArrayList<Pair<Map<String, Any?>, Int>>()
+        readableDatabase.rawQuery("SELECT * FROM phone_tracks ORDER BY created", null).use { c ->
+            while (c.moveToNext()) {
+                val row = HashMap<String, Any?>()
+                var state = PlaylistEdit.NEW
+                c.columnNames.forEachIndexed { i, n ->
+                    val value: Any? = when (c.getType(i)) {
+                        Cursor.FIELD_TYPE_INTEGER -> c.getLong(i)
+                        Cursor.FIELD_TYPE_FLOAT -> c.getDouble(i)
+                        Cursor.FIELD_TYPE_STRING -> c.getString(i)
+                        else -> null
+                    }
+                    when (n) {
+                        "state" -> state = (value as? Long)?.toInt() ?: PlaylistEdit.NEW
+                        "created", "artwork" -> {}
+                        else -> if (value != null) row[n] = value
+                    }
+                }
+                out += row to state
+            }
+        }
+        return out
+    }
+
+    fun setPhoneTrackStates(ids: Collection<String>, state: Int) {
+        val db = writableDatabase
+        for (id in ids) db.update("phone_tracks", ContentValues().apply { put("state", state) }, "id = ?", arrayOf(id))
+    }
+
+    fun deletePhoneTracks(ids: Collection<String>) {
+        val db = writableDatabase
+        for (id in ids) db.delete("phone_tracks", "id = ?", arrayOf(id))
+    }
+
     fun deleteTracks(ids: Collection<String>) {
         val db = writableDatabase
         db.beginTransaction()
         try {
-            for (id in ids) db.delete("tracks", "id = ?", arrayOf(id))
+            for (id in ids) {
+                db.delete("tracks", "id = ?", arrayOf(id))
+                db.delete("phone_tracks", "id = ?", arrayOf(id))
+            }
             db.setTransactionSuccessful()
         } finally {
             db.endTransaction()

@@ -64,6 +64,7 @@ fun DialogHost() {
         is DialogRequest.Duplicates -> DuplicatesDialog(r)
         is DialogRequest.NewPlaylist -> NameDialog("New playlist", "", "Create") { name ->
             app.repository.createPlaylist(name, r.ids)
+            if (r.ids.isNotEmpty()) Notice.show("${plural(r.ids.size, "song")} added to ${name.trim()}")
         }
         is DialogRequest.RenamePlaylist -> NameDialog("Rename playlist", r.name, "Rename") { name ->
             app.repository.renamePlaylist(r.id, name)
@@ -88,14 +89,24 @@ private fun AddToPlaylistDialog(ids: List<String>) {
         title = { Text("Add to Playlist") },
         text = {
             LazyColumn(Modifier.heightIn(max = 420.dp)) {
-                item { PickRow("Play Queue") { app.player.addToQueue(tracks); Dialogs.close() } }
+                item {
+                    PickRow("Play Queue") {
+                        app.player.addToQueue(tracks)
+                        Dialogs.close()
+                        Notice.show("${plural(tracks.size, "song")} added to the queue")
+                    }
+                }
                 item { PickRow("New…") { Dialogs.show(DialogRequest.NewPlaylist(ids)) } }
                 items(mine, key = { it.id }) { p ->
                     PickRow(p.name) {
                         // Like LuxTunes: ask before adding songs the playlist already has.
                         val dupes = app.repository.duplicatesIn(p.id, ids)
                         if (dupes > 0) Dialogs.show(DialogRequest.Duplicates(p.id, p.name, ids, dupes))
-                        else { app.repository.addToPlaylist(p.id, ids); Dialogs.close() }
+                        else {
+                            app.repository.addToPlaylist(p.id, ids)
+                            Dialogs.close()
+                            Notice.show("${plural(ids.size, "song")} added to ${p.name}")
+                        }
                     }
                 }
                 if (library.formatVersion < 2 && library.playlists.any { !it.onPhone }) {
@@ -129,7 +140,11 @@ private fun DuplicatesDialog(r: DialogRequest.Duplicates) {
             )
         },
         confirmButton = {
-            TextButton(onClick = { app.repository.addToPlaylist(r.playlistId, r.ids); Dialogs.close() }) { Text("Add") }
+            TextButton(onClick = {
+                app.repository.addToPlaylist(r.playlistId, r.ids)
+                Dialogs.close()
+                Notice.show("${plural(r.ids.size, "song")} added to ${r.name}")
+            }) { Text("Add") }
         },
         dismissButton = {
             Row {
@@ -137,8 +152,10 @@ private fun DuplicatesDialog(r: DialogRequest.Duplicates) {
                 if (!all) {
                     TextButton(onClick = {
                         val have = app.repository.state.value.playlists.firstOrNull { it.id == r.playlistId }?.trackIds?.toSet().orEmpty()
-                        app.repository.addToPlaylist(r.playlistId, r.ids.filter { it !in have }.distinct())
+                        val adding = r.ids.filter { it !in have }.distinct()
+                        app.repository.addToPlaylist(r.playlistId, adding)
                         Dialogs.close()
+                        Notice.show("${plural(adding.size, "song")} added to ${r.name}")
                     }) { Text("Skip") }
                 }
             }

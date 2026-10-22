@@ -164,9 +164,17 @@ fun LibrarySettingsScreen(nav: NavHostController) {
             colors = ButtonDefaults.buttonColors(containerColor = Lux.accent, contentColor = Lux.onAccent),
             modifier = Modifier.padding(horizontal = 16.dp),
         ) { Text("Change Library Location") }
+        Button(
+            onClick = { AddFolder.show() },
+            colors = ButtonDefaults.buttonColors(containerColor = Lux.accent, contentColor = Lux.onAccent),
+            modifier = Modifier.padding(start = 16.dp, top = 8.dp),
+        ) { Text("Add Folder to Library…") }
         Text(
-            if (canChoose) "Choose whether the LuxTunes folder is on the phone's own storage or the SD card."
-            else "There's no SD card in the phone, so the library can only be on its own storage.",
+            (if (canChoose) "Choose whether the LuxTunes folder is on the phone's own storage or the SD card."
+            else "There's no SD card in the phone, so the library can only be on its own storage.") +
+                "\n\nAdd Folder to Library copies the songs in a folder on the phone into the LuxTunes " +
+                "folder, sorted by artist and album as LuxTunes does, and adds them to the library. They " +
+                "go to LuxTunes on your computer at the next sync.",
             color = Lux.dim, fontSize = 14.sp, modifier = Modifier.padding(16.dp),
         )
     }

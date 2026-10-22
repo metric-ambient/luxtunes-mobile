@@ -69,7 +69,14 @@ import androidx.navigation.NavHostController
 fun VideoScreen(nav: NavHostController) {
     val app = app()
     val state by app.player.state.collectAsState()
+    val library by app.repository.state.collectAsState()
     val activity = LocalContext.current.findActivity()
+
+    // The list moved on to a song (a shuffled playlist with a video in it): Now Playing.
+    val current = state.currentId?.let { library.byId[it] }
+    LaunchedEffect(current?.id) {
+        if (current != null && !current.isVideo) nav.navigate(Routes.NOW) { popUpTo(Routes.VIDEO) { inclusive = true } }
+    }
 
     // Hide the status and navigation bars (a swipe brings them back for a moment)
     // and keep the screen on while here.

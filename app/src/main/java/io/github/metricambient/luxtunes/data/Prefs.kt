@@ -95,6 +95,9 @@ data class AppSettings(
     val songSort: SongSort = SongSort.NAME,
     val artistSort: GroupSort = GroupSort.NAME,
     val albumSort: GroupSort = GroupSort.NAME,
+    val songSortReverse: Boolean = false,        // "Inverse sort" in the sort menu
+    val artistSortReverse: Boolean = false,
+    val albumSortReverse: Boolean = false,
     // Settings → Sound
     val autoplay: Boolean = true,                // off: stop after every song
     val transition: Transition = Transition.GAPLESS,
@@ -126,6 +129,8 @@ data class AppSettings(
     val launchNowPlaying: Boolean = true,        // starting a song opens Now Playing
     val smartAtEnd: Boolean = false,             // Playlists tab: smart playlists after the others
     val artistPlay: ArtistPlay = ArtistPlay.FROM_TOP,
+    val albumPlay: ArtistPlay = ArtistPlay.FROM_TOP,      // the same round button on album pages
+    val playlistPlay: ArtistPlay = ArtistPlay.FROM_TOP,   // … and on playlist pages
     val artistSongs: Boolean = false,            // artist pages: one list of songs, not albums
     val themeStyle: ThemeStyle = ThemeStyle.DARK,
     val autoAccent: Boolean = false,             // accent from the album art, in every style
@@ -168,6 +173,9 @@ class Prefs(context: Context) {
             songSort = enumOf(sp.getString("songSort", null), d.songSort),
             artistSort = enumOf(sp.getString("artistSort", null), d.artistSort),
             albumSort = enumOf(sp.getString("albumSort", null), d.albumSort),
+            songSortReverse = sp.getBoolean("songSortReverse", d.songSortReverse),
+            artistSortReverse = sp.getBoolean("artistSortReverse", d.artistSortReverse),
+            albumSortReverse = sp.getBoolean("albumSortReverse", d.albumSortReverse),
             autoplay = sp.getBoolean("autoplay", d.autoplay),
             transition = enumOf(sp.getString("transition", null), d.transition),
             crossfadeSeconds = sp.getInt("crossfadeSeconds", d.crossfadeSeconds).coerceIn(1, 15),
@@ -195,6 +203,8 @@ class Prefs(context: Context) {
             launchNowPlaying = sp.getBoolean("launchNowPlaying", d.launchNowPlaying),
             smartAtEnd = sp.getBoolean("smartAtEnd", d.smartAtEnd),
             artistPlay = enumOf(sp.getString("artistPlay", null), d.artistPlay),
+            albumPlay = enumOf(sp.getString("albumPlay", null), d.albumPlay),
+            playlistPlay = enumOf(sp.getString("playlistPlay", null), d.playlistPlay),
             artistSongs = sp.getBoolean("artistSongs", d.artistSongs),
             themeStyle = enumOf(sp.getString("themeStyle", null), d.themeStyle),
             // (Before, each style had its own Auto: on if any was.)
@@ -235,6 +245,9 @@ class Prefs(context: Context) {
             .putString("songSort", s.songSort.name)
             .putString("artistSort", s.artistSort.name)
             .putString("albumSort", s.albumSort.name)
+            .putBoolean("songSortReverse", s.songSortReverse)
+            .putBoolean("artistSortReverse", s.artistSortReverse)
+            .putBoolean("albumSortReverse", s.albumSortReverse)
             .putBoolean("autoplay", s.autoplay)
             .putString("transition", s.transition.name)
             .putInt("crossfadeSeconds", s.crossfadeSeconds)
@@ -261,6 +274,8 @@ class Prefs(context: Context) {
             .putBoolean("launchNowPlaying", s.launchNowPlaying)
             .putBoolean("smartAtEnd", s.smartAtEnd)
             .putString("artistPlay", s.artistPlay.name)
+            .putString("albumPlay", s.albumPlay.name)
+            .putString("playlistPlay", s.playlistPlay.name)
             .putBoolean("artistSongs", s.artistSongs)
             .putString("themeStyle", s.themeStyle.name)
             .putBoolean("autoAccent", s.autoAccent)

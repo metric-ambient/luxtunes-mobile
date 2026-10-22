@@ -15,6 +15,12 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.grid.rememberLazyGridState
+import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.material3.Checkbox
+import androidx.compose.material3.CheckboxDefaults
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.runtime.saveable.rememberSaveableStateHolder
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
@@ -75,7 +81,10 @@ import io.github.metricambient.luxtunes.data.sortText
 
 // ---- Sorting ------------------------------------------------------------------------------
 
-fun sortSongs(songs: List<Track>, sort: SongSort): List<Track> = when (sort) {
+fun sortSongs(songs: List<Track>, sort: SongSort, reverse: Boolean = false): List<Track> =
+    sortSongsOnly(songs, sort).let { if (reverse) it.reversed() else it }
+
+private fun sortSongsOnly(songs: List<Track>, sort: SongSort): List<Track> = when (sort) {
     SongSort.NAME -> songs                       // already in name order
     SongSort.ARTIST -> songs.sortedWith(compareBy({ sortText(it.sortArtist) }, { it.albumKey }, { it.discNumber }, { it.trackNumber }))
     SongSort.ALBUM -> songs.sortedWith(compareBy({ sortText(it.sortAlbum) }, { it.discNumber }, { it.trackNumber }))
@@ -84,16 +93,40 @@ fun sortSongs(songs: List<Track>, sort: SongSort): List<Track> = when (sort) {
     SongSort.RECENT -> songs.sortedByDescending { it.playDate ?: "" }
 }
 
-fun sortArtists(artists: List<Artist>, sort: GroupSort): List<Artist> = when (sort) {
+fun sortArtists(artists: List<Artist>, sort: GroupSort, reverse: Boolean = false): List<Artist> = when (sort) {
     GroupSort.SONGS -> artists.sortedByDescending { a -> a.albums.sumOf { it.tracks.size } }
     else -> artists
-}
+}.let { if (reverse) it.reversed() else it }
 
-fun sortAlbums(albums: List<Album>, sort: GroupSort): List<Album> = when (sort) {
+fun sortAlbums(albums: List<Album>, sort: GroupSort, reverse: Boolean = false): List<Album> =
+    sortAlbumsOnly(albums, sort).let { if (reverse) it.reversed() else it }
+
+private fun sortAlbumsOnly(albums: List<Album>, sort: GroupSort): List<Album> = when (sort) {
     GroupSort.NAME -> albums
     GroupSort.ARTIST -> albums.sortedWith(compareBy({ sortText(it.artist) }, { it.year }))
     GroupSort.YEAR -> albums.sortedWith(compareBy({ if (it.year == 0) Int.MAX_VALUE else it.year }, { sortText(it.name) }))
     GroupSort.SONGS -> albums.sortedByDescending { it.tracks.size }
+}
+
+// ---- What the fast-scroll bubble shows, by sort order --------------------------------------
+
+private fun songLabel(t: Track, sort: SongSort): String = when (sort) {
+    SongSort.NAME -> letterOf(t.sortName.ifBlank { t.name })
+    SongSort.ARTIST -> letterOf(t.sortArtist.ifBlank { t.artist })
+    SongSort.ALBUM -> letterOf(t.sortAlbum.ifBlank { t.album })
+    SongSort.RATING -> if (t.rating >= 20) "★".repeat((t.rating + 10) / 20) else "–"
+    SongSort.PLAYS -> "${t.playCount}"
+    SongSort.RECENT -> t.playDate?.take(7) ?: "Never"
+}
+
+private fun groupLabel(a: Artist, sort: GroupSort): String =
+    if (sort == GroupSort.SONGS) "${a.tracks.size}" else letterOf(a.name)
+
+private fun albumLabel(a: Album, sort: GroupSort): String = when (sort) {
+    GroupSort.NAME -> letterOf(a.tracks.firstOrNull()?.sortAlbum?.ifBlank { null } ?: a.name)
+    GroupSort.ARTIST -> letterOf(a.artist)
+    GroupSort.YEAR -> if (a.year > 0) "${a.year}" else "–"
+    GroupSort.SONGS -> "${a.tracks.size}"
 }
 
 /** Every song of the library, artist by artist, album by album ("Play by artist"). */
@@ -111,6 +144,7 @@ fun HomeScreen(nav: NavHostController) {
     var tabName by rememberSaveable { mutableStateOf(tabs.first()) }
     if (tabName !in tabs) tabName = tabs.first()
     val queries = remember { mutableStateOf(mapOf<String, String>()) }
+    val tabStates = rememberSaveableStateHolder()
     val query = queries.value[tabName].orEmpty()
     val setQuery = { q: String -> queries.value = queries.value + (tabName to q) }
 
@@ -156,11 +190,13 @@ fun HomeScreen(nav: NavHostController) {
         LaunchedEffect(noSearch) { if (noSearch) queries.value = emptyMap() }
         if (!noSearch) SearchField(query, setQuery, Modifier.padding(vertical = 4.dp))
         Box(Modifier.weight(1f)) {
+          // Each tab keeps its own scroll position while you're on other tabs or screens.
+          tabStates.SaveableStateProvider(tabName) {
             when (tabName) {
                 "Artists" -> GroupTab(nav, library.trackArtists, "trackartist", Icons.Filled.Person,
-                    settings.artistIcons, GroupAction.VIEW, settings.artistSort, query, selecting, selected, toggle)
+                    settings.artistIcons, GroupAction.VIEW, settings.artistSort, query, selecting, selected, toggle, settings.artistSortReverse)
                 "Album Artists" -> GroupTab(nav, library.artists, "artist", Icons.Filled.Person,
-                    settings.albumArtistIcons, GroupAction.VIEW, settings.artistSort, query, selecting, selected, toggle)
+                    settings.albumArtistIcons, GroupAction.VIEW, settings.artistSort, query, selecting, selected, toggle, settings.artistSortReverse)
                 "Genres" -> GroupTab(nav, library.genres, "genre", Icons.Filled.Category,
                     settings.genreIcons, settings.genreAction, GroupSort.NAME, query, false, emptySet(), toggle)
                 "Composers" -> GroupTab(nav, library.composers, "composer", Icons.Filled.Piano,
@@ -173,6 +209,7 @@ fun HomeScreen(nav: NavHostController) {
                 "Podcasts" -> ShowsTab(nav, library.podcasts, query, settings.podcastAction, "No podcasts on this phone. Choose some on the Podcasts tab of the phone's page in LuxTunes.")
                 "Audiobooks" -> ShowsTab(nav, library.audiobooks, query, settings.audiobookAction, "No audiobooks on this phone. Choose some on the Books tab of the phone's page in LuxTunes.")
             }
+          }
         }
         if (tabName in listOf("Artists", "Album Artists", "Songs", "Albums") && !selecting) {
             BottomBar(nav, tabName, library, settings, query, onSelect = { selecting = true })
@@ -184,8 +221,8 @@ fun HomeScreen(nav: NavHostController) {
 private fun BottomBar(nav: NavHostController, tabName: String, library: LibraryState, settings: AppSettings, query: String, onSelect: () -> Unit) {
     val app = app()
     val songs = when (tabName) {
-        "Songs" -> sortSongs(library.tracks.filter { matches(query, it.name, it.artist, it.album) }, settings.songSort)
-        "Albums" -> sortAlbums(library.albums, settings.albumSort).flatMap { it.tracks }
+        "Songs" -> sortSongs(library.tracks.filter { matches(query, it.name, it.artist, it.album) }, settings.songSort, settings.songSortReverse)
+        "Albums" -> sortAlbums(library.albums, settings.albumSort, settings.albumSortReverse).flatMap { it.tracks }
         else -> byArtist(library)
     }
     val playIcon = if (tabName == "Songs") Icons.AutoMirrored.Filled.PlaylistPlay else Icons.Filled.PlayArrow
@@ -227,6 +264,32 @@ private fun SortButton(tabName: String, settings: AppSettings) {
                     SortItem(s.label, s == settings.albumSort) { prefs.update { it.copy(albumSort = s) }; open = false }
                 }
             }
+            HorizontalDivider(color = Lux.panel)
+            // The same order, the other way round (least played, oldest first, Z to A…).
+            val reversed = when (tabName) {
+                "Songs" -> settings.songSortReverse
+                "Artists", "Album Artists" -> settings.artistSortReverse
+                else -> settings.albumSortReverse
+            }
+            DropdownMenuItem(
+                text = { Text("Inverse sort", color = Lux.text) },
+                leadingIcon = {
+                    Checkbox(
+                        checked = reversed, onCheckedChange = null,
+                        colors = CheckboxDefaults.colors(checkedColor = Lux.accent),
+                    )
+                },
+                onClick = {
+                    prefs.update {
+                        when (tabName) {
+                            "Songs" -> it.copy(songSortReverse = !it.songSortReverse)
+                            "Artists", "Album Artists" -> it.copy(artistSortReverse = !it.artistSortReverse)
+                            else -> it.copy(albumSortReverse = !it.albumSortReverse)
+                        }
+                    }
+                    open = false
+                },
+            )
         }
     }
 }
@@ -285,17 +348,19 @@ private fun Tick(on: Boolean) {
 private fun GroupTab(
     nav: NavHostController, groups: List<Artist>, kind: String, icon: ImageVector, showIcon: Boolean,
     action: GroupAction, sort: GroupSort, query: String,
-    selecting: Boolean, selected: Set<String>, toggle: (String) -> Unit,
+    selecting: Boolean, selected: Set<String>, toggle: (String) -> Unit, reverse: Boolean = false,
 ) {
     val app = app()
-    val list = sortArtists(groups.filter { matches(query, it.name) }, sort)
+    val list = sortArtists(groups.filter { matches(query, it.name) }, sort, reverse)
     if (groups.isEmpty()) {
         Box(Modifier.fillMaxSize().padding(32.dp), contentAlignment = Alignment.Center) {
             Text("Nothing here yet.", color = Lux.dim)
         }
         return
     }
-    LazyColumn(Modifier.fillMaxSize()) {
+    val listState = rememberLazyListState()
+    FastScroll(listState, list.size, { i -> list.getOrNull(i)?.let { groupLabel(it, sort) } }) {
+    LazyColumn(Modifier.fillMaxSize(), state = listState) {
         items(list, key = { it.name }) { group ->
             ListRow(
                 title = group.name,
@@ -314,6 +379,7 @@ private fun GroupTab(
             )
         }
     }
+    }
 }
 
 /** Movies: one row each; a tap plays it full screen. */
@@ -328,7 +394,9 @@ private fun MoviesTab(nav: NavHostController, movies: List<Track>, query: String
         }
         return
     }
-    LazyColumn(Modifier.fillMaxSize()) {
+    val listState = rememberLazyListState()
+    FastScroll(listState, list.size, { i -> list.getOrNull(i)?.let { letterOf(it.sortName.ifBlank { it.name }) } }) {
+    LazyColumn(Modifier.fillMaxSize(), state = listState) {
         items(list, key = { it.id }) { m ->
             ListRow(
                 title = m.name,
@@ -341,6 +409,7 @@ private fun MoviesTab(nav: NavHostController, movies: List<Track>, query: String
                 menu = songMenu(m, nav),
             )
         }
+    }
     }
 }
 
@@ -355,7 +424,9 @@ private fun TvShowsTab(nav: NavHostController, shows: List<Artist>, query: Strin
         }
         return
     }
-    LazyColumn(Modifier.fillMaxSize()) {
+    val listState = rememberLazyListState()
+    FastScroll(listState, list.size, { i -> list.getOrNull(i)?.let { letterOf(it.name) } }) {
+    LazyColumn(Modifier.fillMaxSize(), state = listState) {
         items(list, key = { it.name }) { show ->
             ListRow(
                 title = show.name,
@@ -364,6 +435,7 @@ private fun TvShowsTab(nav: NavHostController, shows: List<Artist>, query: Strin
                 leading = { Icon(Icons.Filled.Tv, null, tint = Lux.text, modifier = Modifier.size(48.dp)) },
             )
         }
+    }
     }
 }
 
@@ -374,8 +446,10 @@ private fun SongsTab(
 ) {
     val app = app()
     val playerState by app.player.state.collectAsState()
-    val songs = sortSongs(library.tracks.filter { matches(query, it.name, it.artist, it.album) }, settings.songSort)
-    LazyColumn(Modifier.fillMaxSize()) {
+    val songs = sortSongs(library.tracks.filter { matches(query, it.name, it.artist, it.album) }, settings.songSort, settings.songSortReverse)
+    val listState = rememberLazyListState()
+    FastScroll(listState, songs.size, { i -> songs.getOrNull(i)?.let { songLabel(it, settings.songSort) } }) {
+    LazyColumn(Modifier.fillMaxSize(), state = listState) {
         items(songs, key = { it.id }) { t ->
             val showArt = settings.songArt
             SongRow(
@@ -391,6 +465,7 @@ private fun SongsTab(
                 },
             )
         }
+    }
     }
 }
 
@@ -468,7 +543,9 @@ private fun ShowsTab(nav: NavHostController, shows: List<Album>, query: String, 
         }
         return
     }
-    LazyColumn(Modifier.fillMaxSize()) {
+    val listState = rememberLazyListState()
+    FastScroll(listState, list.size, { i -> list.getOrNull(i)?.let { letterOf(it.name) } }) {
+    LazyColumn(Modifier.fillMaxSize(), state = listState) {
         items(list, key = { it.key }) { show ->
             ListRow(
                 title = show.name,
@@ -478,6 +555,7 @@ private fun ShowsTab(nav: NavHostController, shows: List<Album>, query: String, 
                 menu = groupMenu(show.tracks, nav),
             )
         }
+    }
     }
 }
 
@@ -494,8 +572,10 @@ private fun AlbumsTab(
     val app = app()
     val landscape = LocalConfiguration.current.orientation == Configuration.ORIENTATION_LANDSCAPE
     val columns = if (landscape) settings.gridLandscape.coerceIn(1, 6) else settings.gridPortrait.coerceIn(1, 4)
-    val albums = sortAlbums(library.albums.filter { matches(query, it.name, it.artist) }, settings.albumSort)
-    LazyVerticalGrid(columns = GridCells.Fixed(columns), modifier = Modifier.fillMaxSize()) {
+    val albums = sortAlbums(library.albums.filter { matches(query, it.name, it.artist) }, settings.albumSort, settings.albumSortReverse)
+    val gridState = rememberLazyGridState()
+    FastScroll(gridState, albums.size, { i -> albums.getOrNull(i)?.let { albumLabel(it, settings.albumSort) } }) {
+    LazyVerticalGrid(columns = GridCells.Fixed(columns), modifier = Modifier.fillMaxSize(), state = gridState) {
         items(albums, key = { it.key }) { album ->
             Box(
                 Modifier
@@ -522,5 +602,6 @@ private fun AlbumsTab(
                 if (selecting) Box(Modifier.align(Alignment.TopStart).padding(6.dp)) { Tick(album.key in selected) }
             }
         }
+    }
     }
 }

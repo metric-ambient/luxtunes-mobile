@@ -102,6 +102,18 @@ private val HELP: List<Pair<String, String>> = listOf(
         "album art to rate the song and see its lyrics.\n\n" +
         "Shuffle and Repeat are next to the play button. Turning Shuffle off goes back to the " +
         "original order.",
+    "Finding things fast" to
+        "Start scrolling a long list and a handle appears on the right edge. Drag it to jump " +
+        "anywhere in the list; a big letter in the middle shows where you are (or the year, " +
+        "rating or plays, depending on how the list is sorted).\n\n" +
+        "The sort button at the bottom has Inverse sort, to turn any order around: least played " +
+        "first, oldest first, Z to A. Each tab remembers where you were in it.",
+    "Adding songs from the phone" to
+        "Settings → My Library → Add Folder to Library (also in the ⋮ menus) copies the songs in " +
+        "a folder on the phone into the LuxTunes folder, sorted into artist and album folders the " +
+        "way LuxTunes does, and adds them to the library straight away.\n\n" +
+        "At the next sync, LuxTunes on your computer adds them to its library too. (This needs a " +
+        "LuxTunes that supports it; the app warns you if yours doesn't yet.)",
     "Queue (Up Next)" to
         "In any ⋮ menu, Add to Queue plays songs right after the current one (and after anything " +
         "you queued before). Add to End of Queue puts them at the very end.\n\n" +
@@ -142,7 +154,7 @@ private val HELP: List<Pair<String, String>> = listOf(
         "Turn on the Movies and TV Shows tabs in Settings → Tabs. Videos play full screen: tap " +
         "the picture to show or hide the controls.",
     "Updates" to
-        "Check for Updates is in Settings and in the overview's ⋮ menu. The app asks before " +
+        "Check for Updates is in Settings. The app asks before " +
         "going online, downloads the new version from the project's GitHub page, and Android " +
         "asks you to confirm installing it.",
     "Something's not right" to

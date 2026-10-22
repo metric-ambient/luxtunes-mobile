@@ -68,6 +68,7 @@ object ChangesJson {
         libraryId: String?,
         playlists: List<String>? = null,
         equalizer: String? = null,
+        addedTracks: List<String>? = null,
     ): String {
         val sb = StringBuilder()
         sb.append("{\"version\": ").append(if (playlists != null) VERSION_2 else VERSION)
@@ -96,9 +97,27 @@ object ChangesJson {
             sb.append(playlists.joinToString(",") { "\n  $it" })
             sb.append(if (playlists.isEmpty()) "]" else "\n]")
             if (equalizer != null) sb.append(", \"equalizer\": ").append(equalizer)
+            if (!addedTracks.isNullOrEmpty()) {
+                sb.append(", \"added_tracks\": [")
+                sb.append(addedTracks.joinToString(",") { "\n  $it" })
+                sb.append("\n]")
+            }
         }
         sb.append("}\n")
         return sb.toString()
+    }
+
+    /**
+     * A song added on the phone (Add Folder to Library), as a JSON object: its ID,
+     * where the file is (relative to the LuxTunes folder) and its details.
+     */
+    fun addedTrackEntry(row: Map<String, Any?>): String {
+        val o = org.json.JSONObject()
+        for ((k, v) in row.toSortedMap()) {
+            if (v == null) continue
+            if (k == "id" || k == "path" || k in AppDatabase.TRACK_COLUMNS) o.put(k, v)
+        }
+        return o.toString()
     }
 
     /** One playlist change for format v2, as a JSON object. */

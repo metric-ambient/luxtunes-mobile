@@ -15,6 +15,9 @@ import androidx.compose.material.icons.filled.Bedtime
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.rememberModalBottomSheetState
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.RadioButtonDefaults
 import androidx.compose.material3.Text
@@ -115,8 +118,10 @@ fun SleepTimerSheet() {
     val now = rememberNow()
     val close = { open = false }
 
-    ModalBottomSheet(onDismissRequest = close, containerColor = Lux.panel) {
-        Column(Modifier.fillMaxWidth().padding(horizontal = 24.dp)) {
+    // Opened all the way, so OK is in sight without dragging the sheet up.
+    val sheet = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    ModalBottomSheet(onDismissRequest = close, sheetState = sheet, containerColor = Lux.panel) {
+        Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(horizontal = 24.dp)) {
             Text("Sleep Timer", color = Lux.text, fontSize = 22.sp)
             endsAt?.let { at ->
                 Text(

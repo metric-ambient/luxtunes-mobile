@@ -196,7 +196,7 @@ class Repository(private val context: Context, private val prefs: Prefs) {
     /** The first time: what the app had from earlier runs. */
     private fun ensureLoaded() {
         if (loadedFromDb) return
-        libraryTracks = db.loadTracks()
+        libraryTracks = withPhoneTracks(db.loadTracks())
         pending = db.loadPending().toMutableMap()
         edits = db.loadEdits().associateBy { it.id }.toMutableMap()
         refreshEqualizer()
@@ -292,6 +292,17 @@ class Repository(private val context: Context, private val prefs: Prefs) {
             }
             db.dropDeliveredEdits()
             edits = db.loadEdits().associateBy { it.id }.toMutableMap()
+            // Songs added on the phone that LuxTunes now has are its songs; ones it
+            // took but doesn't have (an older LuxTunes, a stopped sync) are sent again.
+            val have = db.loadTracks().map { it.id.uppercase() }.toSet()
+            val added = db.loadPhoneTrackRows()
+            db.deletePhoneTracks(added.map { it.first["id"] as String }.filter { it.uppercase() in have })
+            db.setPhoneTrackStates(
+                added.filter { (row, state) -> state == PlaylistEdit.DELIVERED && (row["id"] as String).uppercase() !in have }
+                    .map { it.first["id"] as String },
+                PlaylistEdit.NEW,
+            )
+            db.setMeta("phone_imports", info["phone_imports"])
             // The computer's equalizer; the phone's changes stay until LuxTunes has applied them.
             db.setMeta("eq_library", runCatching { db.readEqualizer(copy, info) }.getOrNull()?.toJson()?.toString())
             if (db.meta("eq_state") == "delivered") {
@@ -308,7 +319,7 @@ class Repository(private val context: Context, private val prefs: Prefs) {
             db.setMeta("library_name", info["library_name"])
             db.setMeta("synced_at", info["synced_at"])
             db.setMeta("imported_stamp", stamp)
-            libraryTracks = db.loadTracks()
+            libraryTracks = withPhoneTracks(db.loadTracks())
             Log.i(TAG, "imported library.db: ${libraryTracks.size} songs, synced ${info["synced_at"]}")
         } finally {
             copy.delete()
@@ -346,6 +357,10 @@ class Repository(private val context: Context, private val prefs: Prefs) {
         db.setEditStates(arrived.map { it.id }, PlaylistEdit.DELIVERED)
         for (e in arrived) edits[e.id] = e.copy(state = PlaylistEdit.DELIVERED)
         if (db.meta("eq_state") == "written") db.setMeta("eq_state", "delivered")
+        db.setPhoneTrackStates(
+            db.loadPhoneTrackRows().filter { it.second == PlaylistEdit.WRITTEN }.map { it.first["id"] as String },
+            PlaylistEdit.DELIVERED,
+        )
         db.setMeta("changes_text", text)
         Log.i(TAG, "LuxTunes took the changes for ${sent.size} songs and ${arrived.size} playlists")
     }
@@ -371,11 +386,13 @@ class Repository(private val context: Context, private val prefs: Prefs) {
         val waiting = if (v2) edits.values.filter { it.state != PlaylistEdit.DELIVERED }.sortedBy { it.created } else emptyList()
         val eqState = db.meta("eq_state").orEmpty()
         val eqJson = if (v2 && (eqState == "new" || eqState == "written")) db.meta("eq_phone") else null
+        val added = if (v2) db.loadPhoneTrackRows().filter { it.second != PlaylistEdit.DELIVERED } else emptyList()
         val text = ChangesJson.build(
             entries, db.meta("library_id"), if (v2) waiting.map { ChangesJson.playlistEntry(it) } else null, eqJson,
+            if (v2) added.map { ChangesJson.addedTrackEntry(it.first) } else null,
         )
         val current = if (file.isFile) runCatching { file.readText() }.getOrNull() else null
-        if (entries.isEmpty() && waiting.isEmpty() && eqJson == null &&
+        if (entries.isEmpty() && waiting.isEmpty() && eqJson == null && added.isEmpty() &&
             (current == null || ChangesJson.isEmptied(current))
         ) return
         if (text != current) {
@@ -397,6 +414,7 @@ class Repository(private val context: Context, private val prefs: Prefs) {
             for (e in marked) pending[e.id] = e
         }
         if (eqJson != null && eqState == "new") db.setMeta("eq_state", "written")
+        db.setPhoneTrackStates(added.filter { it.second == PlaylistEdit.NEW }.map { it.first["id"] as String }, PlaylistEdit.WRITTEN)
         val newEdits = waiting.filter { it.state == PlaylistEdit.NEW }
         if (newEdits.isNotEmpty()) {
             db.setEditStates(newEdits.map { it.id }, PlaylistEdit.WRITTEN)
@@ -701,6 +719,80 @@ class Repository(private val context: Context, private val prefs: Prefs) {
                 libraryTracks = libraryTracks.filter { it.id !in ids }
                 publish(folder, _state.value.message)
             }
+        }
+    }
+
+    // ---- Add Folder to Library ---------------------------------------------------------------
+
+    /** The library's songs plus the ones added on the phone that LuxTunes doesn't have yet. */
+    private fun withPhoneTracks(library: List<Track>): List<Track> {
+        val have = library.map { it.id.uppercase() }.toSet()
+        return library + db.loadTracks("phone_tracks").filter { it.id.uppercase() !in have }
+    }
+
+    /** How Add Folder is going: found, done so far, added, skipped (already in the library). */
+    data class Adding(val found: Int, val done: Int, val added: Int, val skipped: Int, val failed: Int, val finished: Boolean)
+
+    private val _adding = MutableStateFlow<Adding?>(null)
+    val adding: StateFlow<Adding?> = _adding.asStateFlow()
+
+    /** Does this phone's LuxTunes take songs added on the phone? (It says so in library.db.) */
+    val takesPhoneSongs: Boolean get() = db.meta("phone_imports") == "1"
+
+    fun clearAdding() {
+        if (_adding.value?.finished == true) _adding.value = null
+    }
+
+    /**
+     * Copy the songs in `dir` into the LuxTunes folder (where LuxTunes would put them)
+     * and add them to the library. They go to LuxTunes at the next sync.
+     */
+    fun addFolder(dir: File) {
+        if (_adding.value?.finished == false) return
+        _adding.value = Adding(0, 0, 0, 0, 0, false)
+        scope.launch {
+            val folder = _state.value.folder
+            if (folder == null) {
+                _adding.value = Adding(0, 0, 0, 0, 0, true)
+                return@launch
+            }
+            val files = FolderImport.scan(dir, skip = folder)
+            val known = libraryTracks.map { "${it.name}\u0001${it.artist}\u0001${it.album}".lowercase() }.toMutableSet()
+            val taken = libraryTracks.map { it.path.lowercase() }.toMutableSet()
+            val rows = ArrayList<Map<String, Any?>>()
+            var skipped = 0
+            var failed = 0
+            for ((i, file) in files.withIndex()) {
+                _adding.value = Adding(files.size, i, rows.size, skipped, failed, false)
+                val tags = FolderImport.readTags(file)
+                if (tags == null) { failed++; continue }
+                val key = "${tags["name"]}\u0001${(tags["artist"] as? String) ?: "Unknown artist"}\u0001${(tags["album"] as? String) ?: "Unknown album"}".lowercase()
+                if (key in known) { skipped++; continue }
+                val path = FolderImport.pathFor(tags, file.extension.lowercase(), taken)
+                val target = File(folder, path)
+                try {
+                    if (target.exists()) { skipped++; continue }
+                    target.parentFile?.mkdirs()
+                    file.copyTo(target)
+                    MediaScannerConnection.scanFile(context, arrayOf(target.path), null, null)
+                } catch (e: Exception) {
+                    Log.w(TAG, "couldn't copy ${file.path}", e)
+                    failed++
+                    continue
+                }
+                known += key
+                rows += tags + mapOf("id" to newId(), "path" to path)
+            }
+            lock.withLock {
+                ensureLoaded()
+                if (rows.isNotEmpty()) {
+                    db.addPhoneTracks(rows)
+                    libraryTracks = withPhoneTracks(db.loadTracks())
+                    writeChangesFileSafely(folder)
+                    publish(folder, _state.value.message)
+                }
+            }
+            _adding.value = Adding(files.size, files.size, rows.size, skipped, failed, true)
         }
     }
 

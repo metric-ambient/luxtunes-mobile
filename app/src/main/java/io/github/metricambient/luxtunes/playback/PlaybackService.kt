@@ -111,7 +111,10 @@ class PlaybackService : MediaSessionService() {
         }
         // Settings → Sound and the equalizer: apply whenever either changes.
         scope.launch {
-            app.prefs.settings.combine(repository.equalizer) { s, e -> s to e }.collect { applySound() }
+            app.prefs.settings.combine(repository.equalizer) { s, e -> s to e }.collect {
+                applySound()
+                focus.settingsChanged()
+            }
         }
 
         // Every "next" (app, notification, headset, car) passes through here.
@@ -172,7 +175,7 @@ class PlaybackService : MediaSessionService() {
         endCrossfade()
         stopSleepFade()
         SleepTimer.onEnd = null
-        focus.release()
+        focus.close()
         scope.cancel()
         savePosition()
         session?.run {

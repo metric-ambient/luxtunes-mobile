@@ -141,6 +141,8 @@ private fun Root() {
         DialogHost()
         UpdateDialogs()
         SleepTimerSheet()
+        AddFolderHost()
+        NoticeHost()
     }
 }
 

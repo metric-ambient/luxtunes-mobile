@@ -89,9 +89,6 @@ private fun LazyListScope.pageHeader(
                 IconButton(onClick = { Dialogs.show(DialogRequest.AddToPlaylist(tracks.map { it.id })) }) {
                     Icon(Icons.AutoMirrored.Filled.PlaylistAdd, "Add to Playlist", tint = Lux.text)
                 }
-                IconButton(onClick = { player.shuffle(tracks); showPlayer(nav, tracks) }) {
-                    Icon(Icons.Filled.Shuffle, "Shuffle", tint = Lux.text)
-                }
                 IconButton(onClick = { player.play(tracks); showPlayer(nav, tracks) }) {
                     Icon(Icons.Filled.PlayArrow, "Play", tint = Lux.text)
                 }
@@ -146,17 +143,24 @@ fun AlbumScreen(nav: NavHostController, key: String) {
     val album = library.albumByKey[key] ?: return Missing(nav, "album")
     PageAccent(album.artTrack)
     val menu = groupMenu(album.tracks, nav)
-    LazyColumn(Modifier.fillMaxSize()) {
-        pageHeader(nav, album.artTrack, summaryOf(album.tracks, album.year), album.tracks, menu)
-        item { Spacer(Modifier.height(16.dp)) }
-        itemsIndexed(album.tracks, key = { _, t -> t.id }) { i, t ->
-            SongRow(
-                track = t,
-                number = if (t.trackNumber > 0) t.trackNumber else i + 1,
-                current = t.id == playerState.currentId,
-                onClick = { tapSong(app, nav, album.tracks, i) },
-                menu = songMenu(t, nav),
-            )
+    val settings by app.prefs.settings.collectAsState()
+    // One album: shuffling by albums would be the same as shuffling its songs.
+    PlayDialPage(
+        nav, album.tracks, listOf(ArtistPlay.FROM_TOP, ArtistPlay.SHUFFLE_SONGS), settings.albumPlay,
+        onDefault = { choice -> app.prefs.update { it.copy(albumPlay = choice) } },
+    ) { fab ->
+        LazyColumn(Modifier.fillMaxSize()) {
+            pageHeader(nav, album.artTrack, summaryOf(album.tracks, album.year), album.tracks, menu, fab)
+            item { Spacer(Modifier.height(16.dp)) }
+            itemsIndexed(album.tracks, key = { _, t -> t.id }) { i, t ->
+                SongRow(
+                    track = t,
+                    number = if (t.trackNumber > 0) t.trackNumber else i + 1,
+                    current = t.id == playerState.currentId,
+                    onClick = { tapSong(app, nav, album.tracks, i) },
+                    menu = songMenu(t, nav),
+                )
+            }
         }
     }
 }
@@ -174,9 +178,6 @@ fun GroupScreen(nav: NavHostController, kind: String, name: String) {
     val years = artist.albums.map { it.year }.filter { it > 0 }
     PageAccent(artTrackOf(tracks))
 
-    var dialOpen by remember { mutableStateOf(false) }
-    var origin by remember { mutableStateOf(Offset.Zero) }
-    var fabBounds by remember { mutableStateOf(Rect.Zero) }
     val menu: Menu = listOf(
         (if (settings.artistSongs) "Show as Albums" else "Show as Songs") to {
             app.prefs.update { it.copy(artistSongs = !it.artistSongs) }
@@ -185,22 +186,12 @@ fun GroupScreen(nav: NavHostController, kind: String, name: String) {
         "Delete" to { Dialogs.show(DialogRequest.Delete(tracks.map { it.id })) },
     )
 
-    Box(Modifier.fillMaxSize().onGloballyPositioned { origin = it.positionInRoot() }) {
+    PlayDialPage(
+        nav, tracks, ArtistPlay.entries, settings.artistPlay,
+        onDefault = { choice -> app.prefs.update { it.copy(artistPlay = choice) } },
+    ) { fab ->
         LazyColumn(Modifier.fillMaxSize()) {
-            pageHeader(
-                nav, artTrackOf(tracks), summaryOf(tracks), tracks, menu,
-                fab = { place ->
-                    FloatingActionButton(
-                        onClick = { dialOpen = true },
-                        shape = CircleShape,
-                        containerColor = Lux.accent,
-                        contentColor = Lux.onAccent,
-                        modifier = place.onGloballyPositioned { fabBounds = it.boundsInRoot() },
-                    ) {
-                        ArtistPlayIcon(settings.artistPlay, settings.artistPlay.label)
-                    }
-                },
-            )
+            pageHeader(nav, artTrackOf(tracks), summaryOf(tracks), tracks, menu, fab)
             item {
                 Text(
                     artist.name + if (years.isNotEmpty()) "  ·  ${years.min()}–${years.max()}" else "",
@@ -230,22 +221,58 @@ fun GroupScreen(nav: NavHostController, kind: String, name: String) {
                 }
             }
         }
+    }
+}
+
+/**
+ * A page with the round play button that opens its choices (Play From Top, Shuffle
+ * By Albums, Shuffle By Songs). The last choice becomes the button's default.
+ * `content` gets the button, for the page header.
+ */
+@Composable
+private fun PlayDialPage(
+    nav: NavHostController,
+    tracks: List<Track>,
+    choices: List<ArtistPlay>,
+    current: ArtistPlay,
+    onDefault: (ArtistPlay) -> Unit,
+    content: @Composable (fab: @Composable (Modifier) -> Unit) -> Unit,
+) {
+    val app = app()
+    var dialOpen by remember { mutableStateOf(false) }
+    var origin by remember { mutableStateOf(Offset.Zero) }
+    var fabBounds by remember { mutableStateOf(Rect.Zero) }
+    val default = if (current in choices) current else choices.first()
+    val fab: @Composable (Modifier) -> Unit = { place ->
+        FloatingActionButton(
+            onClick = { dialOpen = true },
+            shape = CircleShape,
+            containerColor = Lux.accent,
+            contentColor = Lux.onAccent,
+            modifier = place.onGloballyPositioned { fabBounds = it.boundsInRoot() },
+        ) {
+            ArtistPlayIcon(default, default.label)
+        }
+    }
+    Box(Modifier.fillMaxSize().onGloballyPositioned { origin = it.positionInRoot() }) {
+        content(fab)
         if (dialOpen) {
             SpeedDial(
                 fab = fabBounds.translate(-origin),
-                default = settings.artistPlay,
+                choices = choices,
+                default = default,
                 onClose = { dialOpen = false },
                 onPick = { choice ->
                     dialOpen = false
-                    app.prefs.update { it.copy(artistPlay = choice) }
-                    playArtist(app, nav, tracks, choice)
+                    onDefault(choice)
+                    playWith(app, nav, tracks, choice)
                 },
             )
         }
     }
 }
 
-private fun playArtist(app: LuxTunesApp, nav: NavHostController, tracks: List<Track>, how: ArtistPlay) {
+private fun playWith(app: LuxTunesApp, nav: NavHostController, tracks: List<Track>, how: ArtistPlay) {
     if (tracks.isEmpty()) return
     when (how) {
         ArtistPlay.FROM_TOP -> app.player.play(tracks)
@@ -272,7 +299,7 @@ private fun ArtistPlayIcon(how: ArtistPlay, description: String?, size: Dp = 28.
  * names, the current default in its place. Tapping outside closes it.
  */
 @Composable
-private fun SpeedDial(fab: Rect, default: ArtistPlay, onClose: () -> Unit, onPick: (ArtistPlay) -> Unit) {
+private fun SpeedDial(fab: Rect, choices: List<ArtistPlay>, default: ArtistPlay, onClose: () -> Unit, onPick: (ArtistPlay) -> Unit) {
     val density = LocalDensity.current
     val fabWidth = with(density) { fab.width.toDp() }
     Box(
@@ -294,7 +321,7 @@ private fun SpeedDial(fab: Rect, default: ArtistPlay, onClose: () -> Unit, onPic
                     }
                 },
         ) {
-            val order = ArtistPlay.entries.filter { it != default } + default
+            val order = choices.filter { it != default } + default
             for (how in order) {
                 val main = how == default
                 Row(verticalAlignment = Alignment.CenterVertically) {
@@ -337,32 +364,38 @@ fun PlaylistScreen(nav: NavHostController, id: String) {
     // (position in the playlist, song): songs no longer on the phone are skipped.
     val entries = playlist.trackIds.mapIndexedNotNull { pos, tid -> library.byId[tid]?.let { pos to it } }
     val tracks = entries.map { it.second }
-    LazyColumn(Modifier.fillMaxSize()) {
-        pageHeader(nav, artTrackOf(tracks), summaryOf(tracks), tracks)
-        item {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(
-                    playlist.name + when {
-                        playlist.isSmart -> "  ·  Smart playlist"
-                        playlist.onPhone -> "  ·  Made on this phone"
-                        else -> ""
-                    } + if (playlist.changed) "  ·  Changes go to LuxTunes at the next sync" else "",
-                    color = Lux.dim, fontSize = 15.sp,
-                    modifier = Modifier.weight(1f).padding(start = 16.dp, top = 16.dp, bottom = 4.dp),
-                )
-                MoreMenu(playlistMenu(playlist, nav))
+    val settings by app.prefs.settings.collectAsState()
+    PlayDialPage(
+        nav, tracks, ArtistPlay.entries, settings.playlistPlay,
+        onDefault = { choice -> app.prefs.update { it.copy(playlistPlay = choice) } },
+    ) { fab ->
+        LazyColumn(Modifier.fillMaxSize()) {
+            pageHeader(nav, artTrackOf(tracks), summaryOf(tracks), tracks, fab = fab)
+            item {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        playlist.name + when {
+                            playlist.isSmart -> "  ·  Smart playlist"
+                            playlist.onPhone -> "  ·  Made on this phone"
+                            else -> ""
+                        } + if (playlist.changed) "  ·  Changes go to LuxTunes at the next sync" else "",
+                        color = Lux.dim, fontSize = 15.sp,
+                        modifier = Modifier.weight(1f).padding(start = 16.dp, top = 16.dp, bottom = 4.dp),
+                    )
+                    MoreMenu(playlistMenu(playlist, nav))
+                }
             }
-        }
-        itemsIndexed(entries, key = { _, e -> "${e.first}:${e.second.id}" }) { i, (pos, t) ->
-            val remove: Menu = if (!playlist.isSmart && library.canEdit(playlist)) {
-                listOf("Remove from playlist" to { app.repository.removeFromPlaylist(playlist.id, pos) })
-            } else emptyList()
-            SongRow(
-                track = t,
-                current = t.id == playerState.currentId,
-                onClick = { tapSong(app, nav, tracks, i) },
-                menu = songMenu(t, nav, remove),
-            )
+            itemsIndexed(entries, key = { _, e -> "${e.first}:${e.second.id}" }) { i, (pos, t) ->
+                val remove: Menu = if (!playlist.isSmart && library.canEdit(playlist)) {
+                    listOf("Remove from playlist" to { app.repository.removeFromPlaylist(playlist.id, pos) })
+                } else emptyList()
+                SongRow(
+                    track = t,
+                    current = t.id == playerState.currentId,
+                    onClick = { tapSong(app, nav, tracks, i) },
+                    menu = songMenu(t, nav, remove),
+                )
+            }
         }
     }
 }
