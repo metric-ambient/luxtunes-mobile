@@ -55,7 +55,6 @@ data class LibraryState(
 
     /** LuxTunes 0.6+ takes playlist changes back; before that only playlists made here can change. */
     fun canEdit(p: Playlist): Boolean = p.onPhone || formatVersion >= 2
-    val artistByName: Map<String, Artist> by lazy { artists.associateBy { it.name } }
 
     /** A named group of songs for a group page: kind is artist, trackartist, genre, composer or tvshow. */
     fun group(kind: String, name: String): Artist? = when (kind) {
@@ -711,7 +710,7 @@ class Repository(private val context: Context, private val prefs: Prefs) {
                 val byId = _state.value.byId
                 for (id in ids) {
                     val t = byId[id] ?: continue
-                    val file = File(folder, t.path)
+                    val file = LuxFolder.inside(folder, t.path) ?: continue
                     if (file.exists() && !file.delete()) Log.w(TAG, "couldn't delete ${file.path}")
                     else MediaScannerConnection.scanFile(context, arrayOf(file.path), null, null)
                 }
@@ -819,9 +818,10 @@ class Repository(private val context: Context, private val prefs: Prefs) {
     fun mediaItem(id: String): MediaItem? {
         val t = track(id) ?: return null
         val folder = _state.value.folder ?: return null
+        val file = LuxFolder.inside(folder, t.path) ?: return null
         val builder = MediaItem.Builder()
             .setMediaId(t.id)
-            .setUri(Uri.fromFile(File(folder, t.path)))
+            .setUri(Uri.fromFile(file))
             .setMediaMetadata(metadata(t, folder))
         if (t.startTime > 0 || t.stopTime > 0) {
             builder.setClippingConfiguration(
@@ -845,7 +845,7 @@ class Repository(private val context: Context, private val prefs: Prefs) {
             .setAlbumTitle(t.album)
             .setAlbumArtist(t.albumArtist)
         // No cover yet: leave it unset so the player uses the art inside the file.
-        val cover = if (folder != null && t.artwork != null) File(folder, t.artwork) else null
+        val cover = folder?.let { LuxFolder.inside(it, t.artwork) }
         if (cover != null && cover.isFile) b.setArtworkUri(Uri.fromFile(cover))
         return b.build()
     }
@@ -854,7 +854,7 @@ class Repository(private val context: Context, private val prefs: Prefs) {
     fun art(t: Track?): Art? {
         val folder = _state.value.folder ?: return null
         if (t == null) return null
-        return Art(t.artwork?.let { File(folder, it) }, File(folder, t.path))
+        return Art(LuxFolder.inside(folder, t.artwork), LuxFolder.inside(folder, t.path))
     }
 
     companion object {

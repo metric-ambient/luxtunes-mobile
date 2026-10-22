@@ -284,7 +284,8 @@ fun UpdateDialogs() {
                         Text(s.release.notes, color = Lux.dim, fontSize = 14.sp)
                     }
                     Spacer(Modifier.height(8.dp))
-                    Text("Download it now? (About 10 MB from github.com.)")
+                    val size = if (s.release.size > 0) "%.1f MB".format(s.release.size / 1048576.0) else "About 10 MB"
+                    Text("Download it now? ($size from github.com.)")
                 }
             },
             confirmButton = {

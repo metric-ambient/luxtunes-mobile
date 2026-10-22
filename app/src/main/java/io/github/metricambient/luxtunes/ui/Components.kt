@@ -8,7 +8,6 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -227,23 +226,6 @@ fun StarRating(rating: Int, computed: Boolean, onRate: (Int) -> Unit, size: Dp =
 }
 
 // ---- Bottom action bar ------------------------------------------------------------------
-
-data class BarAction(val icon: ImageVector, val label: String, val enabled: Boolean = true, val onClick: () -> Unit)
-
-@Composable
-fun ActionBar(actions: List<BarAction>) {
-    Row(
-        Modifier.fillMaxWidth().height(56.dp).background(Lux.bar),
-        horizontalArrangement = Arrangement.SpaceEvenly,
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        for (a in actions) {
-            IconButton(onClick = a.onClick, enabled = a.enabled) {
-                Icon(a.icon, a.label, tint = if (a.enabled) Lux.icon else Lux.faint, modifier = Modifier.size(30.dp))
-            }
-        }
-    }
-}
 
 @Composable
 fun Heading(text: String) {

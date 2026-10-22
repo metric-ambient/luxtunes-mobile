@@ -14,6 +14,23 @@ object LuxFolder {
     const val DATABASE = "library.db"
     const val CHANGES = "changes.json"
 
+    /**
+     * folder/relative, or null if it would lead outside the LuxTunes folder ("..", an
+     * absolute path or a link). Paths in library.db come from shared storage, which
+     * other apps can write, so every file the app opens, plays or deletes from a
+     * library path goes through here.
+     */
+    fun inside(folder: File, relative: String?): File? {
+        if (relative.isNullOrEmpty()) return null
+        return try {
+            val base = folder.canonicalFile
+            val file = File(folder, relative).canonicalFile
+            if (file.path.startsWith(base.path + File.separator)) file else null
+        } catch (e: java.io.IOException) {
+            null
+        }
+    }
+
     /** Can the app read and write the shared LuxTunes folder? */
     fun hasAccess(context: Context): Boolean =
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {

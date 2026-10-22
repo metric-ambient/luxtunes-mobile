@@ -240,7 +240,12 @@ class PlaybackService : MediaSessionService() {
         }
     }
 
-    /** The screens send song IDs; the file and its details are filled in here. */
+    /**
+     * The screens send song IDs; the file and its details are filled in here. Anything
+     * that isn't a song in the library is dropped: the session is open to other apps
+     * (the system's media controls, Bluetooth, car displays), and none of them may make
+     * LuxTunes play a web address or a file outside the LuxTunes folder.
+     */
     private val callback = object : MediaSession.Callback {
         override fun onAddMediaItems(
             mediaSession: MediaSession,
@@ -248,7 +253,7 @@ class PlaybackService : MediaSessionService() {
             mediaItems: MutableList<MediaItem>,
         ): ListenableFuture<MutableList<MediaItem>> =
             Futures.immediateFuture(
-                mediaItems.map { repository.mediaItem(it.mediaId) ?: it }.toMutableList()
+                mediaItems.mapNotNull { repository.mediaItem(it.mediaId) }.toMutableList()
             )
 
         @Suppress("DEPRECATION")
