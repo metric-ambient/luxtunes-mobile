@@ -140,6 +140,7 @@ private fun Root() {
         if (access) MainScreens() else PermissionScreen { access = LuxFolder.hasAccess(context) }
         DialogHost()
         UpdateDialogs()
+        SleepTimerSheet()
     }
 }
 

@@ -90,6 +90,7 @@ class PlaybackService : MediaSessionService() {
                 /* handleAudioFocus = */ false,         // AudioFocusKeeper does it (Audio Priority)
             )
             .setHandleAudioBecomingNoisy(main)       // pause when headphones are unplugged
+            .setWakeMode(if (main) C.WAKE_MODE_LOCAL else C.WAKE_MODE_NONE)    // keep going with the screen off
             .build()
     }
 
@@ -101,7 +102,12 @@ class PlaybackService : MediaSessionService() {
         exo.addListener(sound)
         focus = AudioFocusKeeper(this, exo, { app.prefs.current }) { on ->
             ducked = on
-            if (fadeStart == 0L) exo.volume = volumeFor(trackOf(exo.currentMediaItem))
+            if (fadeStart == 0L && sleepFadeStart == 0L) exo.volume = volumeFor(trackOf(exo.currentMediaItem))
+        }
+        // The sleep timer ends here: fade out, then pause. Turned off mid-fade: full volume again.
+        SleepTimer.onEnd = { sleepFade() }
+        scope.launch {
+            SleepTimer.endsAt.collect { if (it == null && sleepFadeStart != 0L) stopSleepFade() }
         }
         // Settings → Sound and the equalizer: apply whenever either changes.
         scope.launch {
@@ -164,6 +170,8 @@ class PlaybackService : MediaSessionService() {
     override fun onDestroy() {
         handler.removeCallbacks(saveTicker)
         endCrossfade()
+        stopSleepFade()
+        SleepTimer.onEnd = null
         focus.release()
         scope.cancel()
         savePosition()
@@ -352,7 +360,7 @@ class PlaybackService : MediaSessionService() {
         exo.pauseAtEndOfMediaItems = !app.prefs.current.autoplay
         val speed = speedFor(t)
         if (exo.playbackParameters != speed) exo.playbackParameters = speed
-        if (fadeStart == 0L) exo.volume = volumeFor(t)
+        if (fadeStart == 0L && sleepFadeStart == 0L) exo.volume = volumeFor(t)
     }
 
     private val sound = object : Player.Listener {
@@ -403,7 +411,7 @@ class PlaybackService : MediaSessionService() {
 
     private fun maybeStartCrossfade() {
         val s = app.prefs.current
-        if (s.transition != Transition.CROSSFADE || !s.autoplay || fadeStart != 0L) return
+        if (s.transition != Transition.CROSSFADE || !s.autoplay || fadeStart != 0L || sleepFadeStart != 0L) return
         if (exo.repeatMode == Player.REPEAT_MODE_ONE || !exo.hasNextMediaItem()) return
         val duration = exo.duration
         if (duration == C.TIME_UNSET || duration <= 0) return
@@ -457,6 +465,44 @@ class PlaybackService : MediaSessionService() {
         tail = null
         if (fadeStart != 0L) {
             fadeStart = 0L
+            exo.volume = volumeFor(trackOf(exo.currentMediaItem))
+        }
+    }
+
+    // ---- Sleep timer ---------------------------------------------------------------------------
+
+    private var sleepFadeStart = 0L
+
+    private fun sleepFade() {
+        if (!exo.playWhenReady) {           // nothing playing: nothing to stop
+            SleepTimer.stop()
+            return
+        }
+        endCrossfade()
+        sleepFadeStart = SystemClock.uptimeMillis()
+        handler.post(sleepTick)
+    }
+
+    private val sleepTick = object : Runnable {
+        override fun run() {
+            if (sleepFadeStart == 0L) return
+            val p = ((SystemClock.uptimeMillis() - sleepFadeStart).toFloat() / SleepTimer.FADE_MS).coerceIn(0f, 1f)
+            exo.volume = volumeFor(trackOf(exo.currentMediaItem)) * (1f - p)
+            if (p < 1f) {
+                handler.postDelayed(this, 50)
+            } else {
+                // Paused, not stopped: Play carries on from here, at full volume.
+                exo.pause()
+                stopSleepFade()
+                SleepTimer.stop()
+            }
+        }
+    }
+
+    private fun stopSleepFade() {
+        handler.removeCallbacks(sleepTick)
+        if (sleepFadeStart != 0L) {
+            sleepFadeStart = 0L
             exo.volume = volumeFor(trackOf(exo.currentMediaItem))
         }
     }

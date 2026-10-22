@@ -86,8 +86,9 @@ fun MiniPlayer(nav: NavHostController, showMenu: Boolean) {
                     if (state.isPlaying) "Pause" else "Play", tint = Lux.icon, modifier = Modifier.size(44.dp),
                 )
             }
+            SleepTimerBadge()
             if (showMenu) {
-                MoreMenu(listOf(
+                MoreMenu(sleepTimerMenu() + listOf(
                     "Search" to { nav.go(Routes.SEARCH) },
                     "Rescan Device" to { app.repository.refreshAsync() },
                     "Switch Theme" to { nav.go(Routes.SETTINGS_THEME) },

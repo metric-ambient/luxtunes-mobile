@@ -122,6 +122,7 @@ data class AppSettings(
     val noAlbumArt: Boolean = false,
     // Tabs
     val hideSearch: Boolean = false,
+    val sleepMinutes: Int = 30,                  // the sleep timer's last choice
     val launchNowPlaying: Boolean = true,        // starting a song opens Now Playing
     val smartAtEnd: Boolean = false,             // Playlists tab: smart playlists after the others
     val artistPlay: ArtistPlay = ArtistPlay.FROM_TOP,
@@ -189,6 +190,8 @@ class Prefs(context: Context) {
             blockReceiverPlay = sp.getBoolean("blockReceiverPlay", d.blockReceiverPlay),
             noAlbumArt = sp.getBoolean("noAlbumArt", d.noAlbumArt),
             hideSearch = sp.getBoolean("hideSearch", d.hideSearch),
+            sleepMinutes = sp.getInt("sleepMinutes", d.sleepMinutes)
+                .let { if (it in io.github.metricambient.luxtunes.playback.SleepTimer.CHOICES) it else d.sleepMinutes },
             launchNowPlaying = sp.getBoolean("launchNowPlaying", d.launchNowPlaying),
             smartAtEnd = sp.getBoolean("smartAtEnd", d.smartAtEnd),
             artistPlay = enumOf(sp.getString("artistPlay", null), d.artistPlay),
@@ -254,6 +257,7 @@ class Prefs(context: Context) {
             .putBoolean("blockReceiverPlay", s.blockReceiverPlay)
             .putBoolean("noAlbumArt", s.noAlbumArt)
             .putBoolean("hideSearch", s.hideSearch)
+            .putInt("sleepMinutes", s.sleepMinutes)
             .putBoolean("launchNowPlaying", s.launchNowPlaying)
             .putBoolean("smartAtEnd", s.smartAtEnd)
             .putString("artistPlay", s.artistPlay.name)

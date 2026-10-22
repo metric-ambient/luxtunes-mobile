@@ -130,6 +130,11 @@ private val HELP: List<Pair<String, String>> = listOf(
         "text colors. Auto Accent takes the accent from the album art.\n\n" +
         "Settings → Tabs: choose which tabs show and what a tap does. In the overview, " +
         "long-press a tab and drag it to move it.",
+    "Sleep timer" to
+        "Tap the moon at the top of Now Playing (or choose Sleep Timer… in a ⋮ menu) and pick " +
+        "how long: 15 minutes to 8 hours. When the time is up, the music fades out and pauses; " +
+        "Play carries on from the same spot.\n\n" +
+        "While it runs, the moon shows the time left. Tap it to change the time or turn it off.",
     "Headphones and Bluetooth" to
         "Settings → Headset/Bluetooth: use headset buttons, start playing when headphones or " +
         "Bluetooth connect, and stop a car from starting music by itself.",

@@ -112,6 +112,7 @@ fun NowPlayingScreen(nav: NavHostController) {
                     Icon(Icons.AutoMirrored.Filled.PlaylistAdd, "Add to playlist", tint = Lux.icon)
                 }
             }
+            SleepTimerBadge(alwaysShow = true)
             IconButton(onClick = { eqPopup = true }) {
                 Icon(Icons.Filled.Equalizer, "Equalizer", tint = if (eq.on) Lux.accent else Lux.icon)
             }
@@ -126,6 +127,7 @@ fun NowPlayingScreen(nav: NavHostController) {
                 menu += "Add to playlist…" to { Dialogs.show(DialogRequest.AddToPlaylist(listOf(track.id))) }
                 menu += "Delete from phone" to { Dialogs.show(DialogRequest.Delete(listOf(track.id))) }
             }
+            menu += sleepTimerMenu()
             menu += "Search" to { nav.go(Routes.SEARCH) }
             menu += "Settings" to { nav.go(Routes.SETTINGS) }
             MoreMenu(menu)

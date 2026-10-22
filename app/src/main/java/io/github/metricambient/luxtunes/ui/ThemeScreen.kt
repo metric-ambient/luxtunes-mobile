@@ -133,7 +133,7 @@ fun ThemeSettingsScreen(nav: NavHostController) {
         HorizontalDivider(color = Lux.panel, modifier = Modifier.padding(top = 8.dp))
         ToggleRow(
             "Auto Accent",
-            "Take the accent color from the album art: the playing song's, or the album or artist " +
+            "Take the accent color from the album art: the playing songs, or the album or artist " +
                 "you're looking at. When the art has no color that stands out on the background, " +
                 "your own accent color above is used. Works in all three styles.",
             s.autoAccent,
