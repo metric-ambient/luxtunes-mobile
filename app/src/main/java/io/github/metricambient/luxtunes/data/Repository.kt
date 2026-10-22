@@ -710,7 +710,7 @@ class Repository(private val context: Context, private val prefs: Prefs) {
                 val byId = _state.value.byId
                 for (id in ids) {
                     val t = byId[id] ?: continue
-                    val file = LuxFolder.inside(folder, t.path) ?: continue
+                    val file = LuxFolder.insideStrict(folder, t.path) ?: continue
                     if (file.exists() && !file.delete()) Log.w(TAG, "couldn't delete ${file.path}")
                     else MediaScannerConnection.scanFile(context, arrayOf(file.path), null, null)
                 }

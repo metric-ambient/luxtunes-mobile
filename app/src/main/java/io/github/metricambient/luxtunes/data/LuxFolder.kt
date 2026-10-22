@@ -15,17 +15,24 @@ object LuxFolder {
     const val CHANGES = "changes.json"
 
     /**
-     * folder/relative, or null if it would lead outside the LuxTunes folder ("..", an
-     * absolute path or a link). Paths in library.db come from shared storage, which
-     * other apps can write, so every file the app opens, plays or deletes from a
-     * library path goes through here.
+     * folder/relative, or null if the path is absolute or has a ".." in it. Paths in
+     * library.db come from shared storage, which other apps can write, so every file
+     * the app opens or plays from a library path goes through here. Cheap enough for
+     * list rows and long queues: it only looks at the text.
      */
     fun inside(folder: File, relative: String?): File? {
-        if (relative.isNullOrEmpty()) return null
+        if (relative.isNullOrEmpty() || relative.startsWith("/")) return null
+        if (relative.split('/').any { it == ".." }) return null
+        return File(folder, relative)
+    }
+
+    /** [inside], and links are followed too: for deleting, where a mistake can't be undone. */
+    fun insideStrict(folder: File, relative: String?): File? {
+        val file = inside(folder, relative) ?: return null
         return try {
             val base = folder.canonicalFile
-            val file = File(folder, relative).canonicalFile
-            if (file.path.startsWith(base.path + File.separator)) file else null
+            val real = file.canonicalFile
+            if (real.path.startsWith(base.path + File.separator)) real else null
         } catch (e: java.io.IOException) {
             null
         }

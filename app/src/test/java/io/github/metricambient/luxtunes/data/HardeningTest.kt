@@ -16,14 +16,16 @@ class HardeningTest {
         val folder = File(root, "LuxTunes").apply { mkdirs() }
         File(root, "secret.jpg").writeText("not music")
         val song = "LuxTunes Media/Music/A/B/01 Song.mp3"
-        assertEquals(File(folder, song).canonicalFile, LuxFolder.inside(folder, song))
+        assertEquals(File(folder, song), LuxFolder.inside(folder, song))
+        assertEquals(File(folder, song).canonicalFile, LuxFolder.insideStrict(folder, song))
         assertNull(LuxFolder.inside(folder, "../secret.jpg"))
         assertNull(LuxFolder.inside(folder, "LuxTunes Media/../../secret.jpg"))
         assertNull(LuxFolder.inside(folder, File(root, "secret.jpg").path))
         assertNull(LuxFolder.inside(folder, ""))
         assertNull(LuxFolder.inside(folder, null))
+        assertNull(LuxFolder.insideStrict(folder, "../secret.jpg"))
         Files.createSymbolicLink(File(folder, "out").toPath(), root.toPath())
-        assertNull(LuxFolder.inside(folder, "out/secret.jpg"))           // a link can't lead out either
+        assertNull(LuxFolder.insideStrict(folder, "out/secret.jpg"))     // a link can't lead out when deleting
         root.deleteRecursively()
     }
 
