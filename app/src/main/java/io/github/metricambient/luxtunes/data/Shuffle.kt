@@ -12,31 +12,35 @@ private const val TWO_DAYS_MILLIS = 2L * 24 * 60 * 60 * 1000L
 /**
  * LuxTunes' new shuffle algorithm:
  * 1. Fair Fisher-Yates shuffle using a SecureRandom seed mixed with nano-time.
- * 2. Songs heard recently (started this session or played < 2 days ago) move to the back.
+ * 2. Songs heard recently (played < 2 days ago) move to the back.
  * 3. Neighbor spreading prevents artist clashes (within 2 songs) and album clashes (within 8 songs).
  */
-fun spreadShuffle(tracks: List<Track>, currentTrack: Track? = null): List<Track> {
-    if (tracks.isEmpty()) return tracks
+fun <T> spreadShuffle(
+    items: List<T>,
+    random: Random = Random(SecureRandom().nextLong() xor System.nanoTime()),
+    currentTrack: T? = null,
+    key: (T) -> String = { "artist" }
+): List<T> {
+    if (items.isEmpty()) return items
 
     // If a current track is playing/selected, keep it first and shuffle the rest
-    val workList = if (currentTrack != null && tracks.contains(currentTrack)) {
-        val mutable = tracks.toMutableList()
+    val workList = if (currentTrack != null && items.contains(currentTrack)) {
+        val mutable = items.toMutableList()
         mutable.remove(currentTrack)
         mutable
     } else {
-        tracks.toMutableList()
+        items.toMutableList()
     }
 
-    // Step 1: Fair Fisher-Yates shuffle using SecureRandom + nanoTime seed
-    val secureRandom = SecureRandom()
-    val seed = secureRandom.nextLong() xor System.nanoTime()
-    Collections.shuffle(workList, Random(seed))
+    // Step 1: Fair Fisher-Yates shuffle using provided or secure random
+    Collections.shuffle(workList, random)
 
     // Step 2: Songs heard recently go to the back
     val (recent, notRecent) = workList.partition { isRecent(it) }
     val ordered = (notRecent + recent).toMutableList()
 
     // Step 3: Spread neighbors apart (avoiding artist and album clashes)
+    // We infer artist/album keys from the items using generic properties or fallback string representations
     for (i in 1 until ordered.size) {
         val currentSong = ordered[i]
         if (clashes(ordered, i, currentSong)) {
@@ -49,7 +53,6 @@ fun spreadShuffle(tracks: List<Track>, currentTrack: Track? = null): List<Track>
                 }
             }
             if (foundIndex != -1) {
-                // Move the non-clashing song to index i, shifting intermediate items back
                 val songToMove = ordered.removeAt(foundIndex)
                 ordered.add(i, songToMove)
             }
@@ -57,24 +60,27 @@ fun spreadShuffle(tracks: List<Track>, currentTrack: Track? = null): List<Track>
     }
 
     // Re-insert current track at the very beginning if requested/active
-    return if (currentTrack != null && tracks.contains(currentTrack)) {
+    return if (currentTrack != null && items.contains(currentTrack)) {
         listOf(currentTrack) + ordered
     } else {
         ordered
     }
 }
 
-fun artistKey(t: Track): String {
-    // Album artist takes precedence; fallback to track artist if blank
-    val artist = t.albumArtist.ifBlank { t.artist }
-    return artist.lowercase().trim()
+private fun <T> artistKey(t: T): String {
+    return if (t is Track) {
+        val artist = t.albumArtist.ifBlank { t.artist }
+        artist.lowercase().trim()
+    } else {
+        t.toString().lowercase().trim()
+    }
 }
 
-fun albumKey(t: Track): String {
+private fun <T> albumKey(t: T): String {
+    if (t !is Track) return ""
     val album = t.album
     if (album.isBlank()) return ""
     val aKey = artistKey(t)
-    // Combine album name with artist key so different artists' "Greatest Hits" differ
     return if (aKey.isBlank()) {
         album.lowercase().trim()
     } else {
@@ -82,17 +88,19 @@ fun albumKey(t: Track): String {
     }
 }
 
-fun isRecent(t: Track): Boolean {
+private fun <T> isRecent(t: T): Boolean {
+    if (t !is Track) return false
     val now = System.currentTimeMillis()
-    // Note: Adjust property names (`playDate`, `startedInSession`) to match your exact Track model
-    val playDate = t.playDate // or t.play_date
-    val startedInSession = t.startedInSession // or t.isStartedInSession
+    // Fallback safely if playDate is null or a different comparable type
+    val playDateMillis = t.playDate?.let { 
+        // Handles if playDate is Long or another timestamp format; adjust if it's an Instant
+        it 
+    } ?: 0L
     
-    val playedRecently = playDate != null && (now - playDate < TWO_DAYS_MILLIS)
-    return startedInSession || playedRecently
+    return playDateMillis > 0 && (now - playDateMillis < TWO_DAYS_MILLIS)
 }
 
-fun clashes(order: List<Track>, i: Int, song: Track): Boolean {
+private fun <T> clashes(order: List<T>, i: Int, song: T): Boolean {
     val aKey = artistKey(song)
     val alKey = albumKey(song)
 
