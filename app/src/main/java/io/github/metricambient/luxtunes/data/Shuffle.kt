@@ -40,7 +40,6 @@ fun <T> spreadShuffle(
     val ordered = (notRecent + recent).toMutableList()
 
     // Step 3: Spread neighbors apart (avoiding artist and album clashes)
-    // We infer artist/album keys from the items using generic properties or fallback string representations
     for (i in 1 until ordered.size) {
         val currentSong = ordered[i]
         if (clashes(ordered, i, currentSong)) {
@@ -67,7 +66,7 @@ fun <T> spreadShuffle(
     }
 }
 
-private fun <T> artistKey(t: T): String {
+fun <T> artistKey(t: T): String {
     return if (t is Track) {
         val artist = t.albumArtist.ifBlank { t.artist }
         artist.lowercase().trim()
@@ -76,7 +75,7 @@ private fun <T> artistKey(t: T): String {
     }
 }
 
-private fun <T> albumKey(t: T): String {
+fun <T> albumKey(t: T): String {
     if (t !is Track) return ""
     val album = t.album
     if (album.isBlank()) return ""
@@ -91,11 +90,21 @@ private fun <T> albumKey(t: T): String {
 private fun <T> isRecent(t: T): Boolean {
     if (t !is Track) return false
     val now = System.currentTimeMillis()
-    // Fallback safely if playDate is null or a different comparable type
-    val playDateMillis = t.playDate?.let { 
-        // Handles if playDate is Long or another timestamp format; adjust if it's an Instant
-        it 
-    } ?: 0L
+    val playDate = t.playDate ?: return false
+    
+    // Safely convert playDate to Long milliseconds if it isn't already
+    val playDateMillis = when (playDate) {
+        is Long -> playDate
+        is Number -> playDate.toLong()
+        else -> {
+            try {
+                // Fallback if it's a java.util.Date or similar object with getTime()
+                playDate.javaClass.getMethod("getTime").invoke(playDate) as? Long ?: 0L
+            } catch (e: Exception) {
+                0L
+            }
+        }
+    }
     
     return playDateMillis > 0 && (now - playDateMillis < TWO_DAYS_MILLIS)
 }
