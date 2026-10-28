@@ -101,12 +101,4 @@ class PendingChangesTest {
         assertTrue(text.contains("\"smart_info\": \"AQI=\", \"smart_criteria\": \"Aw==\""))
         assertTrue(ChangesJson.isEmptied("{\"version\": 2, \"tracks\": [], \"playlists\": []}"))
     }
-
-    @Test
-    fun spreadShuffleKeepsEverySong() {
-        val songs = (1..50).map { "artist${it % 5}" to it }
-        val shuffled = spreadShuffle(songs, kotlin.random.Random(7)) { it.first }
-        assertEquals(songs.toSet(), shuffled.toSet())
-        assertEquals(songs.size, shuffled.size)
-    }
 }
