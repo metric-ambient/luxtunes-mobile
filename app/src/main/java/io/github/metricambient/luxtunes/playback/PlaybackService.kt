@@ -19,6 +19,7 @@ import androidx.media3.exoplayer.DefaultRenderersFactory
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.audio.AudioSink
 import androidx.media3.exoplayer.audio.DefaultAudioSink
+import androidx.media3.session.DefaultMediaNotificationProvider
 import androidx.media3.session.MediaSession
 import androidx.media3.session.MediaSessionService
 import com.google.common.util.concurrent.Futures
@@ -28,6 +29,9 @@ import android.view.KeyEvent
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.withTimeoutOrNull
 import io.github.metricambient.luxtunes.LuxTunesApp
+import io.github.metricambient.luxtunes.R
+import io.github.metricambient.luxtunes.data.HeardThisSession
+import io.github.metricambient.luxtunes.data.Shuffle
 import io.github.metricambient.luxtunes.data.ReplayGain
 import io.github.metricambient.luxtunes.data.Track
 import io.github.metricambient.luxtunes.data.Transition
@@ -96,6 +100,10 @@ class PlaybackService : MediaSessionService() {
 
     override fun onCreate() {
         super.onCreate()
+        // The status bar icon while a song is playing or paused: the app's penguin.
+        setMediaNotificationProvider(
+            DefaultMediaNotificationProvider.Builder(this).build().apply { setSmallIcon(R.drawable.ic_stat_luxtunes) }
+        )
         memory = PlaybackMemory(this)
         exo = buildPlayer(processor, main = true)
         exo.addListener(counter)
@@ -198,6 +206,19 @@ class PlaybackService : MediaSessionService() {
         memory.saveQueue((0 until exo.mediaItemCount).map { exo.getMediaItemAt(it).mediaId })
     }
 
+    private var lastIndex = -1
+
+    /** A new pass with Repeat All: the song now playing stays first, the rest are shuffled again. */
+    private fun reshufflePass() {
+        val count = exo.mediaItemCount
+        if (exo.currentMediaItemIndex != 0 || count < 3) return
+        val byId = repository.state.value.byId
+        val rest = (1 until count).mapNotNull { byId[exo.getMediaItemAt(it).mediaId] }
+        val order = Shuffle.order(rest, keepSkipped = true)
+        exo.removeMediaItems(1, count)
+        exo.addMediaItems(order.mapNotNull { repository.mediaItem(it.id) })
+    }
+
     private fun noteSkip() {
         val id = exo.currentMediaItem?.mediaId ?: return
         if (exo.currentPosition < SKIP_WINDOW_MS) repository.recordSkip(id)
@@ -212,6 +233,18 @@ class PlaybackService : MediaSessionService() {
                 repository.recordPlay(previous)      // it played to the end
             }
             currentId = mediaItem?.mediaId
+            if (exo.playWhenReady) currentId?.let(HeardThisSession::add)
+            // Repeat All with Shuffle on: each new pass through the list is shuffled again.
+            val index = exo.currentMediaItemIndex
+            if (index == 0 && lastIndex == exo.mediaItemCount - 1 && exo.mediaItemCount > 2 &&
+                exo.repeatMode == Player.REPEAT_MODE_ALL && reason != Player.MEDIA_ITEM_TRANSITION_REASON_PLAYLIST_CHANGED &&
+                getSharedPreferences("shuffle", Context.MODE_PRIVATE).getBoolean("on", false)
+            ) handler.post { reshufflePass() }
+            lastIndex = index
+        }
+
+        override fun onIsPlayingChanged(isPlaying: Boolean) {
+            if (isPlaying) exo.currentMediaItem?.mediaId?.let(HeardThisSession::add)
         }
 
         override fun onTracksChanged(tracks: Tracks) {

@@ -101,7 +101,11 @@ private val HELP: List<Pair<String, String>> = listOf(
         "The bar at the bottom shows what's playing; tap it for Now Playing. There, tap the " +
         "album art to rate the song and see its lyrics.\n\n" +
         "Shuffle and Repeat are next to the play button. Turning Shuffle off goes back to the " +
-        "original order.",
+        "original order.\n\n" +
+        "Shuffle works as in LuxTunes: songs you haven't heard in the last two days come first, " +
+        "the same artist doesn't play twice within two songs, nor the same album within eight. " +
+        "Songs marked Skip When Shuffling in LuxTunes are left out. With Repeat All on, each " +
+        "pass through the list is shuffled again.",
     "Finding things fast" to
         "Start scrolling a long list and a handle appears on the right edge. Drag it to jump " +
         "anywhere in the list; a big letter in the middle shows where you are (or the year, " +

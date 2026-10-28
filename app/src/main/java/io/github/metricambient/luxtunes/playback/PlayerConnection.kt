@@ -9,8 +9,7 @@ import androidx.media3.session.SessionToken
 import com.google.common.util.concurrent.ListenableFuture
 import io.github.metricambient.luxtunes.LuxTunesApp
 import io.github.metricambient.luxtunes.data.Track
-import io.github.metricambient.luxtunes.data.artistKey
-import io.github.metricambient.luxtunes.data.spreadShuffle
+import io.github.metricambient.luxtunes.data.Shuffle
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.Job
@@ -166,12 +165,12 @@ class PlayerConnection(private val context: Context) {
         }
     }
 
-    /** Play in LuxTunes' spread-shuffle order (the same artist rarely twice in a row). */
-    fun shuffle(tracks: List<Track>) = playShuffled(spreadShuffle(tracks, key = ::artistKey), tracks)
+    /** Play in LuxTunes' shuffle order (see Shuffle). */
+    fun shuffle(tracks: List<Track>) = playShuffled(Shuffle.order(tracks).ifEmpty { tracks }, tracks)
 
     /** Play this list in random order, starting with `first`. */
     fun shuffleFrom(tracks: List<Track>, first: Track) =
-        playShuffled(listOf(first) + spreadShuffle(tracks.filter { it.id != first.id }, key = ::artistKey), tracks)
+        playShuffled(listOf(first) + Shuffle.order(tracks.filter { it.id != first.id }), tracks)
 
     // Where the songs added with "Add to Queue" end, so the next ones go after them.
     private var upNextEnd = 0
@@ -238,7 +237,7 @@ class PlayerConnection(private val context: Context) {
     fun skipToQueueItem(index: Int) = withController { it.seekToDefaultPosition(index); it.play() }
 
     // ---- Shuffle --------------------------------------------------------------------------
-    // The app shuffles the list itself (LuxTunes' spread shuffle, or by albums), so the
+    // The app shuffles the list itself (LuxTunes' shuffle, or by albums), so the
     // player's own shuffle mode stays off. `unshuffled` is the order to go back to.
 
     private val shuffleMemory = context.getSharedPreferences("shuffle", Context.MODE_PRIVATE)
@@ -277,7 +276,7 @@ class PlayerConnection(private val context: Context) {
         val newOrder: List<String>
         if (!shuffled) {
             val rest = ids.filterIndexed { i, _ -> i != now }.mapNotNull { library.byId[it] }
-            newOrder = listOf(currentId) + spreadShuffle(rest, key = ::artistKey).map { it.id }
+            newOrder = listOf(currentId) + Shuffle.order(rest).map { it.id }
             setShuffle(true, ids)
         } else {
             // Songs added while shuffled are already at the end of `unshuffled`.
