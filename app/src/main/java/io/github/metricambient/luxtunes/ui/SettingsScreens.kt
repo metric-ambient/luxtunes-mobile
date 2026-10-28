@@ -366,6 +366,11 @@ fun OperationSettingsScreen(nav: NavHostController) {
             "Show every song, album and artist as if it had no album art (a plain music note).",
             s.noAlbumArt,
         ) { on -> prefs.update { it.copy(noAlbumArt = on) } }
+        ToggleRow(
+            "Highlight lyrics as they're sung",
+            "For songs with timed lyrics, the line being sung is lit up and kept in the middle.",
+            s.followLyrics,
+        ) { on -> prefs.update { it.copy(followLyrics = on) } }
     }
 }
 

@@ -88,11 +88,12 @@ fun NowPlayingScreen(nav: NavHostController) {
     var duration by remember { mutableLongStateOf(0L) }
     var dragging by remember { mutableStateOf(false) }
     var dragValue by remember { mutableFloatStateOf(0f) }
+    val settings by app.prefs.settings.collectAsState()
     LaunchedEffect(Unit) {
         while (true) {
             position = app.player.position
             duration = app.player.duration
-            delay(400)
+            delay(if (overlay && settings.followLyrics) 100 else 400)      // lyrics follow closely
         }
     }
 
@@ -159,17 +160,9 @@ fun NowPlayingScreen(nav: NavHostController) {
             Artwork(track, Modifier.fillMaxSize(), noteSize = 220.dp)
             if (overlay && track != null) {
                 val lyrics = track.lyrics ?: fileLyrics[track.id]
-                if (lyrics != null) {
+                if (lyrics != null || track.syncedLyrics != null) {
                     Box(Modifier.fillMaxSize().background(Lux.shade)) {
-                        Text(
-                            lyrics,
-                            color = Lux.text, fontSize = 18.sp, textAlign = TextAlign.Center,
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(bottom = 64.dp)
-                                .verticalScroll(rememberScrollState())
-                                .padding(horizontal = 20.dp, vertical = 16.dp),
-                        )
+                        LyricsView(track.id, lyrics, track.syncedLyrics, position, settings.followLyrics)
                     }
                 }
                 Box(

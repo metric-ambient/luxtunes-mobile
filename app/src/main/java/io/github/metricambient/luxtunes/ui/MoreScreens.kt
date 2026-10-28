@@ -99,7 +99,8 @@ private val HELP: List<Pair<String, String>> = listOf(
         "Tap a song to play it (Settings → Tabs → Default Song Action decides what plays: the " +
         "list from that song, just that song, or the list shuffled).\n\n" +
         "The bar at the bottom shows what's playing; tap it for Now Playing. There, tap the " +
-        "album art to rate the song and see its lyrics.\n\n" +
+        "album art to rate the song and see its lyrics. With timed lyrics from LuxTunes, the " +
+        "line being sung lights up and stays in the middle (Settings → Operation turns this off).\n\n" +
         "Shuffle and Repeat are next to the play button. Turning Shuffle off goes back to the " +
         "original order.\n\n" +
         "Shuffle works as in LuxTunes: songs you haven't heard in the last two days come first, " +

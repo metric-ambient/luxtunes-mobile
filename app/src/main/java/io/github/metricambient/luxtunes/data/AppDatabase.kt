@@ -33,7 +33,7 @@ data class PlaylistEdit(
  * (`playlist_edits`). The copy is replaced whenever LuxTunes writes a new
  * library.db; the other two only shrink once LuxTunes has taken the changes.
  */
-class AppDatabase(context: Context) : SQLiteOpenHelper(context, "app.db", null, 6) {
+class AppDatabase(context: Context) : SQLiteOpenHelper(context, "app.db", null, 7) {
 
     override fun onCreate(db: SQLiteDatabase) {
         createLibraryTables(db)
@@ -67,6 +67,20 @@ class AppDatabase(context: Context) : SQLiteOpenHelper(context, "app.db", null, 
         }
         if (oldVersion < 5) createPhoneTrackTable(db)
         if (oldVersion < 6) createTagEditTable(db)
+        if (oldVersion < 7) {
+            // LuxTunes 0.8.5: timed lyrics. Take library.db in again.
+            addColumn(db, "tracks", "synced_lyrics")
+            addColumn(db, "phone_tracks", "synced_lyrics")
+            db.delete("meta", "key = ?", arrayOf("imported_stamp"))
+        }
+    }
+
+    /** Add a column unless the table already has it. */
+    private fun addColumn(db: SQLiteDatabase, table: String, column: String) {
+        val have = db.rawQuery("PRAGMA table_info($table)", null).use { c ->
+            buildSet { while (c.moveToNext()) add(c.getString(1)) }
+        }
+        if (column !in have) db.execSQL("ALTER TABLE $table ADD COLUMN $column")
     }
 
     /** Song details changed on the phone (TagEdit), as JSON, with their state. */
@@ -529,7 +543,7 @@ class AppDatabase(context: Context) : SQLiteOpenHelper(context, "app.db", null, 
             "bookmarkable", "bookmark_time", "skip_when_shuffling", "start_time", "stop_time",
             "volume_adjustment", "show", "season", "episode_number", "sort_name", "sort_artist",
             "sort_album", "sort_album_artist", "sort_composer", "enabled", "bpm", "kind", "purchased",
-            "equalizer",
+            "equalizer", "synced_lyrics",
         )
     }
 }

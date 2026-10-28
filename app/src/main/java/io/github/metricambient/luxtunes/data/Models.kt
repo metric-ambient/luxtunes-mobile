@@ -23,6 +23,7 @@ data class Track(
     val skipCount: Int,
     val skipDate: String?,
     val lyrics: String?,
+    val syncedLyrics: String? = null,   // timed lyrics (LRC), from LuxTunes 0.8.5
     val sortName: String,
     val sortArtist: String,
     val sortAlbumArtist: String,
@@ -85,6 +86,7 @@ fun trackOf(raw: Map<String, Any?>): Track? {
         skipCount = num("skip_count").toInt(),
         skipDate = str("skip_date"),
         lyrics = str("lyrics")?.replace("\r\n", "\n")?.replace('\r', '\n')?.trim()?.ifBlank { null },
+        syncedLyrics = str("synced_lyrics")?.ifBlank { null },
         sortName = str("sort_name")?.ifBlank { null } ?: name,
         sortArtist = str("sort_artist")?.ifBlank { null } ?: artist,
         sortAlbumArtist = str("sort_album_artist")?.ifBlank { null }
