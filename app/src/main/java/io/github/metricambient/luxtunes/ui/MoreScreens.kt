@@ -84,16 +84,19 @@ fun HeadsetSettingsScreen(nav: NavHostController) {
 
 private val HELP: List<Pair<String, String>> = listOf(
     "Getting your music onto the phone" to
-        "LuxTunes for Android plays the music that LuxTunes (on your computer) copies to the phone.\n\n" +
+        "LuxTunes Mobile plays the music that LuxTunes (on your computer) copies to the phone.\n\n" +
         "1. Connect the phone to the computer with a USB cable and choose \"File transfer\" on the phone.\n" +
         "2. In LuxTunes, pick the phone under Devices, choose what to sync, and sync.\n" +
         "3. Open this app. It finds the LuxTunes folder by itself and shows your library.\n\n" +
         "If the app asks where your library is, choose the phone's storage or the SD card " +
         "(whichever you synced to). You can change it later in Settings → My Library.",
     "Plays, ratings and playlists go back to LuxTunes" to
-        "Everything you do here is remembered: songs played and skipped, star ratings, and " +
-        "playlists you make or change. At the next sync, LuxTunes picks it all up, so your " +
-        "computer library stays up to date.\n\n" +
+        "Everything you do here is remembered: songs played and skipped, star ratings, " +
+        "playlists you make or change, song details you edit, songs you add and equalizer " +
+        "changes. At the next sync, LuxTunes picks it all up, so your computer library stays " +
+        "up to date.\n\n" +
+        "A song counts as played when it plays to the end, and as skipped when you press Next " +
+        "in its first 20 seconds (from the app, the notification, headphones or the car).\n\n" +
         "Settings → My Library shows what's waiting to go back.",
     "Playing music" to
         "Tap a song to play it (Settings → Tabs → Default Song Action decides what plays: the " +
@@ -103,7 +106,8 @@ private val HELP: List<Pair<String, String>> = listOf(
         "line being sung lights up and stays in the middle (Settings → Operation turns this off).\n\n" +
         "Shuffle and Repeat are next to the play button. Turning Shuffle off goes back to the " +
         "original order.\n\n" +
-        "Shuffle works as in LuxTunes: songs you haven't heard in the last two days come first, " +
+        "Shuffle works as in LuxTunes: albums you haven't played or skipped from in the last two " +
+        "weeks come first, and songs you heard in the last two days (or this session) come last; " +
         "the same artist doesn't play twice within two songs, nor the same album within eight. " +
         "Songs marked Skip When Shuffling in LuxTunes are left out. With Repeat All on, each " +
         "pass through the list is shuffled again.",
@@ -112,7 +116,9 @@ private val HELP: List<Pair<String, String>> = listOf(
         "anywhere in the list; a big letter in the middle shows where you are (or the year, " +
         "rating or plays, depending on how the list is sorted).\n\n" +
         "The sort button at the bottom has Inverse sort, to turn any order around: least played " +
-        "first, oldest first, Z to A. Each tab remembers where you were in it.",
+        "first, oldest first, Z to A. Each tab remembers where you were in it.\n\n" +
+        "When there are more tabs than fit, an arrow at the edge of the tab bar shows which way " +
+        "they are; tap it or swipe the tabs.",
     "Adding songs from the phone" to
         "Settings → My Library → Add Folder to Library (also in the ⋮ menus) moves the songs in " +
         "a folder on the phone into the LuxTunes folder, sorted into artist and album folders the " +
@@ -134,7 +140,8 @@ private val HELP: List<Pair<String, String>> = listOf(
         "See or change the queue with the list button at the top of Now Playing.",
     "Artists, albums and the round button" to
         "On an artist page, the round button opens three choices: Play From Top, Shuffle By " +
-        "Albums and Shuffle By Songs. The one you pick becomes the button's default.\n\n" +
+        "Albums and Shuffle By Songs. Album and playlist pages have the same button. The one " +
+        "you pick becomes the button's default.\n\n" +
         "The ⋮ at the top of an artist page can show all the songs in one list (Show as Songs).",
     "Playlists and smart playlists" to
         "In the Playlists tab, use Create Playlist, or add songs from any ⋮ menu → Add to " +
@@ -142,20 +149,25 @@ private val HELP: List<Pair<String, String>> = listOf(
         "like \"Rating is 5 stars\" or \"Genre contains Rock\". Smart playlists work the same " +
         "way as in LuxTunes and go back to it at the next sync.",
     "Selecting several songs" to
-        "Use the select button in the bar at the bottom of a list, tick the songs you want, " +
-        "then add them to the queue or a playlist, or delete them from the phone.\n\n" +
+        "Use the select button in the bar at the bottom of a list, tick the songs, albums or " +
+        "artists you want, then add them to the queue or a playlist, open Get Info (to edit " +
+        "them together), or delete them from the phone.\n\n" +
         "Deleting only removes the file from this phone. LuxTunes decides what's on the phone: " +
         "if the song is still chosen there, the next sync copies it back.",
     "Equalizer and sound" to
         "Settings → Sound has the equalizer (with the same presets as LuxTunes), crossfade " +
         "between songs, playback speed for music, audiobooks and podcasts, ReplayGain (evens out " +
         "loudness) and mono.\n\n" +
-        "The equalizer button at the top of Now Playing switches presets quickly.",
+        "The equalizer button at the top of Now Playing switches presets quickly.\n\n" +
+        "Audio Priority, further down Settings → Sound, decides what happens during phone calls and " +
+        "when another app plays sound: pause, carry on afterwards, or ignore other apps.",
     "Making it look your way" to
         "Settings → Theme: choose Dark, Material or Light, and your own background, accent and " +
         "text colors. Auto Accent takes the accent from the album art.\n\n" +
         "Settings → Tabs: choose which tabs show and what a tap does. In the overview, " +
-        "long-press a tab and drag it to move it.",
+        "long-press a tab and drag it to move it.\n\n" +
+        "Settings → Operation: open Now Playing when a song starts or not, smart playlists at " +
+        "the end of the list, no album art, and highlighting timed lyrics.",
     "Sleep timer" to
         "Tap the moon at the top of Now Playing (or choose Sleep Timer… in a ⋮ menu) and pick " +
         "how long: 15 minutes to 8 hours. When the time is up, the music fades out and pauses; " +
@@ -227,7 +239,7 @@ fun LicensesScreen(nav: NavHostController) {
     }
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
         ScreenTitle(nav, "Open-Source Licenses")
-        Heading("LuxTunes for Android")
+        Heading("LuxTunes Mobile")
         Text(
             "GNU General Public License, version 3 or later. You may share and change it under " +
                 "those terms; it comes with no warranty.",

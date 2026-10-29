@@ -214,7 +214,7 @@ class PlaybackService : MediaSessionService() {
         if (exo.currentMediaItemIndex != 0 || count < 3) return
         val byId = repository.state.value.byId
         val rest = (1 until count).mapNotNull { byId[exo.getMediaItemAt(it).mediaId] }
-        val order = Shuffle.order(rest, keepSkipped = true)
+        val order = Shuffle.order(rest, repository.state.value.allTracks, keepSkipped = true)
         exo.removeMediaItems(1, count)
         exo.addMediaItems(order.mapNotNull { repository.mediaItem(it.id) })
     }

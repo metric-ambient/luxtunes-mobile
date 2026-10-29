@@ -15,14 +15,14 @@ class ShuffleTest {
 
     @Test
     fun everySongOnce() {
-        val order = Shuffle.order(library, recent = { false })
+        val order = Shuffle.order(library, heardAt = { null })
         assertEquals(library.size, order.size)
         assertEquals(library.map { it.id }.toSet(), order.map { it.id }.toSet())
     }
 
     @Test
     fun neighboursAreSpreadApart() {
-        val order = Shuffle.order(library, recent = { false }, random = Random(7))
+        val order = Shuffle.order(library, heardAt = { null }, random = Random(7))
         // The last few songs are whatever's left, so they can't always be spread.
         for (i in 1 until order.size - 20) {
             for (back in 1..minOf(i, Shuffle.ALBUM_GAP)) {
@@ -34,10 +34,29 @@ class ShuffleTest {
         }
     }
 
+    private val now = 1_793_000_000_000L
+    private val day = 24L * 60 * 60 * 1000
+
+    @Test
+    fun albumTiers() {
+        // Album 0: one song played 5 days ago. Album 1: one song played an hour ago. Album 2: 20 days ago.
+        val songs = library.take(30)
+        val heard = mapOf(songs[0].id to now - 5 * day, songs[10].id to now - day / 24, songs[20].id to now - 20 * day)
+        val tier = Shuffle.tiers(songs, songs, { heard[it.id] }, now)
+        assertEquals(1, tier[songs[0].id])          // its album was heard lately (itself, 5 days ago)
+        assertEquals(1, tier[songs[1].id])
+        assertEquals(2, tier[songs[10].id])         // heard in the last 2 days
+        assertEquals(1, tier[songs[11].id])
+        assertEquals(0, tier[songs[21].id])         // 20 days is long enough
+        // A song without an album only counts itself.
+        val loose = song(5000, "Solo", "")
+        assertEquals(0, Shuffle.tiers(listOf(loose), listOf(loose) + songs, { null }, now)[loose.id])
+    }
+
     @Test
     fun recentSongsGoToTheBack() {
         val heard = library.take(600).map { it.id }.toSet()
-        val order = Shuffle.order(library, recent = { it.id in heard }, random = Random(3))
+        val order = Shuffle.order(library, heardAt = { if (it.id in heard) now else null }, random = Random(3), now = now)
         // The first songs are all ones not heard (spreading only moves songs a little).
         assertTrue(order.take(500).none { it.id in heard })
     }
@@ -45,7 +64,7 @@ class ShuffleTest {
     @Test
     fun skipWhenShufflingIsLeftOut() {
         val songs = library.take(20) + song(9999, "X", "Y", mapOf("skip_when_shuffling" to 1L))
-        assertTrue(Shuffle.order(songs, recent = { false }).none { it.id == "%016X".format(9999) })
+        assertTrue(Shuffle.order(songs, heardAt = { null }).none { it.id == "%016X".format(9999) })
     }
 
     @Test
@@ -53,14 +72,14 @@ class ShuffleTest {
         val songs = (0 until 30).map { song(it, "", "") }
         assertEquals("", Shuffle.artistKey(songs[0]))
         assertEquals("", Shuffle.albumKey(songs[0]))
-        assertEquals(30, Shuffle.order(songs, recent = { false }).size)
+        assertEquals(30, Shuffle.order(songs, heardAt = { null }).size)
     }
 
     @Test
     fun fiveThousandSongsAreQuick() {
         val big = (0 until 5000).map { n -> song(n, "Artist ${n % 50}", "Album ${n % 400}") }
         val start = System.nanoTime()
-        Shuffle.order(big, recent = { false })
+        Shuffle.order(big, heardAt = { null })
         assertTrue((System.nanoTime() - start) / 1_000_000 < 1000)
     }
 }

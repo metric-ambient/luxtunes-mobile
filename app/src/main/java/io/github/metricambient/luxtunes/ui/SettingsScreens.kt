@@ -103,7 +103,7 @@ fun SettingsScreen(nav: NavHostController) {
     LazyColumn(Modifier.fillMaxSize()) {
         item { ScreenTitle(nav, "Settings") }
         item { SettingRow(Icons.Filled.Album, "Sound", "Equalizer, crossfade, speed, ReplayGain") { nav.go(Routes.SETTINGS_SOUND) } }
-        item { SettingRow(Icons.Filled.Build, "Operation", "Now Playing, playlists") { nav.go(Routes.SETTINGS_OPERATION) } }
+        item { SettingRow(Icons.Filled.Build, "Operation", "Now Playing, playlists, album art, lyrics") { nav.go(Routes.SETTINGS_OPERATION) } }
         item { SettingRow(Icons.Filled.Folder, "Tabs", "Choose which tabs to see, and what a tap does") { nav.go(Routes.SETTINGS_TABS) } }
         item { SettingRow(Icons.Filled.Palette, "Theme", "${settings.themeStyle.label} · style and colors") { nav.go(Routes.SETTINGS_THEME) } }
         item { SettingRow(Icons.Filled.Headphones, "Headset/Bluetooth", "Headset buttons, play on connect") { nav.go(Routes.SETTINGS_HEADSET) } }
@@ -531,7 +531,7 @@ fun AboutScreen(nav: NavHostController) {
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
         ScreenTitle(nav, "About")
         Column(Modifier.padding(20.dp)) {
-            Text("LuxTunes for Android ${BuildConfigInfo.versionName(context)}", color = Lux.text, fontSize = 20.sp)
+            Text("LuxTunes Mobile ${BuildConfigInfo.versionName(context)}", color = Lux.text, fontSize = 20.sp)
             Text("Signed by ${BuildConfigInfo.signer(context)}", color = Lux.dim, fontSize = 13.sp)
             Spacer(Modifier.height(12.dp))
             Text(
@@ -550,7 +550,7 @@ fun AboutScreen(nav: NavHostController) {
         HorizontalDivider(color = Lux.panel)
         Heading("Privacy")
         Text(
-            "LuxTunes for Android collects nothing about you. It has no accounts, no ads, no " +
+            "LuxTunes Mobile collects nothing about you. It has no accounts, no ads, no " +
                 "analytics and no tracking. Your music, ratings, plays and playlists stay on this " +
                 "phone and go only to your own computer, over the USB cable, when you sync.\n\n" +
                 "The app goes online only when you choose Check for Updates (and it asks first). " +

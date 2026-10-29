@@ -7,9 +7,10 @@ import java.util.Random
 import java.util.concurrent.ConcurrentHashMap
 
 /**
- * LuxTunes' shuffle (as on the computer from 0.8.3):
+ * LuxTunes' shuffle (as on the computer from 0.8.6):
  * 1. a fair Fisher–Yates shuffle with a fresh random generator;
- * 2. songs heard recently go to the back;
+ * 2. albums you haven't been hearing come first: songs are sorted into three tiers
+ *    (see [tiers]), each keeping its shuffled order;
  * 3. neighbours are spread apart: not the same artist within 2 songs, nor the
  *    same album within 8 (moving a later song forward, looking at most 300 ahead).
  */
@@ -17,28 +18,33 @@ object Shuffle {
     const val ARTIST_GAP = 2
     const val ALBUM_GAP = 8
     const val LOOK_AHEAD = 300
-    private const val RECENT_MS = 2L * 24 * 60 * 60 * 1000
+    private const val DAY_MS = 24L * 60 * 60 * 1000
+    const val SONG_DAYS = 2           // tier 2: the song itself heard this recently
+    const val ALBUM_DAYS = 14         // tier 1: something from its album heard this recently
 
     /** A new generator for every shuffle: the system's secure source mixed with the time. */
     fun freshRandom(): Random = Random(SecureRandom().nextLong() xor System.nanoTime())
 
     /**
      * Every song in `songs` once, shuffled. Songs marked "skip when shuffling" are
-     * left out (set `keepSkipped` to keep them).
+     * left out (set `keepSkipped` to keep them). `library` is where an album's other
+     * songs are looked up for step 2 (the whole library, when the caller has it).
      */
     fun order(
         songs: List<Track>,
-        recent: (Track) -> Boolean = ::heardRecently,
+        library: List<Track> = songs,
+        heardAt: (Track) -> Long? = ::lastHeard,
         random: Random = freshRandom(),
         keepSkipped: Boolean = false,
+        now: Long = System.currentTimeMillis(),
     ): List<Track> {
         val pool = if (keepSkipped) songs else songs.filter { !skipWhenShuffling(it) }
         // 1. Fair shuffle.
         val fair = pool.toMutableList()
         Collections.shuffle(fair, random)
-        // 2. Recently heard songs after the others, each part keeping its shuffled order.
-        val (old, heard) = fair.partition { !recent(it) }
-        val order = ArrayList<Track>(fair.size).apply { addAll(old); addAll(heard) }
+        // 2. By tier, 0 first; a stable sort keeps each tier in its shuffled order.
+        val tier = tiers(pool, library, heardAt, now)
+        val order = ArrayList<Track>(fair.sortedBy { tier[it.id] ?: 0 })
         // 3. Spread neighbours apart. Keys are worked out once per song, as numbers.
         spread(order)
         return order
@@ -90,12 +96,37 @@ object Shuffle {
         return if (album.isEmpty()) "" else album.lowercase() + "\u0001" + artistKey(t)
     }
 
-    /** Started in this session, or last played less than 2 days ago. */
-    fun heardRecently(t: Track): Boolean {
-        if (t.id in HeardThisSession) return true
-        val played = t.playDate ?: return false
-        val at = runCatching { Instant.parse(played).toEpochMilli() }.getOrNull() ?: return false
-        return System.currentTimeMillis() - at < RECENT_MS
+    /**
+     * Each song's tier (by ID):
+     * 0: nothing from its album played or skipped in the last 14 days;
+     * 1: something from its album was (a song without an album only counts itself);
+     * 2: the song itself was played or skipped in the last 2 days, or started this session.
+     */
+    fun tiers(songs: List<Track>, library: List<Track>, heardAt: (Track) -> Long?, now: Long): Map<String, Int> {
+        val albumLatest = HashMap<String, Long>()
+        for (t in library + songs) {
+            val key = albumKey(t)
+            val at = heardAt(t) ?: continue
+            if (key.isNotEmpty() && at > (albumLatest[key] ?: Long.MIN_VALUE)) albumLatest[key] = at
+        }
+        return songs.associate { t ->
+            val own = heardAt(t)
+            val album = albumKey(t).let { if (it.isEmpty()) own else albumLatest[it] }
+            t.id to when {
+                own != null && now - own < SONG_DAYS * DAY_MS -> 2
+                album != null && now - album < ALBUM_DAYS * DAY_MS -> 1
+                else -> 0
+            }
+        }
+    }
+
+    /** When a song was last heard: the later of its last play and last skip; now if it was started this session. */
+    fun lastHeard(t: Track): Long? {
+        if (t.id in HeardThisSession) return System.currentTimeMillis()
+        fun parse(date: String?) = date?.let { runCatching { Instant.parse(it).toEpochMilli() }.getOrNull() }
+        val played = parse(t.playDate)
+        val skipped = parse(t.skipDate)
+        return if (played == null) skipped else if (skipped == null) played else maxOf(played, skipped)
     }
 
     fun skipWhenShuffling(t: Track): Boolean = when (val v = t.raw["skip_when_shuffling"]) {

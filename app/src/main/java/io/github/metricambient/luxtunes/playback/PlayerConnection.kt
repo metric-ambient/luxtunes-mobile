@@ -166,11 +166,14 @@ class PlayerConnection(private val context: Context) {
     }
 
     /** Play in LuxTunes' shuffle order (see Shuffle). */
-    fun shuffle(tracks: List<Track>) = playShuffled(Shuffle.order(tracks).ifEmpty { tracks }, tracks)
+    fun shuffle(tracks: List<Track>) = playShuffled(Shuffle.order(tracks, allSongs()).ifEmpty { tracks }, tracks)
 
     /** Play this list in random order, starting with `first`. */
     fun shuffleFrom(tracks: List<Track>, first: Track) =
-        playShuffled(listOf(first) + Shuffle.order(tracks.filter { it.id != first.id }), tracks)
+        playShuffled(listOf(first) + Shuffle.order(tracks.filter { it.id != first.id }, allSongs()), tracks)
+
+    /** The whole library, for shuffle's "albums heard lately". */
+    private fun allSongs() = repository.state.value.allTracks
 
     // Where the songs added with "Add to Queue" end, so the next ones go after them.
     private var upNextEnd = 0
@@ -276,7 +279,7 @@ class PlayerConnection(private val context: Context) {
         val newOrder: List<String>
         if (!shuffled) {
             val rest = ids.filterIndexed { i, _ -> i != now }.mapNotNull { library.byId[it] }
-            newOrder = listOf(currentId) + Shuffle.order(rest).map { it.id }
+            newOrder = listOf(currentId) + Shuffle.order(rest, library.allTracks).map { it.id }
             setShuffle(true, ids)
         } else {
             // Songs added while shuffled are already at the end of `unshuffled`.
