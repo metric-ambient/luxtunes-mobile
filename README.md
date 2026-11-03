@@ -27,9 +27,9 @@ next sync.
 - Now Playing with album art, star ratings and lyrics; timed lyrics (LuxTunes 0.8.5+)
   light up the line being sung. Lock-screen, notification and Bluetooth controls.
 - Records plays, skips and ratings and hands them to LuxTunes at the next USB sync. A skip
-  is pressing Next in a song's first 20 seconds, as in LuxTunes.
-- Shuffle works as in LuxTunes: albums you haven't heard lately first, the same artist or
-  album never close together. Also shuffle by albums or by artists.
+  is pressing Next between 2 and 20 seconds into a song, as in LuxTunes.
+- Shuffle works as in LuxTunes: albums heard lately come up early less often, songs heard
+  in the last two days wait until last, and albums and artists are kept well apart. Also shuffle by albums or by artists.
 - Playlists and smart playlists made or changed on the phone go back to LuxTunes at the
   next sync (LuxTunes 0.6.0 or newer). Smart playlists use LuxTunes' own rules and stay
   up to date on the phone.
@@ -93,6 +93,10 @@ The folder format is described in the LuxTunes repo
   next sync if it's still selected in LuxTunes.
 
 ## Building
+
+For the full guide (pushing changes, releases, building and installing on your own
+computer, the signing key, fixing a failed build), see
+[docs/MAINTAINING.md](docs/MAINTAINING.md).
 
 GitHub builds the APK on every push (`.github/workflows/build.yml`); download it from the
 run's **Artifacts**. To publish a release, tag a version:

@@ -96,7 +96,8 @@ private val HELP: List<Pair<String, String>> = listOf(
         "changes. At the next sync, LuxTunes picks it all up, so your computer library stays " +
         "up to date.\n\n" +
         "A song counts as played when it plays to the end, and as skipped when you press Next " +
-        "in its first 20 seconds (from the app, the notification, headphones or the car).\n\n" +
+        "between 2 and 20 seconds into it (from the app, the notification, headphones or the " +
+        "car). Tapping quickly through songs doesn't count as skipping them.\n\n" +
         "Settings → My Library shows what's waiting to go back.",
     "Playing music" to
         "Tap a song to play it (Settings → Tabs → Default Song Action decides what plays: the " +
@@ -106,9 +107,10 @@ private val HELP: List<Pair<String, String>> = listOf(
         "line being sung lights up and stays in the middle (Settings → Operation turns this off).\n\n" +
         "Shuffle and Repeat are next to the play button. Turning Shuffle off goes back to the " +
         "original order.\n\n" +
-        "Shuffle works as in LuxTunes: albums you haven't played or skipped from in the last two " +
-        "weeks come first, and songs you heard in the last two days (or this session) come last; " +
-        "the same artist doesn't play twice within two songs, nor the same album within eight. " +
+        "Shuffle works as in LuxTunes: albums you've heard in the last two weeks come up early " +
+        "less often, and songs you heard in the last two days (or this session) wait until " +
+        "everything else has played. Albums and artists are kept well apart: in a big list, " +
+        "the same album doesn't come back for up to 150 songs, nor the same artist for up to 40. " +
         "Songs marked Skip When Shuffling in LuxTunes are left out. With Repeat All on, each " +
         "pass through the list is shuffled again.",
     "Finding things fast" to

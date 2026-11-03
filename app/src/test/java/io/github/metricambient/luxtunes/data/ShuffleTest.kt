@@ -20,18 +20,41 @@ class ShuffleTest {
         assertEquals(library.map { it.id }.toSet(), order.map { it.id }.toSet())
     }
 
-    @Test
-    fun neighboursAreSpreadApart() {
-        val order = Shuffle.order(library, heardAt = { null }, random = Random(7))
-        // The last few songs are whatever's left, so they can't always be spread.
-        for (i in 1 until order.size - 20) {
-            for (back in 1..minOf(i, Shuffle.ALBUM_GAP)) {
-                val a = order[i]
-                val b = order[i - back]
-                if (back <= Shuffle.ARTIST_GAP) assertTrue("artist at $i", Shuffle.artistKey(a) != Shuffle.artistKey(b))
-                assertTrue("album at $i", Shuffle.albumKey(a) != Shuffle.albumKey(b))
-            }
+    /** The distance to the previous song with the same key, for each song that has one. */
+    private fun gaps(order: List<Track>, key: (Track) -> String, upTo: Int): List<Int> {
+        val last = HashMap<String, Int>()
+        val out = ArrayList<Int>()
+        for ((p, t) in order.take(upTo).withIndex()) {
+            val k = key(t)
+            if (k.isEmpty()) continue
+            last[k]?.let { out += p - it }
+            last[k] = p
         }
+        return out
+    }
+
+    @Test
+    fun albumsAndArtistsKeptApart() {
+        // 600 ten-song albums by 200 artists: albums 150 songs apart, artists 33, through the first half.
+        val big = (0 until 6000).map { n -> song(n, "Artist ${n / 30}", "Album ${n / 10}") }
+        val order = Shuffle.order(big, heardAt = { null }, random = Random(7))
+        assertTrue(gaps(order, Shuffle::albumKey, 3000).all { it > 150 })
+        assertTrue(gaps(order, Shuffle::artistKey, 3000).all { it > 33 })
+    }
+
+    @Test
+    fun aBigAlbumIsSpreadEvenly() {
+        // One album is a tenth of the list: about a tenth of any stretch, never two within 5.
+        val songs = (0 until 3000).map { n ->
+            if (n < 300) song(n, "Big", "Big Album") else song(n, "Artist ${n % 97}", "Album ${n % 250}")
+        }
+        val order = Shuffle.order(songs, heardAt = { null }, random = Random(11))
+        // (The very end is whatever's left, so it's not checked.)
+        val positions = order.withIndex().filter { it.value.raw["album"] == "Big Album" && it.index < 2700 }.map { it.index }
+        val bigGaps = positions.zipWithNext { a, b -> b - a }
+        assertTrue(bigGaps.all { it > 5 })
+        val early = order.take(300).count { it.raw["album"] == "Big Album" }
+        assertTrue(early in 15..45)
     }
 
     private val now = 1_793_000_000_000L
@@ -54,11 +77,21 @@ class ShuffleTest {
     }
 
     @Test
-    fun recentSongsGoToTheBack() {
+    fun recentSongsWaitUntilLast() {
         val heard = library.take(600).map { it.id }.toSet()
         val order = Shuffle.order(library, heardAt = { if (it.id in heard) now else null }, random = Random(3), now = now)
-        // The first songs are all ones not heard (spreading only moves songs a little).
-        assertTrue(order.take(500).none { it.id in heard })
+        // Songs heard lately wait until everything else has played.
+        assertTrue(order.take(600).none { it.id in heard })
+        assertTrue(order.drop(600).all { it.id in heard })
+    }
+
+    @Test
+    fun albumsHeardLatelyStillTurnUp() {
+        // Half the albums were heard 5 days ago (tier 1): fewer of them early, but not none.
+        val heardAlbums = library.filter { (it.raw["album"] as String).removePrefix("Album ").toInt() % 2 == 0 }.map { it.id }.toSet()
+        val order = Shuffle.order(library, heardAt = { if (it.id in heardAlbums) now - 5 * day else null }, random = Random(5), now = now)
+        val early = order.take(100).count { it.id in heardAlbums }
+        assertTrue(early in 1..40)
     }
 
     @Test
@@ -76,8 +109,8 @@ class ShuffleTest {
     }
 
     @Test
-    fun fiveThousandSongsAreQuick() {
-        val big = (0 until 5000).map { n -> song(n, "Artist ${n % 50}", "Album ${n % 400}") }
+    fun manySongsAreQuick() {
+        val big = (0 until 7600).map { n -> song(n, "Artist ${n % 50}", "Album ${n % 400}") }
         val start = System.nanoTime()
         Shuffle.order(big, heardAt = { null })
         assertTrue((System.nanoTime() - start) / 1_000_000 < 1000)

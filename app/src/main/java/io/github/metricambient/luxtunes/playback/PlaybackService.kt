@@ -46,7 +46,7 @@ import kotlin.math.min
  * Plays music in the background, with the notification, lock-screen and
  * Bluetooth controls Media3 provides. Also counts plays and skips the way
  * LuxTunes does on the computer: a play when a song ends, a skip when Next is
- * pressed in its first 20 seconds.
+ * pressed between 2 and 20 seconds into it (from its start time, as in iTunes).
  *
  * Settings → Sound is applied here: the equalizer, ReplayGain and mono (in the
  * audio processor), speed, autoplay, and crossfades between songs.
@@ -221,7 +221,8 @@ class PlaybackService : MediaSessionService() {
 
     private fun noteSkip() {
         val id = exo.currentMediaItem?.mediaId ?: return
-        if (exo.currentPosition < SKIP_WINDOW_MS) repository.recordSkip(id)
+        // Positions count from the song's start time (the player clips to it).
+        if (exo.currentPosition in SKIP_FROM_MS until SKIP_WINDOW_MS) repository.recordSkip(id)
     }
 
     private val counter = object : Player.Listener {
@@ -549,6 +550,7 @@ class PlaybackService : MediaSessionService() {
     }
 
     companion object {
+        const val SKIP_FROM_MS = 2_000L       // clicking quickly through songs isn't skipping them
         const val SKIP_WINDOW_MS = 20_000L
     }
 }

@@ -5,22 +5,28 @@ import java.time.Instant
 import java.util.Collections
 import java.util.Random
 import java.util.concurrent.ConcurrentHashMap
+import kotlin.math.pow
 
 /**
- * LuxTunes' shuffle (as on the computer from 0.8.6):
+ * LuxTunes' shuffle (as on the computer from 0.8.7):
  * 1. a fair Fisher–Yates shuffle with a fresh random generator;
- * 2. albums you haven't been hearing come first: songs are sorted into three tiers
- *    (see [tiers]), each keeping its shuffled order;
- * 3. neighbours are spread apart: not the same artist within 2 songs, nor the
- *    same album within 8 (moving a later song forward, looking at most 300 ahead).
+ * 2. freshness as odds: songs from albums heard in the last 14 days come up early less
+ *    often (weight 0.2), and songs heard in the last 2 days (or this session) wait until
+ *    everything else has played (see [tiers]);
+ * 3. each album and artist waits a number of songs before it can come up again, scaled
+ *    to the list (see [build]).
  */
 object Shuffle {
-    const val ARTIST_GAP = 2
+    const val ARTIST_GAP = 2            // the least an artist waits…
+    const val ARTIST_GAP_MAX = 40       // …and the most
     const val ALBUM_GAP = 8
-    const val LOOK_AHEAD = 300
+    const val ALBUM_GAP_MAX = 150
+    const val EVEN = 0.8                // a big album or artist waits at most 80% of its even spacing
+    const val LOOK_AHEAD = 400
+    const val TIER_1_WEIGHT = 0.2       // odds of an album heard lately against a fresh one
     private const val DAY_MS = 24L * 60 * 60 * 1000
-    const val SONG_DAYS = 2           // tier 2: the song itself heard this recently
-    const val ALBUM_DAYS = 14         // tier 1: something from its album heard this recently
+    const val SONG_DAYS = 2             // tier 2: the song itself heard this recently
+    const val ALBUM_DAYS = 14           // tier 1: something from its album heard this recently
 
     /** A new generator for every shuffle: the system's secure source mixed with the time. */
     fun freshRandom(): Random = Random(SecureRandom().nextLong() xor System.nanoTime())
@@ -42,45 +48,89 @@ object Shuffle {
         // 1. Fair shuffle.
         val fair = pool.toMutableList()
         Collections.shuffle(fair, random)
-        // 2. By tier, 0 first; a stable sort keeps each tier in its shuffled order.
+        // 2. Weighted random order (Efraimidis–Spirakis): rank = u^(1/weight), highest first.
+        //    Tier 2 is held back, in its shuffled order.
         val tier = tiers(pool, library, heardAt, now)
-        val order = ArrayList<Track>(fair.sortedBy { tier[it.id] ?: 0 })
-        // 3. Spread neighbours apart. Keys are worked out once per song, as numbers.
-        spread(order)
-        return order
+        val main = ArrayList<Pair<Double, Track>>()
+        val held = ArrayList<Track>()
+        for (t in fair) {
+            when (tier[t.id] ?: 0) {
+                2 -> held += t
+                1 -> main += random.nextDouble().pow(1 / TIER_1_WEIGHT) to t
+                else -> main += random.nextDouble() to t
+            }
+        }
+        main.sortByDescending { it.first }
+        // 3. Albums and artists kept apart.
+        return build(main.map { it.second }, held)
     }
 
-    /** Step 3, in place. */
-    internal fun spread(order: MutableList<Track>) {
-        // Each song's artist and album as a number (-1: none), worked out once.
+    /**
+     * Step 3: take songs from the front of `main` (then `held`), each time the first of
+     * the next LOOK_AHEAD whose artist and album have waited long enough; if none has,
+     * the one whose artist and album were heard longest ago (for their wait).
+     */
+    internal fun build(main: List<Track>, held: List<Track>): List<Track> {
+        val all = main + held
+        val total = all.size
+        if (total == 0) return all
+        // Artists and albums as numbers (-1: none), worked out once.
         val ids = HashMap<String, Int>()
-        fun idOf(key: String): Int = if (key.isEmpty()) -1 else ids.getOrPut(key) { ids.size }
-        val songs = order.toList()
-        val artist = IntArray(songs.size) { idOf(artistKey(songs[it])) }
-        val album = IntArray(songs.size) { idOf(albumKey(songs[it])) }
-        val at = (songs.indices).toMutableList()      // the order, as indexes into `songs`
-
-        fun clashes(i: Int, song: Int): Boolean {
-            for (back in 1..maxOf(ARTIST_GAP, ALBUM_GAP)) {
-                if (i - back < 0) break
-                val before = at[i - back]
-                if (back <= ARTIST_GAP && artist[song] >= 0 && artist[before] == artist[song]) return true
-                if (back <= ALBUM_GAP && album[song] >= 0 && album[before] == album[song]) return true
-            }
-            return false
+        val artistIds = HashSet<Int>()
+        val albumIds = HashSet<Int>()
+        fun idOf(key: String): Int = ids.getOrPut(key) { ids.size }
+        val artistOf = HashMap<String, Int>(total * 2)
+        val albumOf = HashMap<String, Int>(total * 2)
+        for (t in all) {
+            val a = artistKey(t).let { if (it.isEmpty()) -1 else idOf("a\u0000$it") }
+            val b = albumKey(t).let { if (it.isEmpty()) -1 else idOf("b\u0000$it") }
+            artistOf[t.id] = a
+            albumOf[t.id] = b
+            if (a >= 0) artistIds += a
+            if (b >= 0) albumIds += b
         }
-
-        for (i in 1 until at.size) {
-            if (!clashes(i, at[i])) continue
-            val end = minOf(at.size, i + LOOK_AHEAD)
-            for (j in i + 1 until end) {
-                if (!clashes(i, at[j])) {
-                    at.add(i, at.removeAt(j))      // the rest shift back by one
-                    break
-                }
-            }
+        val count = IntArray(ids.size)
+        for (t in all) {
+            artistOf.getValue(t.id).let { if (it >= 0) count[it]++ }
+            albumOf.getValue(t.id).let { if (it >= 0) count[it]++ }
         }
-        for (k in at.indices) order[k] = songs[at[k]]
+        val artistGap = (artistIds.size / 6).coerceIn(ARTIST_GAP, ARTIST_GAP_MAX)
+        val albumGap = (albumIds.size / 4).coerceIn(ALBUM_GAP, ALBUM_GAP_MAX)
+        // How many songs each artist or album waits before it can come up again.
+        val wait = IntArray(ids.size) { k ->
+            val gap = if (k in artistIds) artistGap else albumGap
+            minOf(gap, (total * EVEN / count[k]).toInt() - 1)
+        }
+        val last = IntArray(ids.size) { Int.MIN_VALUE }      // where each was last placed
+
+        fun since(key: Int, position: Int): Double =
+            if (key < 0 || last[key] == Int.MIN_VALUE) Double.POSITIVE_INFINITY else (position - last[key]).toDouble()
+
+        val queues = listOf(ArrayList(main), ArrayList(held))
+        val out = ArrayList<Track>(total)
+        for (position in 0 until total) {
+            val queue = queues.first { it.isNotEmpty() }
+            var pick = -1
+            var best = -1
+            var bestScore = Double.NEGATIVE_INFINITY
+            for (i in 0 until minOf(LOOK_AHEAD, queue.size)) {
+                val t = queue[i]
+                val a = artistOf.getValue(t.id)
+                val b = albumOf.getValue(t.id)
+                val sa = since(a, position)
+                val sb = since(b, position)
+                val wa = if (a >= 0) wait[a] else 0
+                val wb = if (b >= 0) wait[b] else 0
+                if (sa > wa && sb > wb) { pick = i; break }
+                val score = minOf(sa / (wa + 1), sb / (wb + 1))
+                if (score > bestScore) { bestScore = score; best = i }
+            }
+            val t = queue.removeAt(if (pick >= 0) pick else best)
+            out += t
+            artistOf.getValue(t.id).let { if (it >= 0) last[it] = position }
+            albumOf.getValue(t.id).let { if (it >= 0) last[it] = position }
+        }
+        return out
     }
 
     /** The album artist, or the artist without one (lower case; "" if neither). */
