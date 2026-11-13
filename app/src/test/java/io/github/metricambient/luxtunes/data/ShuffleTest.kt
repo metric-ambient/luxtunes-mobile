@@ -1,6 +1,7 @@
 package io.github.metricambient.luxtunes.data
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.util.Random
@@ -61,19 +62,58 @@ class ShuffleTest {
     private val day = 24L * 60 * 60 * 1000
 
     @Test
-    fun albumTiers() {
-        // Album 0: one song played 5 days ago. Album 1: one song played an hour ago. Album 2: 20 days ago.
-        val songs = library.take(30)
-        val heard = mapOf(songs[0].id to now - 5 * day, songs[10].id to now - day / 24, songs[20].id to now - 20 * day)
-        val tier = Shuffle.tiers(songs, songs, { heard[it.id] }, now)
-        assertEquals(1, tier[songs[0].id])          // its album was heard lately (itself, 5 days ago)
-        assertEquals(1, tier[songs[1].id])
-        assertEquals(2, tier[songs[10].id])         // heard in the last 2 days
-        assertEquals(1, tier[songs[11].id])
-        assertEquals(0, tier[songs[21].id])         // 20 days is long enough
-        // A song without an album only counts itself.
+    fun weights() {
+        // A 15-song album: one song heard 5 days ago, one an hour ago.
+        val album = (0 until 15).map { song(it, "A", "Fifteen") }
+        val heard = mapOf(album[0].id to now - 5 * day, album[1].id to now - day / 24)
+        val w = Shuffle.weights(album, { heard[it.id] }, now)
+        assertEquals(0.2, w[album[0].id]!!, 1e-9)                     // heard in the last 14 days
+        assertNull(w[album[1].id])                                    // heard in the last 2 days: goes last
+        assertEquals(1 - 0.8 * 2 / 15, w[album[2].id]!!, 1e-9)        // two of 15 heard lately
+        // One song heard on its own album: the other 14 are about 0.95.
+        val one = Shuffle.weights(album, { if (it.id == album[0].id) now - 5 * day else null }, now)
+        assertEquals(1 - 0.8 / 15, one[album[3].id]!!, 1e-9)
+        // Not heard lately (20 days), and a song without an album: 1.
+        assertEquals(1.0, Shuffle.weights(album, { now - 20 * day }, now)[album[4].id]!!, 1e-9)
         val loose = song(5000, "Solo", "")
-        assertEquals(0, Shuffle.tiers(listOf(loose), listOf(loose) + songs, { null }, now)[loose.id])
+        assertEquals(1.0, Shuffle.weights(listOf(loose) + album, { if (it.id == album[0].id) now else null }, now)[loose.id]!!, 1e-9)
+    }
+
+    @Test
+    fun fewAlbumsHeardDoesntCrowdTheStart() {
+        // 50 ten-song albums; one song heard on 4 in 5 of them. The other albums' songs are
+        // a fifth of the list, and about a fifth of the first 100 songs, not most of them.
+        val songs = (0 until 500).map { n -> song(n, "Artist ${n / 20}", "Album ${n / 10}") }
+        val heard = songs.filter { (it.raw["album"] as String).removePrefix("Album ").toInt() % 5 != 0 && it.id.toLong(16) % 10 == 0L }
+            .map { it.id }.toSet()
+        val order = Shuffle.order(songs, heardAt = { if (it.id in heard) now - 5 * day else null }, random = Random(9), now = now)
+        val fresh = order.take(100).count { (it.raw["album"] as String).removePrefix("Album ").toInt() % 5 == 0 }
+        assertTrue("fresh: $fresh", fresh in 8..40)
+    }
+
+    @Test
+    fun oneArtistManyAlbums() {
+        // LuxTunes 0.8.8 couldn't shuffle this (a wait of -1); every song must still come out once.
+        val songs = (0 until 96).map { n -> song(n, "Only Artist", "Album ${n % 3}") }
+        val order = Shuffle.order(songs, heardAt = { null })
+        assertEquals(songs.map { it.id }.toSet(), order.map { it.id }.toSet())
+        assertEquals(96, order.size)
+    }
+
+    @Test
+    fun fringeCases() {
+        assertTrue(Shuffle.order(emptyList(), heardAt = { null }).isEmpty())
+        val one = listOf(song(1, "A", "B"))
+        assertEquals(one, Shuffle.order(one, heardAt = { null }))
+        // One album, one artist; every song heard this session; the same song twice in a playlist.
+        val same = (0 until 40).map { song(it, "A", "B") }
+        assertEquals(40, Shuffle.order(same, heardAt = { null }).size)
+        assertEquals(40, Shuffle.order(same, heardAt = { now }, now = now).size)
+        val twice = same.take(5) + same.take(5)
+        assertEquals(10, Shuffle.order(twice, heardAt = { null }).size)
+        // Everything marked "skip when shuffling": nothing to play (the player falls back to the list).
+        val skipped = (0 until 5).map { song(it, "A", "B", mapOf("skip_when_shuffling" to 1L)) }
+        assertTrue(Shuffle.order(skipped, heardAt = { null }).isEmpty())
     }
 
     @Test

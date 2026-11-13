@@ -8,11 +8,11 @@ import java.util.concurrent.ConcurrentHashMap
 import kotlin.math.pow
 
 /**
- * LuxTunes' shuffle (as on the computer from 0.8.7):
+ * LuxTunes' shuffle (as on the computer from 0.8.9):
  * 1. a fair Fisher–Yates shuffle with a fresh random generator;
- * 2. freshness as odds: songs from albums heard in the last 14 days come up early less
- *    often (weight 0.2), and songs heard in the last 2 days (or this session) wait until
- *    everything else has played (see [tiers]);
+ * 2. freshness as odds: a song heard in the last 14 days, or from an album much of which
+ *    was, comes up early less often; songs heard in the last 2 days (or this session)
+ *    wait until everything else has played (see [weights]);
  * 3. each album and artist waits a number of songs before it can come up again, scaled
  *    to the list (see [build]).
  */
@@ -23,18 +23,19 @@ object Shuffle {
     const val ALBUM_GAP_MAX = 150
     const val EVEN = 0.8                // a big album or artist waits at most 80% of its even spacing
     const val LOOK_AHEAD = 400
-    const val TIER_1_WEIGHT = 0.2       // odds of an album heard lately against a fresh one
+    const val MIN_WEIGHT = 0.2          // a song heard lately, against a fresh one
     private const val DAY_MS = 24L * 60 * 60 * 1000
-    const val SONG_DAYS = 2             // tier 2: the song itself heard this recently
-    const val ALBUM_DAYS = 14           // tier 1: something from its album heard this recently
+    const val HOLD_DAYS = 2             // a song heard this recently goes last
+    const val RECENT_DAYS = 14          // "heard lately", for a song and its album
 
     /** A new generator for every shuffle: the system's secure source mixed with the time. */
     fun freshRandom(): Random = Random(SecureRandom().nextLong() xor System.nanoTime())
 
     /**
      * Every song in `songs` once, shuffled. Songs marked "skip when shuffling" are
-     * left out (set `keepSkipped` to keep them). `library` is where an album's other
-     * songs are looked up for step 2 (the whole library, when the caller has it).
+     * left out (set `keepSkipped` to keep them). `library` isn't used any more (from
+     * LuxTunes 0.8.9 albums are counted within the list being shuffled); it stays so
+     * the callers don't have to change.
      */
     fun order(
         songs: List<Track>,
@@ -49,16 +50,13 @@ object Shuffle {
         val fair = pool.toMutableList()
         Collections.shuffle(fair, random)
         // 2. Weighted random order (Efraimidis–Spirakis): rank = u^(1/weight), highest first.
-        //    Tier 2 is held back, in its shuffled order.
-        val tier = tiers(pool, library, heardAt, now)
+        //    Songs with no weight are held back, in their shuffled order.
+        val weight = weights(pool, heardAt, now)
         val main = ArrayList<Pair<Double, Track>>()
         val held = ArrayList<Track>()
         for (t in fair) {
-            when (tier[t.id] ?: 0) {
-                2 -> held += t
-                1 -> main += random.nextDouble().pow(1 / TIER_1_WEIGHT) to t
-                else -> main += random.nextDouble() to t
-            }
+            val w = weight[t.id]
+            if (w == null) held += t else main += random.nextDouble().pow(1 / w) to t
         }
         main.sortByDescending { it.first }
         // 3. Albums and artists kept apart.
@@ -99,7 +97,9 @@ object Shuffle {
         // How many songs each artist or album waits before it can come up again.
         val wait = IntArray(ids.size) { k ->
             val gap = if (k in artistIds) artistGap else albumGap
-            minOf(gap, (total * EVEN / count[k]).toInt() - 1)
+            // Never below 0: one artist with more than 80% of the songs would get -1, and the
+            // score below divides by wait + 1 (LuxTunes 0.8.8 crashed on such a playlist).
+            (minOf(gap, (total * EVEN / count[k]).toInt() - 1)).coerceAtLeast(0)
         }
         val last = IntArray(ids.size) { Int.MIN_VALUE }      // where each was last placed
 
@@ -147,25 +147,35 @@ object Shuffle {
     }
 
     /**
-     * Each song's tier (by ID):
-     * 0: nothing from its album played or skipped in the last 14 days;
-     * 1: something from its album was (a song without an album only counts itself);
-     * 2: the song itself was played or skipped in the last 2 days, or started this session.
+     * Each song's weight in step 2 (by ID), or null when it goes last:
+     * - null: the song itself was heard in the last 2 days, or this session;
+     * - 0.2: the song itself was heard in the last 14 days;
+     * - otherwise 1 - 0.8 × the share of its album (in `songs`) heard in the last 14 days
+     *   (a song without an album name: 1).
      */
-    fun tiers(songs: List<Track>, library: List<Track>, heardAt: (Track) -> Long?, now: Long): Map<String, Int> {
-        val albumLatest = HashMap<String, Long>()
-        for (t in library + songs) {
+    fun weights(songs: List<Track>, heardAt: (Track) -> Long?, now: Long): Map<String, Double?> {
+        fun lately(at: Long?, days: Int) = at != null && now - at < days * DAY_MS
+        val heard = HashMap<String, Long?>(songs.size * 2)
+        for (t in songs) heard[t.id] = heardAt(t)
+        // Per album: its songs in the list, and how many of them were heard lately.
+        val onAlbum = HashMap<String, Int>()
+        val heardOnAlbum = HashMap<String, Int>()
+        for (t in songs) {
             val key = albumKey(t)
-            val at = heardAt(t) ?: continue
-            if (key.isNotEmpty() && at > (albumLatest[key] ?: Long.MIN_VALUE)) albumLatest[key] = at
+            if (key.isEmpty()) continue
+            onAlbum.merge(key, 1, Int::plus)
+            if (lately(heard[t.id], RECENT_DAYS)) heardOnAlbum.merge(key, 1, Int::plus)
         }
         return songs.associate { t ->
-            val own = heardAt(t)
-            val album = albumKey(t).let { if (it.isEmpty()) own else albumLatest[it] }
+            val own = heard[t.id]
             t.id to when {
-                own != null && now - own < SONG_DAYS * DAY_MS -> 2
-                album != null && now - album < ALBUM_DAYS * DAY_MS -> 1
-                else -> 0
+                lately(own, HOLD_DAYS) -> null
+                lately(own, RECENT_DAYS) -> MIN_WEIGHT
+                else -> {
+                    val key = albumKey(t)
+                    val share = if (key.isEmpty()) 0.0 else (heardOnAlbum[key] ?: 0).toDouble() / onAlbum.getValue(key)
+                    1 - (1 - MIN_WEIGHT) * share
+                }
             }
         }
     }
