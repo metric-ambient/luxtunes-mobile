@@ -282,7 +282,7 @@ private fun playWith(app: LuxTunesApp, nav: NavHostController, tracks: List<Trac
     when (how) {
         ArtistPlay.FROM_TOP -> app.player.play(tracks)
         ArtistPlay.SHUFFLE_ALBUMS -> app.player.playShuffled(shuffleGroups(tracks) { it.albumKey }, tracks)
-        ArtistPlay.SHUFFLE_SONGS -> app.player.shuffle(tracks)
+        ArtistPlay.SHUFFLE_SONGS -> { app.player.shuffle(tracks) { showPlayer(nav, tracks) }; return }
     }
     showPlayer(nav, tracks)
 }

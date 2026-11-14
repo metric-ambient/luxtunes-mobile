@@ -76,7 +76,7 @@ fun NowPlayingScreen(nav: NavHostController) {
     val eq by app.repository.equalizer.collectAsState()
     var eqPopup by remember { mutableStateOf(false) }
     if (eqPopup) EqualizerPopup(nav) { eqPopup = false }
-    val track = state.currentId?.let { library.byId[it] }
+    val track = state.currentId?.let { library.byId[it] ?: app.repository.track(it) }      // (early: before the library is in)
     // A movie or TV episode belongs in the video screen.
     LaunchedEffect(track?.id) {
         if (track?.isVideo == true) nav.navigate(Routes.VIDEO) { popUpTo(Routes.NOW) { inclusive = true } }

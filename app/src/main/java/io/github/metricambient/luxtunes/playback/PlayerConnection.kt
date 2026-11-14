@@ -16,7 +16,10 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.MainScope
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 /** What the screens show about playback. */
 data class PlayerState(
@@ -69,32 +72,64 @@ class PlayerConnection(private val context: Context) {
     private var restoring: Job? = null
 
     /**
-     * Nothing loaded (the app was closed): put back the Now Playing list, the
-     * song and the position from last time, paused, as soon as the library is in.
+     * Nothing loaded (the app was closed): put back the Now Playing list, the song and
+     * the position from last time, paused. The song itself goes in at once (read on its
+     * own, so its art and position show straight away); the rest of the list joins it
+     * around it once the library is in, which takes a few seconds.
      */
     private fun restore(c: MediaController) {
         val saved = PlaybackMemory(context).load() ?: return
         restoring?.cancel()
         restoring = scope.launch {
-            val library = repository.state.first { it.loaded && it.folder != null && it.allTracks.isNotEmpty() }
+            val first = saved.currentId?.let { id -> withContext(Dispatchers.IO) { repository.loadEarly(id) } }
             if (controller !== c || c.mediaItemCount > 0) return@launch      // something else started meanwhile
-            val tracks = saved.queue.mapNotNull { library.byId[it] }
-            if (tracks.isEmpty()) return@launch
-            var index = saved.index
-            if (index !in tracks.indices || tracks[index].id != saved.currentId) {
-                index = tracks.indexOfFirst { it.id == saved.currentId }.coerceAtLeast(0)
+            if (first != null) {
+                PlaybackMemory.restoring = true
+                c.setMediaItems(listOf(repository.requestItem(first)), 0, saved.positionMs)
+                startRestored(c, saved.repeatMode)
             }
+            try {
+                restoreRest(c, saved, first)
+            } finally {
+                PlaybackMemory.restoring = false
+            }
+        }
+    }
+
+    /** The rest of the list from last time, once the library is in (see restore). */
+    private suspend fun restoreRest(c: MediaController, saved: PlaybackMemory.Saved, first: Track?) {
+        val library = repository.state.first { it.loaded && it.folder != null && it.allTracks.isNotEmpty() }
+        if (controller !== c) return
+        val tracks = saved.queue.mapNotNull { library.byId[it] }
+        if (tracks.isEmpty()) return
+        var index = saved.index
+        if (index !in tracks.indices || tracks[index].id != saved.currentId) {
+            index = tracks.indexOfFirst { it.id == saved.currentId }.coerceAtLeast(0)
+        }
+        if (first == null) {
+            if (c.mediaItemCount > 0) return
             val position = if (tracks[index].id == saved.currentId) saved.positionMs else 0L
             c.setMediaItems(tracks.map { repository.requestItem(it) }, index, position)
-            c.shuffleModeEnabled = false              // shuffle is ours (see "Shuffle" below)
-            loadShuffle()
-            if (playWhenRestored) {
-                playWhenRestored = false
-                c.prepare()
-                c.play()
-            }
-            c.repeatMode = saved.repeatMode
-            c.prepare()
+            startRestored(c, saved.repeatMode)
+            return
+        }
+        // Only the early song is in, and still the only one: add the rest around it.
+        if (c.mediaItemCount != 1 || c.getMediaItemAt(0).mediaId != first.id || tracks[index].id != first.id) return
+        val before = tracks.take(index).map { repository.requestItem(it) }
+        val after = tracks.drop(index + 1).map { repository.requestItem(it) }
+        if (before.isNotEmpty()) c.addMediaItems(0, before)
+        if (after.isNotEmpty()) c.addMediaItems(after)
+    }
+
+    /** After restoring: our own shuffle state, the repeat mode, ready to play (or playing). */
+    private fun startRestored(c: MediaController, repeatMode: Int) {
+        c.shuffleModeEnabled = false              // shuffle is ours (see "Shuffle" below)
+        loadShuffle()
+        c.repeatMode = repeatMode
+        c.prepare()
+        if (playWhenRestored) {
+            playWhenRestored = false
+            c.play()
         }
     }
 
@@ -121,6 +156,7 @@ class PlayerConnection(private val context: Context) {
 
     private fun update() {
         val c = controller ?: return
+        checkLoaded(c)
         val ids = (0 until c.mediaItemCount).map { c.getMediaItemAt(it).mediaId }
         _state.value = PlayerState(
             connected = true,
@@ -144,7 +180,7 @@ class PlayerConnection(private val context: Context) {
     // ---- Commands --------------------------------------------------------------------------
 
     /** Play these songs in this order, starting with the one at `start`. Shuffle goes off. */
-    fun play(tracks: List<Track>, start: Int = 0) = start(tracks, start, original = null)
+    fun play(tracks: List<Track>, start: Int = 0, ready: () -> Unit = {}) = start(tracks, start, null, ready)
 
     /**
      * Play `order`, a shuffled version of `original`, with the Shuffle button on;
@@ -152,8 +188,9 @@ class PlayerConnection(private val context: Context) {
      */
     fun playShuffled(order: List<Track>, original: List<Track>) = start(order, 0, original)
 
-    private fun start(tracks: List<Track>, start: Int, original: List<Track>?) {
-        if (tracks.isEmpty()) return
+    private fun start(tracks: List<Track>, start: Int, original: List<Track>?, ready: () -> Unit = {}) {
+        if (tracks.isEmpty()) { finishLoading(); return }
+        if (tracks.size >= BIG_LIST && _busy.value == null) _busy.value = "Loading ${"%,d".format(tracks.size)} songs…"
         val items = tracks.map { repository.requestItem(it) }
         setShuffle(original != null, original?.map { it.id }.orEmpty())
         withController { c ->
@@ -162,15 +199,64 @@ class PlayerConnection(private val context: Context) {
             c.setMediaItems(items, start.coerceIn(0, items.size - 1), 0L)
             c.prepare()
             c.play()
+            waitUntilLoaded(c, ready)
         }
     }
 
-    /** Play in LuxTunes' shuffle order (see Shuffle). */
-    fun shuffle(tracks: List<Track>) = playShuffled(Shuffle.order(tracks, allSongs()).ifEmpty { tracks }, tracks)
+    /**
+     * Play in LuxTunes' shuffle order (see Shuffle). The shuffle is worked out away from
+     * the screen's thread, so a big library doesn't freeze the app; `ready` runs once
+     * the player has the songs.
+     */
+    fun shuffle(tracks: List<Track>, ready: () -> Unit = {}) =
+        shuffled(tracks, tracks, ready) { Shuffle.order(tracks, allSongs()).ifEmpty { tracks } }
 
     /** Play this list in random order, starting with `first`. */
-    fun shuffleFrom(tracks: List<Track>, first: Track) =
-        playShuffled(listOf(first) + Shuffle.order(tracks.filter { it.id != first.id }, allSongs()), tracks)
+    fun shuffleFrom(tracks: List<Track>, first: Track, ready: () -> Unit = {}) =
+        shuffled(tracks, tracks, ready) { listOf(first) + Shuffle.order(tracks.filter { it.id != first.id }, allSongs()) }
+
+    private fun shuffled(tracks: List<Track>, original: List<Track>, ready: () -> Unit, order: () -> List<Track>) {
+        if (tracks.isEmpty() || _busy.value != null) return
+        if (tracks.size >= BIG_LIST) _busy.value = "Shuffling ${"%,d".format(tracks.size)} songs…"
+        scope.launch {
+            val shuffledOrder = withContext(Dispatchers.Default) { order() }
+            start(shuffledOrder, 0, original, ready)
+        }
+    }
+
+    // ---- Long lists: what the player is getting ready -------------------------------------
+
+    private val _busy = MutableStateFlow<String?>(null)
+
+    /** While a long list is shuffled or loaded: what's happening ("Shuffling 7,612 songs…"), else null. */
+    val busy: StateFlow<String?> = _busy.asStateFlow()
+
+    private var whenLoaded: (() -> Unit)? = null
+    private var loadTimeout: Job? = null
+
+    /** `ready` runs (and busy ends) once the player has started on the new list, or failed to. */
+    private fun waitUntilLoaded(c: MediaController, ready: () -> Unit) {
+        whenLoaded = ready
+        loadTimeout?.cancel()
+        loadTimeout = scope.launch { delay(60_000); finishLoading() }     // never stay busy for good
+        checkLoaded(c)
+    }
+
+    private fun checkLoaded(c: MediaController) {
+        if (whenLoaded == null) return
+        // The controller shows a new list at once, but READY (or an error) only comes from the player.
+        if (c.playbackState == Player.STATE_READY || c.playbackState == Player.STATE_ENDED || c.playerError != null) {
+            finishLoading()
+        }
+    }
+
+    private fun finishLoading() {
+        val ready = whenLoaded
+        whenLoaded = null
+        loadTimeout?.cancel()
+        _busy.value = null
+        ready?.invoke()
+    }
 
     /** The whole library, for shuffle's "albums heard lately". */
     private fun allSongs() = repository.state.value.allTracks
@@ -270,24 +356,36 @@ class PlayerConnection(private val context: Context) {
      * Shuffle off: back to the order from before shuffling, carrying on from this song.
      */
     fun toggleShuffle() = withController { c ->
+        if (_busy.value != null) return@withController
         val count = c.mediaItemCount
         val now = c.currentMediaItemIndex
         val ids = (0 until count).map { c.getMediaItemAt(it).mediaId }
         if (count == 0 || now !in ids.indices) { setShuffle(!shuffled, ids); return@withController }
         val library = repository.state.value
         val currentId = ids[now]
-        val newOrder: List<String>
         if (!shuffled) {
-            val rest = ids.filterIndexed { i, _ -> i != now }.mapNotNull { library.byId[it] }
-            newOrder = listOf(currentId) + Shuffle.order(rest, library.allTracks).map { it.id }
-            setShuffle(true, ids)
+            // Worked out away from the screen's thread (a long list takes a moment).
+            if (count >= BIG_LIST) _busy.value = "Shuffling ${"%,d".format(count)} songs…"
+            scope.launch {
+                val rest = ids.filterIndexed { i, _ -> i != now }.mapNotNull { library.byId[it] }
+                val order = withContext(Dispatchers.Default) { Shuffle.order(rest, library.allTracks).map { it.id } }
+                _busy.value = null
+                if (c.currentMediaItem?.mediaId != currentId || c.mediaItemCount != count) return@launch   // the list changed meanwhile
+                setShuffle(true, ids)
+                rearrange(c, listOf(currentId) + order, currentId, c.currentMediaItemIndex)
+            }
         } else {
             // Songs added while shuffled are already at the end of `unshuffled`.
             val original = unshuffled.filter { library.byId[it] != null }.ifEmpty { ids }
-            newOrder = if (currentId in original) original else listOf(currentId) + original
             setShuffle(false, emptyList())
+            rearrange(c, if (currentId in original) original else listOf(currentId) + original, currentId, now)
         }
-        // Swap everything around the playing song, so it doesn't stop.
+    }
+
+    /** Swap everything around the playing song (at `now`) for `newOrder`, so it doesn't stop. */
+    private fun rearrange(c: MediaController, newOrder: List<String>, currentId: String, now: Int) {
+        val library = repository.state.value
+        val count = c.mediaItemCount
         val at = newOrder.indexOf(currentId)
         val before = newOrder.take(at).mapNotNull { id -> library.byId[id]?.let { repository.requestItem(it) } }
         val after = newOrder.drop(at + 1).mapNotNull { id -> library.byId[id]?.let { repository.requestItem(it) } }
@@ -304,5 +402,10 @@ class PlayerConnection(private val context: Context) {
             Player.REPEAT_MODE_ALL -> Player.REPEAT_MODE_ONE
             else -> Player.REPEAT_MODE_OFF
         }
+    }
+
+    companion object {
+        /** From this many songs, a "Shuffling…" / "Loading…" note may show while the player gets them ready. */
+        const val BIG_LIST = 500
     }
 }

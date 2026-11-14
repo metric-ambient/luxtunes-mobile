@@ -143,6 +143,7 @@ private fun Root() {
         SleepTimerSheet()
         AddFolderHost()
         NoticeHost()
+        BusyHost()
     }
 }
 

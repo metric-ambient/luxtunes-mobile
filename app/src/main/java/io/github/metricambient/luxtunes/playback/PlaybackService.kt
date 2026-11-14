@@ -22,7 +22,9 @@ import androidx.media3.exoplayer.audio.DefaultAudioSink
 import androidx.media3.session.DefaultMediaNotificationProvider
 import androidx.media3.session.MediaSession
 import androidx.media3.session.MediaSessionService
-import com.google.common.util.concurrent.Futures
+import com.google.common.util.concurrent.MoreExecutors
+import java.util.concurrent.Callable
+import java.util.concurrent.Executors
 import com.google.common.util.concurrent.ListenableFuture
 import com.google.common.util.concurrent.SettableFuture
 import android.view.KeyEvent
@@ -58,6 +60,8 @@ class PlaybackService : MediaSessionService() {
     private var currentId: String? = null
     private lateinit var memory: PlaybackMemory
     private val handler = Handler(Looper.getMainLooper())
+    // Turns song IDs into playable items (finding the file and cover) for the session.
+    private val loader = MoreExecutors.listeningDecorator(Executors.newSingleThreadExecutor())
 
     /** While playing, note the position every few seconds (so a crash or reboot loses little). */
     private val saveTicker = object : Runnable {
@@ -179,6 +183,7 @@ class PlaybackService : MediaSessionService() {
     }
 
     override fun onDestroy() {
+        loader.shutdown()
         handler.removeCallbacks(saveTicker)
         endCrossfade()
         stopSleepFade()
@@ -286,9 +291,9 @@ class PlaybackService : MediaSessionService() {
             controller: MediaSession.ControllerInfo,
             mediaItems: MutableList<MediaItem>,
         ): ListenableFuture<MutableList<MediaItem>> =
-            Futures.immediateFuture(
-                mediaItems.mapNotNull { repository.mediaItem(it.mediaId) }.toMutableList()
-            )
+            // Off the main thread: a whole library (thousands of songs) takes a moment,
+            // and the screens must keep responding meanwhile. The session waits for it.
+            loader.submit(Callable { mediaItems.mapNotNull { repository.mediaItem(it.mediaId) }.toMutableList() })
 
         @Suppress("DEPRECATION")
         override fun onMediaButtonEvent(

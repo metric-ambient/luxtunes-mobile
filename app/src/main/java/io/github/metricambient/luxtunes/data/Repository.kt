@@ -107,6 +107,10 @@ class Repository(private val context: Context, private val prefs: Prefs) {
     private var edits: MutableMap<String, PlaylistEdit> = mutableMapOf()
     private var tagEdits: MutableMap<String, TagEdit> = mutableMapOf()
 
+    // Whether each album's cover file is there, so a long list checks each album once,
+    // not every song (each check is a trip to the phone's storage). Cleared at each import.
+    private val coverThere = java.util.concurrent.ConcurrentHashMap<String, Boolean>()
+
     /** Set by UsbState: true while the phone is in USB file-transfer mode. */
     @Volatile var transferMode: Boolean = false
         set(value) {
@@ -341,6 +345,7 @@ class Repository(private val context: Context, private val prefs: Prefs) {
             db.setMeta("synced_at", info["synced_at"])
             db.setMeta("imported_stamp", stamp)
             libraryTracks = withPhoneTracks(db.loadTracks())
+            coverThere.clear()                       // the sync may have added or replaced covers
             Log.i(TAG, "imported library.db: ${libraryTracks.size} songs, synced ${info["synced_at"]}")
         } finally {
             copy.delete()
@@ -878,12 +883,30 @@ class Repository(private val context: Context, private val prefs: Prefs) {
 
     // ---- For the player ------------------------------------------------------------------
 
-    fun track(id: String): Track? = _state.value.byId[id]
+    fun track(id: String): Track? = _state.value.byId[id] ?: early[id]
+
+    // ---- Starting up quickly ---------------------------------------------------------------
+    // Loading the whole library takes a few seconds. The song from last time is read on
+    // its own first, so the player can have it ready (art, position) straight away.
+
+    private val early = java.util.concurrent.ConcurrentHashMap<String, Track>()
+    @Volatile private var earlyFolder: File? = null
+
+    /** One song, read straight from the app's database (call off the main thread). */
+    fun loadEarly(id: String): Track? {
+        _state.value.byId[id]?.let { return it }
+        if (!LuxFolder.hasAccess(context)) return null
+        if (earlyFolder == null) earlyFolder = LuxFolder.find(context, prefs.current.storage)
+        return db.loadTrack(id)?.also { early[id] = it }
+    }
+
+    /** The LuxTunes folder: from the library once it's in, else as found for the early song. */
+    private fun folderNow(): File? = _state.value.folder ?: earlyFolder
 
     /** A playable item for a song (the player service asks for these by ID). */
     fun mediaItem(id: String): MediaItem? {
         val t = track(id) ?: return null
-        val folder = _state.value.folder ?: return null
+        val folder = folderNow() ?: return null
         val file = LuxFolder.inside(folder, t.path) ?: return null
         val builder = MediaItem.Builder()
             .setMediaId(t.id)
@@ -900,25 +923,30 @@ class Repository(private val context: Context, private val prefs: Prefs) {
         return builder.build()
     }
 
-    /** What the screens send to the player: the song's ID plus what to show. */
+    /**
+     * What the screens send to the player: the song's ID and its names. The player fills
+     * in the file and the cover itself (mediaItem), so this never touches the disk.
+     */
     fun requestItem(t: Track): MediaItem =
-        MediaItem.Builder().setMediaId(t.id).setMediaMetadata(metadata(t, _state.value.folder)).build()
+        MediaItem.Builder().setMediaId(t.id).setMediaMetadata(names(t).build()).build()
+
+    private fun names(t: Track): MediaMetadata.Builder = MediaMetadata.Builder()
+        .setTitle(t.name)
+        .setArtist(t.artist)
+        .setAlbumTitle(t.album)
+        .setAlbumArtist(t.albumArtist)
 
     private fun metadata(t: Track, folder: File?): MediaMetadata {
-        val b = MediaMetadata.Builder()
-            .setTitle(t.name)
-            .setArtist(t.artist)
-            .setAlbumTitle(t.album)
-            .setAlbumArtist(t.albumArtist)
+        val b = names(t)
         // No cover yet: leave it unset so the player uses the art inside the file.
         val cover = folder?.let { LuxFolder.inside(it, t.artwork) }
-        if (cover != null && cover.isFile) b.setArtworkUri(Uri.fromFile(cover))
+        if (cover != null && coverThere.getOrPut(cover.path) { cover.isFile }) b.setArtworkUri(Uri.fromFile(cover))
         return b.build()
     }
 
     /** A song's picture: its album cover, else the art inside the file. */
     fun art(t: Track?): Art? {
-        val folder = _state.value.folder ?: return null
+        val folder = folderNow() ?: return null
         if (t == null) return null
         return Art(LuxFolder.inside(folder, t.artwork), LuxFolder.inside(folder, t.path))
     }

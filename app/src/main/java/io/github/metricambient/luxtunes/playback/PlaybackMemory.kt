@@ -21,7 +21,13 @@ class PlaybackMemory(context: Context) {
     )
 
     fun saveQueue(ids: List<String>) {
+        if (restoring) return          // only the first song is back yet: keep the full list saved
         sp.edit().putString("queue", ids.joinToString(",")).apply()
+    }
+
+    companion object {
+        /** While a restore has put back only the song from last time (PlayerConnection). */
+        @Volatile var restoring = false
     }
 
     fun savePosition(currentId: String?, index: Int, positionMs: Long, shuffle: Boolean, repeatMode: Int) {

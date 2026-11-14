@@ -148,7 +148,7 @@ private fun PlayingAccent() {
     val app = app()
     val library by app.repository.state.collectAsState()
     val state by app.player.state.collectAsState()
-    val color = rememberArtAccent(state.currentId?.let { library.byId[it] })
+    val color = rememberArtAccent(state.currentId?.let { library.byId[it] ?: app.repository.track(it) })
     SideEffect { Lux.setPlaying(color) }
 }
 

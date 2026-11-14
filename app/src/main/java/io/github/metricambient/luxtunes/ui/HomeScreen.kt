@@ -1,5 +1,12 @@
 package io.github.metricambient.luxtunes.ui
 
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.draw.clip
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.interaction.collectIsPressedAsState
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import android.content.res.Configuration
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -229,30 +236,56 @@ private fun BottomBar(nav: NavHostController, tabName: String, library: LibraryS
     }
     val playIcon = if (tabName == "Songs") Icons.AutoMirrored.Filled.PlaylistPlay else Icons.Filled.PlayArrow
     val playLabel = when (tabName) { "Songs" -> "Play all"; "Albums" -> "Play by album"; else -> "Play by artist" }
+    // A long list takes a moment to get ready: the button pressed stays lit until it is.
+    val busy by app.player.busy.collectAsState()
+    var working by remember { mutableStateOf<String?>(null) }
     Row(
-        Modifier.fillMaxWidth().height(56.dp).background(Lux.bar),
-        horizontalArrangement = Arrangement.SpaceEvenly,
+        Modifier.fillMaxWidth().height(56.dp).background(Lux.bar).padding(horizontal = 4.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        BarButton(playIcon, playLabel) { app.player.play(songs); showPlayer(nav, songs) }
-        BarButton(Icons.Filled.Shuffle, "Shuffle") { app.player.shuffle(songs); showPlayer(nav, songs) }
-        SortButton(tabName, settings)
-        BarButton(Icons.Filled.Checklist, "Select", onSelect)
+        BarButton(playIcon, playLabel, Modifier.weight(1f), lit = busy != null && working == playLabel) {
+            if (busy != null) return@BarButton
+            working = playLabel
+            app.player.play(songs) { showPlayer(nav, songs) }
+        }
+        BarButton(Icons.Filled.Shuffle, "Shuffle", Modifier.weight(1f), lit = busy != null && working == "Shuffle") {
+            if (busy != null) return@BarButton
+            working = "Shuffle"
+            app.player.shuffle(songs) { showPlayer(nav, songs) }
+        }
+        SortButton(tabName, settings, Modifier.weight(1f))
+        BarButton(Icons.Filled.Checklist, "Select", Modifier.weight(1f), onClick = onSelect)
     }
 }
 
+/**
+ * One of the bottom bar's buttons: it fills its share of the bar, and while pressed (or
+ * `lit`, while what it started is still getting ready) that share shows as a lighter block.
+ */
 @Composable
-private fun BarButton(icon: ImageVector, label: String, onClick: () -> Unit) {
-    IconButton(onClick = onClick) { Icon(icon, label, tint = Lux.icon, modifier = Modifier.size(30.dp)) }
+private fun BarButton(icon: ImageVector, label: String, modifier: Modifier, lit: Boolean = false, onClick: () -> Unit) {
+    val press = remember { MutableInteractionSource() }
+    val pressed by press.collectIsPressedAsState()
+    Box(
+        modifier
+            .fillMaxHeight()
+            .padding(horizontal = 2.dp, vertical = 6.dp)
+            .clip(RoundedCornerShape(10.dp))
+            .background(if (pressed || lit) Lux.text.copy(alpha = 0.14f) else Color.Transparent)
+            .clickable(interactionSource = press, indication = null, role = Role.Button, onClickLabel = label, onClick = onClick),
+        contentAlignment = Alignment.Center,
+    ) {
+        Icon(icon, label, tint = Lux.icon, modifier = Modifier.size(30.dp))
+    }
 }
 
 /** Sort by: a menu of the orders that make sense for this tab, the current one ticked. */
 @Composable
-private fun SortButton(tabName: String, settings: AppSettings) {
+private fun SortButton(tabName: String, settings: AppSettings, modifier: Modifier) {
     val prefs = app().prefs
     var open by remember { mutableStateOf(false) }
-    Box {
-        BarButton(Icons.AutoMirrored.Filled.Sort, "Sort by") { open = true }
+    Box(modifier) {
+        BarButton(Icons.AutoMirrored.Filled.Sort, "Sort by", Modifier.fillMaxWidth(), lit = open) { open = true }
         DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
             Text("Sort by", color = Lux.accent, modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp))
             when (tabName) {

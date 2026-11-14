@@ -248,9 +248,10 @@ class AppDatabase(context: Context) : SQLiteOpenHelper(context, "app.db", null, 
     }
 
     /** Every song (music, podcasts, audiobooks…), with LuxTunes' values (pending changes not applied). */
-    fun loadTracks(table: String = "tracks"): List<Track> {
+    fun loadTracks(table: String = "tracks", id: String? = null): List<Track> {
         val out = ArrayList<Track>()
-        readableDatabase.rawQuery("SELECT * FROM $table", null).use { c ->
+        val query = if (id == null) "SELECT * FROM $table" else "SELECT * FROM $table WHERE id = ?"
+        readableDatabase.rawQuery(query, id?.let { arrayOf(it) }).use { c ->
             val names = c.columnNames
             while (c.moveToNext()) {
                 val raw = HashMap<String, Any?>(names.size)
@@ -267,6 +268,10 @@ class AppDatabase(context: Context) : SQLiteOpenHelper(context, "app.db", null, 
         }
         return out
     }
+
+    /** One song (from LuxTunes or added on the phone), without loading the whole library. */
+    fun loadTrack(id: String): Track? =
+        loadTracks("tracks", id).firstOrNull() ?: loadTracks("phone_tracks", id).firstOrNull()
 
     /** LuxTunes' playlists, in its order (smart ones with their rules). */
     fun loadPlaylists(): List<Playlist> {

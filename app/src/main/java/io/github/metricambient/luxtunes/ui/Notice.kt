@@ -18,6 +18,14 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.window.DialogProperties
+import androidx.compose.ui.window.Dialog
+import androidx.compose.runtime.collectAsState
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.Row
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.style.TextAlign
@@ -58,6 +66,43 @@ fun NoticeHost() {
                     .background(Lux.panel.copy(alpha = 0.95f))
                     .padding(horizontal = 20.dp, vertical = 14.dp),
             )
+        }
+    }
+}
+
+/**
+ * While a long list is being shuffled or loaded (PlayerConnection.busy): after a short
+ * moment, a small window says what's happening, so a wait doesn't look like a freeze.
+ * Placed once, at the root.
+ */
+@Composable
+fun BusyHost() {
+    val busy by app().player.busy.collectAsState()
+    var show by remember { mutableStateOf(false) }
+    LaunchedEffect(busy) {
+        show = false
+        if (busy != null) {
+            delay(400)
+            show = true
+        }
+    }
+    val text = busy
+    if (show && text != null) {
+        Dialog(
+            onDismissRequest = {},
+            properties = DialogProperties(dismissOnBackPress = false, dismissOnClickOutside = false),
+        ) {
+            Row(
+                Modifier
+                    .clip(RoundedCornerShape(14.dp))
+                    .background(Lux.panel)
+                    .padding(horizontal = 24.dp, vertical = 20.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                CircularProgressIndicator(color = Lux.accent, strokeWidth = 3.dp, modifier = Modifier.size(28.dp))
+                Spacer(Modifier.width(16.dp))
+                Text(text, color = Lux.text, fontSize = 17.sp)
+            }
         }
     }
 }

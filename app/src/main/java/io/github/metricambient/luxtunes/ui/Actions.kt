@@ -22,7 +22,7 @@ fun tapSong(app: LuxTunesApp, nav: NavHostController, list: List<Track>, index: 
     when (app.prefs.current.songAction) {
         SongAction.PLAY -> app.player.play(list, index)
         SongAction.PLAY_ONE -> app.player.play(listOf(t))
-        SongAction.SHUFFLE -> app.player.shuffleFrom(list, t)
+        SongAction.SHUFFLE -> { app.player.shuffleFrom(list, t) { showPlayer(nav, listOf(t)) }; return }
     }
     showPlayer(nav, listOf(t))
 }
@@ -48,7 +48,7 @@ fun playGroup(app: LuxTunesApp, nav: NavHostController, tracks: List<Track>, act
     if (tracks.isEmpty()) return
     when (action) {
         GroupAction.VIEW, GroupAction.PLAY -> app.player.play(tracks)
-        GroupAction.SHUFFLE -> app.player.shuffle(tracks)
+        GroupAction.SHUFFLE -> { app.player.shuffle(tracks) { showPlayer(nav, tracks) }; return }
         GroupAction.SHUFFLE_ALBUMS -> app.player.playShuffled(shuffleGroups(tracks) { it.albumKey }, tracks)
         GroupAction.SHUFFLE_ARTISTS -> app.player.playShuffled(shuffleGroups(tracks) { it.albumArtist.lowercase() }, tracks)
     }

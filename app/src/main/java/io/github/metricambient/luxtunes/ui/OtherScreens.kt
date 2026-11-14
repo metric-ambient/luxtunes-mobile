@@ -58,7 +58,7 @@ fun MiniPlayer(nav: NavHostController, showMenu: Boolean) {
     val app = app()
     val library by app.repository.state.collectAsState()
     val state by app.player.state.collectAsState()
-    val track = state.currentId?.let { library.byId[it] }
+    val track = state.currentId?.let { library.byId[it] ?: app.repository.track(it) }      // (early: before the library is in)
     var progress by remember { mutableFloatStateOf(0f) }
     LaunchedEffect(Unit) {
         while (true) {
