@@ -35,11 +35,18 @@ Your computer only needs to build when you want to check something before you pu
 The build is described in `.github/workflows/build.yml`. It:
 
 1. runs the unit tests (`app/src/test/`);
-2. builds the release APK, signed with your key (stored in GitHub as secrets, see
-   [section 7](#7-the-signing-key));
-3. prints the signing certificate in the log;
-4. attaches the APK to the run, under **Artifacts**;
-5. for a tag, also publishes it as a Release.
+2. builds the release APK **unsigned**, so Gradle and the libraries it downloads never
+   see your key;
+3. signs it in a separate short step with Android's own `apksigner`, using your key
+   (stored in GitHub as secrets, see [section 7](#7-the-signing-key)), and deletes the key
+   at the end of that step;
+4. prints the signing certificate in the log;
+5. attaches the APK to the run, under **Artifacts**;
+6. for a tag, publishes it as a Release, in a separate job that never has the key. That
+   job is the only part allowed to write to the repository.
+
+The actions the build uses are pinned to exact commits, with the version written in a
+comment beside each one, so nobody can change the code a build runs by moving a tag.
 
 ## 2. Everyday: save and send changes
 
@@ -275,6 +282,16 @@ The library versions are in two files:
 Update **one thing at a time**, push, and check the build. If it breaks, the error is
 about that one change, and `git revert` takes it back. Media3 updates are the most likely
 to need code changes, because playback relies on parts it marks as "unstable".
+
+Two things are pinned by checksum or commit and need updating by hand with them:
+
+- **Gradle itself:** `gradle/wrapper/gradle-wrapper.properties` has the download address
+  and its `distributionSha256Sum`. For a new Gradle version, change both. The checksum is
+  on <https://gradle.org/release-checksums/> ("Binary-only (-bin) ZIP Checksum"). If it
+  doesn't match, the build stops rather than run a download that isn't the real one.
+- **The build's actions:** in `.github/workflows/build.yml`, each `uses:` line names an
+  exact commit, with its version in a comment. To update one, take the commit of the new
+  version from that action's GitHub page (Releases, or Tags) and change both.
 
 ## 9. Working with LuxTunes on the computer
 

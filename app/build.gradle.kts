@@ -4,9 +4,9 @@ plugins {
     id("org.jetbrains.kotlin.plugin.compose")
 }
 
-// Release signing: the build workflow decodes the key from GitHub secrets and
-// passes its location and password in these variables. Without them the APK
-// is signed with the debug key (fine for trying a build, not for sharing).
+// Release signing, for builds on your own computer (docs/MAINTAINING.md): the key's
+// location and password in these variables. Without them the release APK is left
+// unsigned. GitHub's build signs it afterwards, so Gradle never sees the key there.
 val keystorePath: String? = System.getenv("LUX_KEYSTORE")
 val keystorePassword: String? = System.getenv("LUX_KEYSTORE_PASSWORD")
 
@@ -42,8 +42,7 @@ android {
     buildTypes {
         release {
             isMinifyEnabled = false
-            signingConfig = if (keystorePath != null) signingConfigs.getByName("release")
-                            else signingConfigs.getByName("debug")
+            signingConfig = if (keystorePath != null) signingConfigs.getByName("release") else null
         }
     }
 

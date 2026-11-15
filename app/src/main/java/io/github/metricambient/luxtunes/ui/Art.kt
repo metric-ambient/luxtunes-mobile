@@ -40,10 +40,14 @@ class ArtFetcher(private val art: Art, private val options: Options) : Fetcher {
     }
 }
 
-/** Memory-cache key; changes when the cover file appears or changes. */
+/**
+ * Memory-cache key: just the paths. (No file checks here: this runs on the screen's
+ * thread for every row shown.) A new or changed cover after a sync is picked up
+ * because the picture cache is emptied when the sync is taken in (Repository).
+ */
 class ArtKeyer : Keyer<Art> {
     override fun key(data: Art, options: Options): String =
-        "art:${data.cover?.path}:${data.cover?.lastModified() ?: 0L}|${data.song?.path}"
+        "art:${data.cover?.path}|${data.song?.path}"
 }
 
 private fun embeddedPicture(file: File): ByteArray? {

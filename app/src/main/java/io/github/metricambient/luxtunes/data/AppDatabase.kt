@@ -367,13 +367,11 @@ class AppDatabase(context: Context) : SQLiteOpenHelper(context, "app.db", null, 
         return out
     }
 
-    fun setPhoneTrackStates(ids: Collection<String>, state: Int) {
-        val db = writableDatabase
+    fun setPhoneTrackStates(ids: Collection<String>, state: Int) = inOneGo { db ->
         for (id in ids) db.update("phone_tracks", ContentValues().apply { put("state", state) }, "id = ?", arrayOf(id))
     }
 
-    fun deletePhoneTracks(ids: Collection<String>) {
-        val db = writableDatabase
+    fun deletePhoneTracks(ids: Collection<String>) = inOneGo { db ->
         for (id in ids) db.delete("phone_tracks", "id = ?", arrayOf(id))
     }
 
@@ -528,14 +526,24 @@ class AppDatabase(context: Context) : SQLiteOpenHelper(context, "app.db", null, 
         }
     }
 
-    fun setTagEditStates(ids: Collection<String>, state: Int) {
-        val db = writableDatabase
+    fun setTagEditStates(ids: Collection<String>, state: Int) = inOneGo { db ->
         for (id in ids) db.update("tag_edits", ContentValues().apply { put("state", state) }, "id = ?", arrayOf(id))
     }
 
-    fun deleteTagEdits(ids: Collection<String>) {
-        val db = writableDatabase
+    fun deleteTagEdits(ids: Collection<String>) = inOneGo { db ->
         for (id in ids) db.delete("tag_edits", "id = ?", arrayOf(id))
+    }
+
+    /** Several changes as one write to storage (one transaction), not one write each. */
+    private fun inOneGo(work: (SQLiteDatabase) -> Unit) {
+        val db = writableDatabase
+        db.beginTransaction()
+        try {
+            work(db)
+            db.setTransactionSuccessful()
+        } finally {
+            db.endTransaction()
+        }
     }
 
     companion object {

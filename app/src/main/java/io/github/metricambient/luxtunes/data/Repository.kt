@@ -4,6 +4,7 @@ import android.content.Context
 import android.media.MediaScannerConnection
 import android.net.Uri
 import android.util.Log
+import coil.imageLoader
 import androidx.media3.common.C
 import androidx.media3.common.MediaItem
 import androidx.media3.common.MediaMetadata
@@ -346,6 +347,7 @@ class Repository(private val context: Context, private val prefs: Prefs) {
             db.setMeta("imported_stamp", stamp)
             libraryTracks = withPhoneTracks(db.loadTracks())
             coverThere.clear()                       // the sync may have added or replaced covers
+            context.imageLoader.memoryCache?.clear()  // …so pictures are loaded again
             Log.i(TAG, "imported library.db: ${libraryTracks.size} songs, synced ${info["synced_at"]}")
         } finally {
             copy.delete()
