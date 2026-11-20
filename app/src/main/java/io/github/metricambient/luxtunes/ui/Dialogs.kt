@@ -1,6 +1,16 @@
 package io.github.metricambient.luxtunes.ui
 
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.background
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.KeyboardArrowUp
+import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.material3.Icon
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -149,7 +159,10 @@ private fun AddToPlaylistDialog(ids: List<String>) {
         onDismissRequest = { Dialogs.close() },
         title = { Text("Add to Playlist") },
         text = {
-            LazyColumn(Modifier.heightIn(max = 420.dp)) {
+          // Arrows at the top and bottom while there's more to scroll that way.
+          val list = rememberLazyListState()
+          Box {
+            LazyColumn(Modifier.heightIn(max = 420.dp), state = list) {
                 item {
                     PickRow("Play Queue") {
                         app.player.addToQueue(tracks)
@@ -179,6 +192,9 @@ private fun AddToPlaylistDialog(ids: List<String>) {
                     }
                 }
             }
+            if (list.canScrollBackward) ScrollHint(up = true, Modifier.align(Alignment.TopCenter))
+            if (list.canScrollForward) ScrollHint(up = false, Modifier.align(Alignment.BottomCenter))
+          }
         },
         confirmButton = { TextButton(onClick = { Dialogs.close() }) { Text("Cancel") } },
     )
@@ -354,4 +370,22 @@ private fun ChooseDialog(r: DialogRequest.Choose) {
         },
         confirmButton = { TextButton(onClick = { Dialogs.close() }) { Text("Cancel") } },
     )
+}
+
+/** A small arrow on a fade at the top or bottom of a list: there's more that way. */
+@Composable
+private fun ScrollHint(up: Boolean, modifier: Modifier) {
+    val solid = Lux.panel
+    Box(
+        modifier
+            .fillMaxWidth()
+            .height(28.dp)
+            .background(Brush.verticalGradient(if (up) listOf(solid, solid.copy(alpha = 0f)) else listOf(solid.copy(alpha = 0f), solid))),
+        contentAlignment = Alignment.Center,
+    ) {
+        Icon(
+            if (up) Icons.Filled.KeyboardArrowUp else Icons.Filled.KeyboardArrowDown,
+            if (up) "More above" else "More below", tint = Lux.text, modifier = Modifier.size(24.dp),
+        )
+    }
 }

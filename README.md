@@ -1,7 +1,8 @@
 # LuxTunes Mobile
 
-> [!WARNING]
-> **About this software.** LuxTunes Mobile was written entirely by an AI, Claude Opus 5.5
+> **Disclaimer**
+>
+> LuxTunes Mobile was written entirely by an AI, Claude Opus 5.5
 > ("vibe-coded"). For copyright purposes, **metric-ambient is the author** of this software.
 >
 > The code has not been reviewed line by line by a person. It plays your music, records

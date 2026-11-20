@@ -243,7 +243,7 @@ export GITHUB_RUN_NUMBER=123      # ← the newest run number from the Actions t
 ```
 
 The APK is `app/build/outputs/apk/release/app-release.apk`. Without a tag it calls itself
-by the fallback version in `app/build.gradle.kts`. Close the terminal afterwards, so the
+"dev" (Settings shows "dev (build 123)"); builds from a tag show the tag's version. Close the terminal afterwards, so the
 password doesn't stay in it.
 
 To copy the APK to the phone, use USB file transfer and open the file on the phone. Or,

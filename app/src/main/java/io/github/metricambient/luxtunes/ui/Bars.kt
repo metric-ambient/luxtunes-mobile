@@ -42,6 +42,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.layout.boundsInRoot
+import androidx.compose.ui.layout.findRootCoordinates
+import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
@@ -58,6 +61,15 @@ val LocalMiniSpace = compositionLocalOf { 0.dp }
 
 /** The screen (back stack entry) being drawn, so it can hand its Play and Shuffle to the floating player. */
 val LocalEntryId = compositionLocalOf { "" }
+
+/**
+ * Where the floating player is on the screen (as fractions of its width and height), so
+ * Now Playing can open out of it and shrink back into it.
+ */
+object MiniSpot {
+    var x = 0.5f
+    var y = 0.9f
+}
 
 /** How far up the floating player sits on this screen: above its bottom bar, if it has one. */
 fun miniLift(route: String?): Dp = when {
@@ -124,6 +136,14 @@ fun FloatingPlayer(nav: NavHostController, entryId: String?, modifier: Modifier 
             Modifier
                 .weight(1f)
                 .fillMaxHeight()
+                .onGloballyPositioned { c ->
+                    val root = c.findRootCoordinates().size
+                    val at = c.boundsInRoot().center
+                    if (root.width > 0 && root.height > 0) {
+                        MiniSpot.x = at.x / root.width
+                        MiniSpot.y = at.y / root.height
+                    }
+                }
                 .shadow(10.dp, shape)
                 .clip(shape)
                 .background(Lux.raised)
@@ -132,8 +152,8 @@ fun FloatingPlayer(nav: NavHostController, entryId: String?, modifier: Modifier 
             Row(Modifier.fillMaxSize().padding(start = 8.dp, end = 2.dp), verticalAlignment = Alignment.CenterVertically) {
                 Artwork(track, Modifier.size(44.dp).clip(RoundedCornerShape(10.dp)), noteSize = 24.dp)
                 Column(Modifier.weight(1f).padding(horizontal = 10.dp)) {
-                    Text(track?.displayName ?: "Not playing", color = Lux.text, fontSize = 15.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                    if (track != null) Text(track.artist, color = Lux.dim, fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    ScrollingText(track?.displayName ?: "Not playing", Lux.text, 15.sp)
+                    if (track != null) ScrollingText(track.artist, Lux.dim, 13.sp)
                 }
                 SleepTimerBadge()
                 IconButton(onClick = { app.player.togglePlay() }, modifier = Modifier.size(42.dp)) {
@@ -186,19 +206,22 @@ fun FloatingPlayer(nav: NavHostController, entryId: String?, modifier: Modifier 
 
 // ---- Bottom bars -----------------------------------------------------------------------------
 
-/** A bottom-bar button: an icon with its name under it. */
+/** A bottom-bar button: an icon, with its name under it on the main screen (`named`). */
 @Composable
-fun BarButton(icon: ImageVector, label: String, modifier: Modifier = Modifier, tint: androidx.compose.ui.graphics.Color = Lux.icon, onClick: () -> Unit) {
+fun BarButton(
+    icon: ImageVector, label: String, modifier: Modifier = Modifier,
+    tint: androidx.compose.ui.graphics.Color = Lux.icon, named: Boolean = true, onClick: () -> Unit,
+) {
     Column(
         modifier
-            .width(60.dp)
+            .width(if (named) 60.dp else 52.dp)
             .fillMaxHeight()
             .clickable(onClickLabel = label, role = Role.Button, onClick = onClick),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center,
     ) {
-        Icon(icon, null, tint = tint, modifier = Modifier.size(25.dp))
-        Text(label, color = tint, fontSize = 12.sp, maxLines = 1)
+        Icon(icon, if (named) null else label, tint = tint, modifier = Modifier.size(if (named) 25.dp else 26.dp))
+        if (named) Text(label, color = tint, fontSize = 12.sp, maxLines = 1)
     }
 }
 
@@ -207,10 +230,10 @@ class MoreItem(val label: String, val icon: ImageVector? = null, val action: () 
 
 /** The More button at the bottom right of every screen, and its menu (just as wide as it needs). */
 @Composable
-fun MoreButton(items: List<MoreItem>, title: String? = null) {
+fun MoreButton(items: List<MoreItem>, title: String? = null, named: Boolean = true) {
     var open by remember { mutableStateOf(false) }
     Box {
-        BarButton(Icons.Filled.MoreVert, "More") { open = true }
+        BarButton(Icons.Filled.MoreVert, "More", named = named) { open = true }
         DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
             if (!title.isNullOrBlank()) MenuTitle(title)
             for (item in items) {
@@ -229,15 +252,15 @@ fun MoreButton(items: List<MoreItem>, title: String? = null) {
 /** A page's ⋮ menu items as More items (no icons). */
 fun Menu.asMoreItems(): List<MoreItem> = map { (label, action) -> MoreItem(label, null, action) }
 
-/** A page's bottom bar: Back at the left, More at the right. */
+/** A page's bottom bar: Back at the left, More at the right (icons only; names are for the main screen). */
 @Composable
 fun PageBottomBar(nav: NavHostController, menu: Menu, title: String? = null) {
     Row(
         Modifier.fillMaxWidth().height(BOTTOM_BAR).background(Lux.bottomBar).padding(horizontal = 4.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        BarButton(Icons.AutoMirrored.Filled.ArrowBack, "Back", tint = Lux.text) { nav.popBackStack() }
+        BarButton(Icons.AutoMirrored.Filled.ArrowBack, "Back", tint = Lux.text, named = false) { nav.popBackStack() }
         Spacer(Modifier.weight(1f))
-        if (menu.isNotEmpty()) MoreButton(menu.asMoreItems(), title)
+        if (menu.isNotEmpty()) MoreButton(menu.asMoreItems(), title, named = false)
     }
 }
