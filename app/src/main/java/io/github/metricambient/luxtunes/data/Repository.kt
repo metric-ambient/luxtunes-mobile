@@ -470,7 +470,7 @@ class Repository(private val context: Context, private val prefs: Prefs) {
                 name = list.first().artist,
                 albums = list.sortedWith(compareBy({ if (it.year == 0) Int.MAX_VALUE else it.year }, { sortText(it.name) })),
             )
-        }.sortedBy { sortText(it.tracks.first().sortAlbumArtist) }
+        }.sortedBy { sortText(it.tracks.first().browseSortArtist) }
         val podcasts = albumsOf(all.filter { it.mediaKind == "podcast" }).sortedBy { sortText(it.name) }
         // Artists by the songs' own artist, genres and composers: each a group of (parts of) albums.
         fun groups(key: (Track) -> String?): List<Artist> =
@@ -484,7 +484,10 @@ class Repository(private val context: Context, private val prefs: Prefs) {
                     )
                 }
                 .sortedBy { sortText(it.name) }
-        val trackArtists = groups { it.artist }
+        // Settings → Tabs → Group Compilations: a compilation's songs are listed under the
+        // compilation (its Album Artist, or "Various Artists"), not under each song's artist.
+        val groupCompilations = prefs.current.groupCompilations
+        val trackArtists = groups { if (groupCompilations && it.compilation) it.browseArtist else it.artist }
         val genres = groups { it.genre }
         val composers = groups { it.raw["composer"] as? String }
         val movies = all.filter { it.mediaKind == "movie" }
@@ -544,7 +547,7 @@ class Repository(private val context: Context, private val prefs: Prefs) {
         Album(
             key = key,
             name = first.album,
-            artist = first.albumArtist,
+            artist = first.browseArtist,
             year = ordered.maxOf { it.year },
             artwork = ordered.firstNotNullOfOrNull { it.artwork },
             tracks = ordered,
@@ -933,7 +936,7 @@ class Repository(private val context: Context, private val prefs: Prefs) {
         MediaItem.Builder().setMediaId(t.id).setMediaMetadata(names(t).build()).build()
 
     private fun names(t: Track): MediaMetadata.Builder = MediaMetadata.Builder()
-        .setTitle(t.name)
+        .setTitle(t.displayName)
         .setArtist(t.artist)
         .setAlbumTitle(t.album)
         .setAlbumArtist(t.albumArtist)

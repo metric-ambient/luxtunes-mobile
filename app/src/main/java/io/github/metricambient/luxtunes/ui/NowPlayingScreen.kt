@@ -124,7 +124,7 @@ fun NowPlayingScreen(nav: NavHostController) {
             if (track != null) {
                 menu += "Get Info" to { Dialogs.show(DialogRequest.Info(listOf(track.id))) }
                 menu += "Go to Album" to { nav.go(Routes.album(track.albumKey)) }
-                menu += "Go to Artist" to { nav.go(Routes.artist(track.albumArtist)) }
+                menu += "Go to Artist" to { nav.go(Routes.artist(track.browseArtist)) }
                 menu += "Add to playlist…" to { Dialogs.show(DialogRequest.AddToPlaylist(listOf(track.id))) }
                 menu += "Delete from phone" to { Dialogs.show(DialogRequest.Delete(listOf(track.id))) }
             }
@@ -138,7 +138,7 @@ fun NowPlayingScreen(nav: NavHostController) {
     val titleBlock: @Composable () -> Unit = {
         // The song on its own line, artist / album below it
         Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp)) {
-            ScrollingTitle(track?.name ?: "Not playing")
+            ScrollingTitle(track?.displayName ?: "Not playing")
             if (track != null) {
                 Text(
                     "${track.artist} / ${track.album}", color = Lux.dim, fontSize = 15.sp,

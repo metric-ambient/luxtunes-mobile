@@ -62,6 +62,7 @@ import androidx.compose.ui.unit.sp
 import androidx.navigation.NavHostController
 import io.github.metricambient.luxtunes.data.Track
 import io.github.metricambient.luxtunes.data.artTrackOf
+import io.github.metricambient.luxtunes.data.sortText
 
 /**
  * The top of an album, artist or playlist page: the art over a blurred copy of
@@ -181,6 +182,15 @@ fun GroupScreen(nav: NavHostController, kind: String, name: String) {
     if (seen.isEmpty()) seen += artist.tracks.map { it.id }
     val tracks = artist.tracks                       // by album, oldest album first
     val years = artist.albums.map { it.year }.filter { it > 0 }
+    // Songs by other artists that feature this one (as LuxTunes' "Featured On").
+    val featuredOn = remember(library, kind, artist.name) {
+        if (kind != "artist" && kind != "trackartist") emptyList() else {
+            val own = tracks.map { it.id }.toSet()
+            val who = artist.name.lowercase()
+            library.tracks.filter { t -> t.id !in own && t.featured.any { it.lowercase() == who } }
+                .sortedWith(compareBy({ sortText(it.browseSortArtist) }, { sortText(it.sortAlbum) }, { it.discNumber }, { it.trackNumber }))
+        }
+    }
     PageAccent(artTrackOf(tracks))
 
     val menu: Menu = listOf(
@@ -222,6 +232,19 @@ fun GroupScreen(nav: NavHostController, kind: String, name: String) {
                         onClick = { nav.go(Routes.album(album.key)) },
                         leading = { Artwork(album.artTrack, Modifier.size(64.dp), noteSize = 32.dp) },
                         menu = groupMenu(album.tracks, nav),
+                    )
+                }
+            }
+            if (featuredOn.isNotEmpty()) {
+                item { Heading("Featured On") }
+                itemsIndexed(featuredOn, key = { _, t -> "featured\u0000" + t.id }) { i, t ->
+                    SongRow(
+                        track = t,
+                        current = t.id == playerState.currentId,
+                        onClick = { tapSong(app, nav, featuredOn, i) },
+                        menu = songMenu(t, nav),
+                        leading = { Artwork(t, Modifier.size(56.dp), noteSize = 28.dp) },
+                        subtitle = "${t.artist} · ${t.album}",
                     )
                 }
             }

@@ -33,6 +33,9 @@ next sync.
 - Playlists and smart playlists made or changed on the phone go back to LuxTunes at the
   next sync (LuxTunes 0.6.0 or newer). Smart playlists use LuxTunes' own rules and stay
   up to date on the phone.
+- Featured artists shown with each song ("Song (ft. Ann, Bo)"), found by search, and
+  listed under Featured On on their artist page. Compilations are listed under the
+  compilation (or Various Artists), as in LuxTunes.
 - Movies and TV shows play full screen.
 - Settings → Sound: LuxTunes' ten-band equalizer with the same presets (synced with the
   computer), crossfade or gapless, autoplay, playback speed for music and for

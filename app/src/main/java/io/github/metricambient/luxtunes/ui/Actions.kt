@@ -70,7 +70,7 @@ fun songMenu(t: Track, nav: NavHostController, extra: Menu = emptyList()): Menu 
         "Add to End of Queue" to { app.player.addToEnd(listOf(t)) },
         "Add to playlist…" to { Dialogs.show(DialogRequest.AddToPlaylist(listOf(t.id))) },
         "Go to album" to { nav.go(Routes.album(t.albumKey)) },
-        "Go to artist" to { nav.go(Routes.artist(t.albumArtist)) },
+        "Go to artist" to { nav.go(Routes.artist(t.browseArtist)) },
         "Get info" to { Dialogs.show(DialogRequest.Info(listOf(t.id))) },
     ) + extra + listOf(
         "Delete from phone" to { Dialogs.show(DialogRequest.Delete(listOf(t.id))) },

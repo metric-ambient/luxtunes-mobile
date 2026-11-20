@@ -33,7 +33,7 @@ data class PlaylistEdit(
  * (`playlist_edits`). The copy is replaced whenever LuxTunes writes a new
  * library.db; the other two only shrink once LuxTunes has taken the changes.
  */
-class AppDatabase(context: Context) : SQLiteOpenHelper(context, "app.db", null, 7) {
+class AppDatabase(context: Context) : SQLiteOpenHelper(context, "app.db", null, 8) {
 
     override fun onCreate(db: SQLiteDatabase) {
         createLibraryTables(db)
@@ -71,6 +71,12 @@ class AppDatabase(context: Context) : SQLiteOpenHelper(context, "app.db", null, 
             // LuxTunes 0.8.5: timed lyrics. Take library.db in again.
             addColumn(db, "tracks", "synced_lyrics")
             addColumn(db, "phone_tracks", "synced_lyrics")
+            db.delete("meta", "key = ?", arrayOf("imported_stamp"))
+        }
+        if (oldVersion < 8) {
+            // LuxTunes' Featured Artist. Take library.db in again.
+            addColumn(db, "tracks", "featured_artist")
+            addColumn(db, "phone_tracks", "featured_artist")
             db.delete("meta", "key = ?", arrayOf("imported_stamp"))
         }
     }
@@ -556,7 +562,7 @@ class AppDatabase(context: Context) : SQLiteOpenHelper(context, "app.db", null, 
             "bookmarkable", "bookmark_time", "skip_when_shuffling", "start_time", "stop_time",
             "volume_adjustment", "show", "season", "episode_number", "sort_name", "sort_artist",
             "sort_album", "sort_album_artist", "sort_composer", "enabled", "bpm", "kind", "purchased",
-            "equalizer", "synced_lyrics",
+            "equalizer", "synced_lyrics", "featured_artist",
         )
     }
 }

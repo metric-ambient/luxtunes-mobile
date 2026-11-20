@@ -31,10 +31,22 @@ data class Track(
     val startTime: Long,            // ms, 0 = from the start
     val stopTime: Long,             // ms, 0 = to the end
     val mediaKind: String = "music",   // music, podcast, audiobook, movie, tvshow
+    val featuredArtist: String? = null,  // as typed in LuxTunes: "Ann, Bo & Cy; Dee"
+    val compilation: Boolean = false,    // part of a compilation album
+    // Who the song is listed under when browsing, and the artist shown under its album:
+    // a compilation's Album Artist (or "Various Artists"), else the Album Artist or Artist.
+    val browseArtist: String = albumArtist,
+    val browseSortArtist: String = sortAlbumArtist,
     val raw: Map<String, Any?> = emptyMap(),   // every library.db column, for smart playlist rules
 ) {
     /** Albums of different kinds (a podcast and an album with the same name) stay apart. */
-    val albumKey: String get() = (if (mediaKind == "music") "" else "$mediaKind\u0002") + albumKeyOf(albumArtist, album)
+    val albumKey: String get() = (if (mediaKind == "music") "" else "$mediaKind\u0002") + albumKeyOf(browseArtist, album)
+
+    /** The featured artists, one name each. */
+    val featured: List<String> get() = featuredNames(featuredArtist)
+
+    /** The name as shown: "Song (ft. Ann, Bo & Cy, Dee)". Sorting and editing use `name`. */
+    val displayName: String get() = nameWithFeatured(name, featuredArtist)
 
     /** Movies and TV episodes play in the video screen. */
     val isVideo: Boolean get() = mediaKind == "movie" || mediaKind == "tvshow"
@@ -66,6 +78,10 @@ fun trackOf(raw: Map<String, Any?>): Track? {
     val albumArtist = str("album_artist").orEmpty().ifBlank { artist }
     val name = str("name").orEmpty().ifBlank { File(path).nameWithoutExtension }
     val album = str("album").orEmpty().ifBlank { "Unknown album" }
+    val compilation = num("compilation") != 0L
+    val ownAlbumArtist = str("album_artist")?.trim()?.ifEmpty { null }
+    val sortAlbumArtist = str("sort_album_artist")?.ifBlank { null }
+        ?: str("sort_artist")?.ifBlank { null } ?: albumArtist
     return Track(
         id = id,
         path = path,
@@ -89,14 +105,34 @@ fun trackOf(raw: Map<String, Any?>): Track? {
         syncedLyrics = str("synced_lyrics")?.ifBlank { null },
         sortName = str("sort_name")?.ifBlank { null } ?: name,
         sortArtist = str("sort_artist")?.ifBlank { null } ?: artist,
-        sortAlbumArtist = str("sort_album_artist")?.ifBlank { null }
-            ?: str("sort_artist")?.ifBlank { null } ?: albumArtist,
+        sortAlbumArtist = sortAlbumArtist,
         sortAlbum = str("sort_album")?.ifBlank { null } ?: album,
         startTime = num("start_time"),
         stopTime = num("stop_time"),
         mediaKind = str("media_kind")?.ifBlank { null } ?: "music",
+        featuredArtist = str("featured_artist")?.ifBlank { null },
+        compilation = compilation,
+        browseArtist = if (compilation) ownAlbumArtist ?: VARIOUS_ARTISTS else albumArtist,
+        browseSortArtist = when {
+            !compilation -> sortAlbumArtist
+            ownAlbumArtist != null -> str("sort_album_artist")?.ifBlank { null } ?: ownAlbumArtist
+            else -> VARIOUS_ARTISTS
+        },
         raw = raw,
     )
+}
+
+/** Where compilations without an Album Artist are listed (as in LuxTunes). */
+const val VARIOUS_ARTISTS = "Various Artists"
+
+/** "Ann, Bo & Cy; Dee" -> [Ann, Bo & Cy, Dee]: split at commas and semicolons only. */
+fun featuredNames(raw: String?): List<String> =
+    raw.orEmpty().replace(';', ',').split(',').map { it.trim() }.filter { it.isNotEmpty() }
+
+/** "Song (ft. Ann, Bo & Cy, Dee)", or just the name without featured artists. */
+fun nameWithFeatured(name: String, featured: String?): String {
+    val names = featuredNames(featured)
+    return if (names.isEmpty()) name else "$name (ft. ${names.joinToString(", ")})"
 }
 
 fun albumKeyOf(albumArtist: String, album: String): String =

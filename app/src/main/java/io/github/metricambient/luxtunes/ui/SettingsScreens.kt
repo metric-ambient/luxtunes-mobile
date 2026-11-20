@@ -400,7 +400,8 @@ internal fun ToggleRow(title: String, subtitle: String, checked: Boolean, onChan
 
 @Composable
 fun TabsSettingsScreen(nav: NavHostController) {
-    val prefs = app().prefs
+    val app = app()
+    val prefs = app.prefs
     val s by prefs.settings.collectAsState()
 
     fun showTab(name: String, on: Boolean) = prefs.update { cur ->
@@ -429,6 +430,15 @@ fun TabsSettingsScreen(nav: NavHostController) {
             "No search bar above the lists, in any orientation. Search stays in the ⋮ menu.",
             s.hideSearch,
         ) { on -> prefs.update { it.copy(hideSearch = on) } }
+        ToggleRow(
+            "Group Compilations",
+            "In Artists, a compilation's songs are listed under the compilation (its Album Artist, or " +
+                "Various Artists), not under each song's own artist.",
+            s.groupCompilations,
+        ) { on ->
+            prefs.update { it.copy(groupCompilations = on) }
+            app.repository.refreshAsync()            // the lists are rebuilt with the new setting
+        }
         HorizontalDivider(color = Lux.panel)
 
         TabSection("Songs", "Display songs tab", "Songs" in s.tabs, { showTab("Songs", it) }) {
