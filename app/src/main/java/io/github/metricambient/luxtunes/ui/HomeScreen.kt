@@ -13,6 +13,9 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
@@ -73,6 +76,8 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavHostController
@@ -137,12 +142,16 @@ private fun albumLabel(a: Album, sort: GroupSort): String = when (sort) {
     GroupSort.SONGS -> "${a.tracks.size}"
 }
 
-/** Every song of the library, artist by artist, album by album ("Play by artist"). */
-private fun byArtist(library: LibraryState) = library.artists.flatMap { it.tracks }
 
 // ---- The screen ---------------------------------------------------------------------------
 
-/** The overview: tabs along the top, a search box in each, actions along the bottom. */
+/** The tabs whose rows can be ticked (Edit) and that have a sort order. */
+private val EDITABLE = listOf("Artists", "Album Artists", "Songs", "Albums")
+
+/**
+ * The overview: the tab's name at the top with its play, shuffle, search and sort
+ * buttons; the list; the tabs along the bottom, with the main ⋮ menu at the right.
+ */
 @Composable
 fun HomeScreen(nav: NavHostController) {
     val app = app()
@@ -155,12 +164,16 @@ fun HomeScreen(nav: NavHostController) {
     val tabStates = rememberSaveableStateHolder()
     val query = queries.value[tabName].orEmpty()
     val setQuery = { q: String -> queries.value = queries.value + (tabName to q) }
+    // The search box shows after tapping the search button (and while it has text in it).
+    var searching by rememberSaveable { mutableStateOf(false) }
+    LaunchedEffect(settings.hideSearch) { if (settings.hideSearch) { queries.value = emptyMap(); searching = false } }
 
     // Select mode: ticked artist names / album keys / song IDs.
     var selecting by remember { mutableStateOf(false) }
     var selected by remember { mutableStateOf(setOf<String>()) }
     fun stopSelecting() { selecting = false; selected = emptySet() }
     val toggle = { key: String -> selected = if (key in selected) selected - key else selected + key }
+    LaunchedEffect(tabName) { stopSelecting() }
 
     // The songs the ticked rows stand for, in a sensible order.
     fun selectedTracks(): List<Track> = when (tabName) {
@@ -169,6 +182,15 @@ fun HomeScreen(nav: NavHostController) {
         "Albums" -> library.albums.filter { it.key in selected }.flatMap { it.tracks }
         else -> library.tracks.filter { it.id in selected }
     }
+
+    val menu: Menu = (if (tabName in EDITABLE) listOf("Edit $tabName" to { selecting = true }) else emptyList<Pair<String, () -> Unit>>()) +
+        sleepTimerMenu() + listOf(
+            "Search" to { nav.go(Routes.SEARCH) },
+            "Rescan Device" to { app.repository.refreshAsync() },
+            "Add Folder to Library…" to { AddFolder.show() },
+            "Switch Theme" to { nav.go(Routes.SETTINGS_THEME) },
+            "Settings" to { nav.go(Routes.SETTINGS) },
+        )
 
     Column(Modifier.fillMaxSize()) {
         if (selecting) {
@@ -181,111 +203,102 @@ fun HomeScreen(nav: NavHostController) {
                 onDelete = { Dialogs.show(DialogRequest.Delete(selectedTracks().map { it.id })); stopSelecting() },
             )
         } else {
-            DraggableTabs(
-                tabs = tabs,
-                selected = tabName,
-                onSelect = { tabName = it },
-                onReorder = { order -> app.prefs.update { it.copy(tabs = order) } },
-            )
+            TabHeader(nav, tabName, library, settings, query, onSearch = { searching = !searching || query.isNotEmpty() })
         }
-        if (library.allTracks.isEmpty()) {
-            Empty(library)
-            return@Column
-        }
-        // No search bar in landscape (room for the list) or when hidden in Settings → Tabs,
-        // and then no hidden filter either.
-        val landscape = LocalConfiguration.current.orientation == Configuration.ORIENTATION_LANDSCAPE
-        val noSearch = landscape || settings.hideSearch
-        LaunchedEffect(noSearch) { if (noSearch) queries.value = emptyMap() }
-        if (!noSearch) SearchField(query, setQuery, Modifier.padding(vertical = 4.dp))
-        Box(Modifier.weight(1f)) {
-          // Each tab keeps its own scroll position while you're on other tabs or screens.
-          tabStates.SaveableStateProvider(tabName) {
-            when (tabName) {
-                "Artists" -> GroupTab(nav, library.trackArtists, "trackartist", Icons.Filled.Person,
-                    settings.artistIcons, GroupAction.VIEW, settings.artistSort, query, selecting, selected, toggle, settings.artistSortReverse)
-                "Album Artists" -> GroupTab(nav, library.artists, "artist", Icons.Filled.Person,
-                    settings.albumArtistIcons, GroupAction.VIEW, settings.artistSort, query, selecting, selected, toggle, settings.artistSortReverse)
-                "Genres" -> GroupTab(nav, library.genres, "genre", Icons.Filled.Category,
-                    settings.genreIcons, settings.genreAction, GroupSort.NAME, query, false, emptySet(), toggle)
-                "Composers" -> GroupTab(nav, library.composers, "composer", Icons.Filled.Piano,
-                    settings.composerIcons, settings.composerAction, GroupSort.NAME, query, false, emptySet(), toggle)
-                "Movies" -> MoviesTab(nav, library.movies, query)
-                "TV Shows" -> TvShowsTab(nav, library.tvShows, query)
-                "Playlists" -> PlaylistsTab(nav, library, settings, query)
-                "Songs" -> SongsTab(nav, library, settings, query, selecting, selected, toggle)
-                "Albums" -> AlbumsTab(nav, library, settings, query, selecting, selected, toggle)
-                "Podcasts" -> ShowsTab(nav, library.podcasts, query, settings.podcastAction, "No podcasts on this phone. Choose some on the Podcasts tab of the phone's page in LuxTunes.")
-                "Audiobooks" -> ShowsTab(nav, library.audiobooks, query, settings.audiobookAction, "No audiobooks on this phone. Choose some on the Books tab of the phone's page in LuxTunes.")
+        Column(Modifier.weight(1f)) {
+            if (library.allTracks.isEmpty()) {
+                Empty(library)
+            } else {
+                if (!settings.hideSearch && (searching || query.isNotEmpty())) {
+                    SearchField(query, setQuery, Modifier.padding(vertical = 4.dp))
+                }
+                Box(Modifier.weight(1f)) {
+                  // Each tab keeps its own scroll position while you're on other tabs or screens.
+                  tabStates.SaveableStateProvider(tabName) {
+                    when (tabName) {
+                        "Artists" -> GroupTab(nav, library.trackArtists, "trackartist", Icons.Filled.Person,
+                            settings.artistIcons, GroupAction.VIEW, settings.artistSort, query, selecting, selected, toggle, settings.artistSortReverse)
+                        "Album Artists" -> GroupTab(nav, library.artists, "artist", Icons.Filled.Person,
+                            settings.albumArtistIcons, GroupAction.VIEW, settings.artistSort, query, selecting, selected, toggle, settings.artistSortReverse)
+                        "Genres" -> GroupTab(nav, library.genres, "genre", Icons.Filled.Category,
+                            settings.genreIcons, settings.genreAction, GroupSort.NAME, query, false, emptySet(), toggle)
+                        "Composers" -> GroupTab(nav, library.composers, "composer", Icons.Filled.Piano,
+                            settings.composerIcons, settings.composerAction, GroupSort.NAME, query, false, emptySet(), toggle)
+                        "Movies" -> MoviesTab(nav, library.movies, query)
+                        "TV Shows" -> TvShowsTab(nav, library.tvShows, query)
+                        "Playlists" -> PlaylistsTab(nav, library, settings, query)
+                        "Songs" -> SongsTab(nav, library, settings, query, selecting, selected, toggle)
+                        "Albums" -> AlbumsTab(nav, library, settings, query, selecting, selected, toggle)
+                        "Podcasts" -> ShowsTab(nav, library.podcasts, query, settings.podcastAction, "No podcasts on this phone. Choose some on the Podcasts tab of the phone's page in LuxTunes.")
+                        "Audiobooks" -> ShowsTab(nav, library.audiobooks, query, settings.audiobookAction, "No audiobooks on this phone. Choose some on the Books tab of the phone's page in LuxTunes.")
+                    }
+                  }
+                }
             }
-          }
         }
-        if (tabName in listOf("Artists", "Album Artists", "Songs", "Albums") && !selecting) {
-            BottomBar(nav, tabName, library, settings, query, onSelect = { selecting = true })
-        }
+        BottomTabs(
+            tabs = tabs,
+            selected = tabName,
+            onSelect = { tabName = it },
+            onReorder = { order -> app.prefs.update { it.copy(tabs = order) } },
+            menu = menu,
+        )
     }
 }
 
+/** The songs a tab's play and shuffle buttons start, in the tab's order; null: the tab has none. */
+private fun tabSongs(tabName: String, library: LibraryState, settings: AppSettings, query: String): List<Track>? = when (tabName) {
+    "Songs" -> sortSongs(library.tracks.filter { matches(query, it.name, it.artist, it.album, it.featuredArtist.orEmpty()) }, settings.songSort, settings.songSortReverse)
+    "Albums" -> sortAlbums(library.albums, settings.albumSort, settings.albumSortReverse).flatMap { it.tracks }
+    "Artists" -> sortArtists(library.trackArtists, settings.artistSort, settings.artistSortReverse).flatMap { it.tracks }
+    "Album Artists" -> sortArtists(library.artists, settings.artistSort, settings.artistSortReverse).flatMap { it.tracks }
+    "Genres" -> library.genres.flatMap { it.tracks }
+    "Composers" -> library.composers.flatMap { it.tracks }
+    else -> null
+}
+
+/** The top of the overview: the tab's name, then play from the top, shuffle, search and sort. */
 @Composable
-private fun BottomBar(nav: NavHostController, tabName: String, library: LibraryState, settings: AppSettings, query: String, onSelect: () -> Unit) {
+private fun TabHeader(
+    nav: NavHostController, tabName: String, library: LibraryState, settings: AppSettings, query: String, onSearch: () -> Unit,
+) {
     val app = app()
-    val songs = when (tabName) {
-        "Songs" -> sortSongs(library.tracks.filter { matches(query, it.name, it.artist, it.album, it.featuredArtist.orEmpty()) }, settings.songSort, settings.songSortReverse)
-        "Albums" -> sortAlbums(library.albums, settings.albumSort, settings.albumSortReverse).flatMap { it.tracks }
-        else -> byArtist(library)
-    }
-    val playIcon = if (tabName == "Songs") Icons.AutoMirrored.Filled.PlaylistPlay else Icons.Filled.PlayArrow
-    val playLabel = when (tabName) { "Songs" -> "Play all"; "Albums" -> "Play by album"; else -> "Play by artist" }
-    // A long list takes a moment to get ready: the button pressed stays lit until it is.
-    val busy by app.player.busy.collectAsState()
-    var working by remember { mutableStateOf<String?>(null) }
     Row(
-        Modifier.fillMaxWidth().height(56.dp).background(Lux.bar).padding(horizontal = 4.dp),
+        Modifier.fillMaxWidth().height(60.dp).padding(start = 16.dp, end = 4.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        BarButton(playIcon, playLabel, Modifier.weight(1f), lit = busy != null && working == playLabel) {
-            if (busy != null) return@BarButton
-            working = playLabel
-            app.player.play(songs) { showPlayer(nav, songs) }
+        Text(
+            tabName, color = Lux.text, fontSize = 28.sp, fontWeight = FontWeight.Bold,
+            maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f),
+        )
+        val hasSongs = tabSongs(tabName, library, settings, "") != null && library.allTracks.isNotEmpty()
+        if (hasSongs) {
+            val icon = LuxIcons.tab(tabName)
+            IconButton(onClick = {
+                val songs = tabSongs(tabName, library, settings, query).orEmpty()
+                if (songs.isNotEmpty()) app.player.play(songs) { showPlayer(nav, songs) }
+            }) { TabActionIcon(icon, shuffle = false, description = "Play $tabName from the top") }
+            IconButton(onClick = {
+                val songs = tabSongs(tabName, library, settings, query).orEmpty()
+                if (songs.isNotEmpty()) app.player.shuffle(songs) { showPlayer(nav, songs) }
+            }) { TabActionIcon(icon, shuffle = true, description = "Shuffle $tabName") }
         }
-        BarButton(Icons.Filled.Shuffle, "Shuffle", Modifier.weight(1f), lit = busy != null && working == "Shuffle") {
-            if (busy != null) return@BarButton
-            working = "Shuffle"
-            app.player.shuffle(songs) { showPlayer(nav, songs) }
+        if (!settings.hideSearch && library.allTracks.isNotEmpty()) {
+            IconButton(onClick = onSearch) { Icon(Icons.Filled.Search, "Search", tint = Lux.icon, modifier = Modifier.size(26.dp)) }
         }
-        SortButton(tabName, settings, Modifier.weight(1f))
-        BarButton(Icons.Filled.Checklist, "Select", Modifier.weight(1f), onClick = onSelect)
-    }
-}
-
-/**
- * One of the bottom bar's buttons: it fills its share of the bar, and while pressed (or
- * `lit`, while what it started is still getting ready) that share shows as a lighter block.
- */
-@Composable
-private fun BarButton(icon: ImageVector, label: String, modifier: Modifier, lit: Boolean = false, onClick: () -> Unit) {
-    val press = remember { MutableInteractionSource() }
-    val pressed by press.collectIsPressedAsState()
-    Box(
-        modifier
-            .fillMaxHeight()
-            .padding(horizontal = 2.dp, vertical = 6.dp)
-            .clip(RoundedCornerShape(10.dp))
-            .background(if (pressed || lit) Lux.text.copy(alpha = 0.14f) else Color.Transparent)
-            .clickable(interactionSource = press, indication = null, role = Role.Button, onClickLabel = label, onClick = onClick),
-        contentAlignment = Alignment.Center,
-    ) {
-        Icon(icon, label, tint = Lux.icon, modifier = Modifier.size(30.dp))
+        if (tabName in EDITABLE) SortButton(tabName, settings)
     }
 }
 
 /** Sort by: a menu of the orders that make sense for this tab, the current one ticked. */
 @Composable
-private fun SortButton(tabName: String, settings: AppSettings, modifier: Modifier) {
+private fun SortButton(tabName: String, settings: AppSettings) {
     val prefs = app().prefs
     var open by remember { mutableStateOf(false) }
-    Box(modifier) {
-        BarButton(Icons.AutoMirrored.Filled.Sort, "Sort by", Modifier.fillMaxWidth(), lit = open) { open = true }
+    Box {
+        IconButton(onClick = { open = true }) {
+            Icon(Icons.AutoMirrored.Filled.Sort, "Sort by", tint = Lux.icon, modifier = Modifier.size(26.dp))
+        }
         DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
             Text("Sort by", color = Lux.accent, modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp))
             when (tabName) {
@@ -352,13 +365,13 @@ private fun SelectBar(
             Icon(Icons.AutoMirrored.Filled.QueueMusic, "Add to Queue", tint = Lux.icon)
         }
         IconButton(onClick = onPlaylist, enabled = count > 0) {
-            Icon(Icons.AutoMirrored.Filled.PlaylistAdd, "Add to playlist", tint = Lux.icon)
+            Icon(Icons.AutoMirrored.Filled.PlaylistAdd, "Add to Playlist", tint = Lux.icon)
         }
         IconButton(onClick = onInfo, enabled = count > 0) {
-            Icon(Icons.Filled.Info, "Get info", tint = Lux.icon)
+            Icon(Icons.Filled.Info, "Get Info", tint = Lux.icon)
         }
         IconButton(onClick = onDelete, enabled = count > 0) {
-            Icon(Icons.Filled.Delete, "Delete from phone", tint = Lux.icon)
+            Icon(Icons.Filled.Delete, "Delete from Phone", tint = Lux.icon)
         }
     }
 }
@@ -400,7 +413,7 @@ private fun GroupTab(
     }
     val listState = rememberLazyListState()
     FastScroll(listState, list.size, { i -> list.getOrNull(i)?.let { groupLabel(it, sort) } }) {
-    LazyColumn(Modifier.fillMaxSize(), state = listState) {
+    LazyColumn(Modifier.fillMaxSize(), state = listState, contentPadding = PaddingValues(bottom = LocalMiniSpace.current)) {
         items(list, key = { it.name }) { group ->
             ListRow(
                 title = group.name,
@@ -415,7 +428,7 @@ private fun GroupTab(
                         if (showIcon) Icon(icon, null, tint = Lux.text, modifier = Modifier.size(48.dp))
                     }
                 },
-                menu = if (selecting) emptyList() else groupMenu(group.tracks, nav),
+                menu = if (selecting) emptyList() else groupMenu(group.tracks, nav, group.name),
             )
         }
     }
@@ -436,7 +449,7 @@ private fun MoviesTab(nav: NavHostController, movies: List<Track>, query: String
     }
     val listState = rememberLazyListState()
     FastScroll(listState, list.size, { i -> list.getOrNull(i)?.let { letterOf(it.sortName.ifBlank { it.name }) } }) {
-    LazyColumn(Modifier.fillMaxSize(), state = listState) {
+    LazyColumn(Modifier.fillMaxSize(), state = listState, contentPadding = PaddingValues(bottom = LocalMiniSpace.current)) {
         items(list, key = { it.id }) { m ->
             ListRow(
                 title = m.name,
@@ -466,7 +479,7 @@ private fun TvShowsTab(nav: NavHostController, shows: List<Artist>, query: Strin
     }
     val listState = rememberLazyListState()
     FastScroll(listState, list.size, { i -> list.getOrNull(i)?.let { letterOf(it.name) } }) {
-    LazyColumn(Modifier.fillMaxSize(), state = listState) {
+    LazyColumn(Modifier.fillMaxSize(), state = listState, contentPadding = PaddingValues(bottom = LocalMiniSpace.current)) {
         items(list, key = { it.name }) { show ->
             ListRow(
                 title = show.name,
@@ -489,7 +502,7 @@ private fun SongsTab(
     val songs = sortSongs(library.tracks.filter { matches(query, it.name, it.artist, it.album, it.featuredArtist.orEmpty()) }, settings.songSort, settings.songSortReverse)
     val listState = rememberLazyListState()
     FastScroll(listState, songs.size, { i -> songs.getOrNull(i)?.let { songLabel(it, settings.songSort) } }) {
-    LazyColumn(Modifier.fillMaxSize(), state = listState) {
+    LazyColumn(Modifier.fillMaxSize(), state = listState, contentPadding = PaddingValues(bottom = LocalMiniSpace.current)) {
         items(songs, key = { it.id }) { t ->
             val showArt = settings.songArt
             SongRow(
@@ -515,7 +528,7 @@ private fun PlaylistsTab(nav: NavHostController, library: LibraryState, settings
     val playerState by app.player.state.collectAsState()
     val lists = library.playlists.filter { matches(query, it.name) }
     val icons = settings.playlistIcons
-    LazyColumn(Modifier.fillMaxSize()) {
+    LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = LocalMiniSpace.current)) {
         item {
             ListRow(
                 title = "Play Queue - Up Next",
@@ -585,7 +598,7 @@ private fun ShowsTab(nav: NavHostController, shows: List<Album>, query: String, 
     }
     val listState = rememberLazyListState()
     FastScroll(listState, list.size, { i -> list.getOrNull(i)?.let { letterOf(it.name) } }) {
-    LazyColumn(Modifier.fillMaxSize(), state = listState) {
+    LazyColumn(Modifier.fillMaxSize(), state = listState, contentPadding = PaddingValues(bottom = LocalMiniSpace.current)) {
         items(list, key = { it.key }) { show ->
             ListRow(
                 title = show.name,
@@ -612,10 +625,40 @@ private fun AlbumsTab(
     val app = app()
     val landscape = LocalConfiguration.current.orientation == Configuration.ORIENTATION_LANDSCAPE
     val columns = if (landscape) settings.gridLandscape.coerceIn(1, 6) else settings.gridPortrait.coerceIn(1, 4)
-    val albums = sortAlbums(library.albums.filter { matches(query, it.name, it.artist) }, settings.albumSort, settings.albumSortReverse)
+    // Quick filters along the top: every album, the newest added, or compilations.
+    var filter by rememberSaveable { mutableStateOf("All") }
+    val all = library.albums.filter { matches(query, it.name, it.artist) }
+    val albums = when (filter) {
+        // The 60 albums with the most recently added songs, newest first.
+        "Recently Added" -> all.sortedByDescending { a -> a.tracks.maxOfOrNull { it.raw["date_added"]?.toString().orEmpty() }.orEmpty() }.take(60)
+        "Compilations" -> sortAlbums(all.filter { a -> a.tracks.any { it.compilation } }, settings.albumSort, settings.albumSortReverse)
+        else -> sortAlbums(all, settings.albumSort, settings.albumSortReverse)
+    }
     val gridState = rememberLazyGridState()
-    FastScroll(gridState, albums.size, { i -> albums.getOrNull(i)?.let { albumLabel(it, settings.albumSort) } }) {
-    LazyVerticalGrid(columns = GridCells.Fixed(columns), modifier = Modifier.fillMaxSize(), state = gridState) {
+    Column(Modifier.fillMaxSize()) {
+    Row(
+        Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(start = 16.dp, end = 16.dp, top = 2.dp, bottom = 10.dp),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        for (name in listOf("All", "Recently Added", "Compilations")) {
+            val on = name == filter
+            Text(
+                if (name == "All") "All ${all.size}" else name,
+                color = if (on) Lux.onAccent else Lux.text, fontSize = 14.sp,
+                fontWeight = if (on) FontWeight.Medium else FontWeight.Normal,
+                modifier = Modifier
+                    .clip(RoundedCornerShape(16.dp))
+                    .background(if (on) Lux.accent else Lux.panel)
+                    .clickable { filter = name }
+                    .padding(horizontal = 14.dp, vertical = 7.dp),
+            )
+        }
+    }
+    FastScroll(gridState, albums.size, { i -> albums.getOrNull(i)?.let { if (filter == "Recently Added") null else albumLabel(it, settings.albumSort) } }) {
+    LazyVerticalGrid(
+        columns = GridCells.Fixed(columns), modifier = Modifier.fillMaxSize(), state = gridState,
+        contentPadding = PaddingValues(bottom = LocalMiniSpace.current),
+    ) {
         items(albums, key = { it.key }) { album ->
             Box(
                 Modifier
@@ -642,6 +685,7 @@ private fun AlbumsTab(
                 if (selecting) Box(Modifier.align(Alignment.TopStart).padding(6.dp)) { Tick(album.key in selected) }
             }
         }
+    }
     }
     }
 }

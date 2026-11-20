@@ -3,6 +3,10 @@ package io.github.metricambient.luxtunes.ui
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
+import androidx.compose.material.icons.filled.SkipNext
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -53,8 +57,12 @@ import kotlinx.coroutines.delay
 
 // ---- Mini player (bottom of every screen) ----------------------------------------------------
 
+/**
+ * The mini player: a card floating over the bottom of the screen. Tap it for Now Playing;
+ * play/pause and next on the right; a thin line along its bottom shows how far the song is.
+ */
 @Composable
-fun MiniPlayer(nav: NavHostController, showMenu: Boolean) {
+fun MiniPlayer(nav: NavHostController, modifier: Modifier = Modifier) {
     val app = app()
     val library by app.repository.state.collectAsState()
     val state by app.player.state.collectAsState()
@@ -67,38 +75,41 @@ fun MiniPlayer(nav: NavHostController, showMenu: Boolean) {
             delay(500)
         }
     }
-    Column(Modifier.fillMaxWidth().background(Lux.background)) {
-        Box(Modifier.fillMaxWidth().height(3.dp).background(Lux.track)) {
-            Box(Modifier.fillMaxHeight().fillMaxWidth(progress).background(Lux.accent))
-        }
-        Row(
-            Modifier.fillMaxWidth().height(64.dp).clickable { nav.go(if (track?.isVideo == true) Routes.VIDEO else Routes.NOW) },
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Artwork(track, Modifier.size(64.dp), noteSize = 36.dp)
+    val shape = RoundedCornerShape(16.dp)
+    Box(
+        modifier
+            .fillMaxWidth()
+            .height(64.dp)
+            .shadow(10.dp, shape)
+            .clip(shape)
+            .background(Lux.panel)
+            .clickable { nav.go(if (track?.isVideo == true) Routes.VIDEO else Routes.NOW) },
+    ) {
+        Row(Modifier.fillMaxSize().padding(start = 8.dp, end = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+            Artwork(track, Modifier.size(46.dp).clip(RoundedCornerShape(10.dp)), noteSize = 26.dp)
             Column(Modifier.weight(1f).padding(horizontal = 12.dp)) {
-                Text(track?.displayName ?: "Not playing", color = Lux.text, fontSize = 17.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text(track?.displayName ?: "Not playing", color = Lux.text, fontSize = 16.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 if (track != null) Text(track.artist, color = Lux.dim, fontSize = 14.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
-            IconButton(onClick = { app.player.togglePlay() }, modifier = Modifier.size(56.dp)) {
+            SleepTimerBadge()
+            Box(
+                Modifier
+                    .size(44.dp)
+                    .clip(RoundedCornerShape(14.dp))
+                    .background(Lux.accent)
+                    .clickable { app.player.togglePlay() },
+                contentAlignment = Alignment.Center,
+            ) {
                 Icon(
                     if (state.isPlaying) Icons.Filled.Pause else Icons.Filled.PlayArrow,
-                    if (state.isPlaying) "Pause" else "Play", tint = Lux.icon, modifier = Modifier.size(44.dp),
+                    if (state.isPlaying) "Pause" else "Play", tint = Lux.onAccent, modifier = Modifier.size(30.dp),
                 )
             }
-            SleepTimerBadge()
-            if (showMenu) {
-                MoreMenu(sleepTimerMenu() + listOf(
-                    "Search" to { nav.go(Routes.SEARCH) },
-                    "Rescan Device" to { app.repository.refreshAsync() },
-                    "Add Folder to Library…" to { AddFolder.show() },
-                    "Switch Theme" to { nav.go(Routes.SETTINGS_THEME) },
-                    "Settings" to { nav.go(Routes.SETTINGS) },
-                ))
-            } else {
-                Spacer(Modifier.width(8.dp))
+            IconButton(onClick = { app.player.next() }) {
+                Icon(Icons.Filled.SkipNext, "Next", tint = Lux.text, modifier = Modifier.size(32.dp))
             }
         }
+        Box(Modifier.align(Alignment.BottomStart).fillMaxWidth(progress).height(2.dp).background(Lux.accent))
     }
 }
 
@@ -119,7 +130,7 @@ fun SearchScreen(nav: NavHostController) {
             IconButton(onClick = { nav.popBackStack() }) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back", tint = Lux.text) }
             SearchField(query, { query = it })
         }
-        LazyColumn(Modifier.fillMaxSize()) {
+        LazyColumn(Modifier.fillMaxSize(), contentPadding = androidx.compose.foundation.layout.PaddingValues(bottom = LocalMiniSpace.current)) {
             if (artists.isNotEmpty()) item { Heading("Artists") }
             items(artists, key = { "ar:" + it.name }) { a ->
                 ListRow(a.name, plural(a.albums.size, "album"), onClick = { nav.go(Routes.artist(a.name)) },

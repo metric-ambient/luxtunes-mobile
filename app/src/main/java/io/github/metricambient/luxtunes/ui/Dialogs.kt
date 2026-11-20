@@ -14,6 +14,7 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.RadioButton
+import androidx.compose.material3.RadioButtonDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -39,6 +40,7 @@ sealed interface DialogRequest {
     data class EditTags(val ids: List<String>) : DialogRequest
     data class Delete(val ids: List<String>) : DialogRequest
     data class ChooseStorage(val firstTime: Boolean) : DialogRequest
+    data class SetEq(val ids: List<String>, val title: String) : DialogRequest
     data class Choose(
         val title: String,
         val options: List<String>,
@@ -61,11 +63,11 @@ fun DialogHost() {
         null -> {}
         is DialogRequest.AddToPlaylist -> AddToPlaylistDialog(r.ids)
         is DialogRequest.Duplicates -> DuplicatesDialog(r)
-        is DialogRequest.NewPlaylist -> NameDialog("New playlist", "", "Create") { name ->
+        is DialogRequest.NewPlaylist -> NameDialog("New Playlist", "", "Create") { name ->
             app.repository.createPlaylist(name, r.ids)
             if (r.ids.isNotEmpty()) Notice.show("${plural(r.ids.size, "song")} added to ${name.trim()}")
         }
-        is DialogRequest.RenamePlaylist -> NameDialog("Rename playlist", r.name, "Rename") { name ->
+        is DialogRequest.RenamePlaylist -> NameDialog("Rename Playlist", r.name, "Rename") { name ->
             app.repository.renamePlaylist(r.id, name)
         }
         is DialogRequest.DeletePlaylist -> DeletePlaylistDialog(r)
@@ -74,7 +76,66 @@ fun DialogHost() {
         is DialogRequest.Delete -> DeleteDialog(r.ids)
         is DialogRequest.ChooseStorage -> StorageDialog(r.firstTime)
         is DialogRequest.Choose -> ChooseDialog(r)
+        is DialogRequest.SetEq -> SetEqDialog(r)
     }
+}
+
+/**
+ * Set EQ…: an equalizer preset for a song, or for every song of an album, artist or
+ * playlist. It's kept in each song (as LuxTunes does) and goes to LuxTunes at the next sync.
+ * None: the song follows the equalizer's own choice.
+ */
+@Composable
+private fun SetEqDialog(r: DialogRequest.SetEq) {
+    val app = app()
+    val library by app.repository.state.collectAsState()
+    val eq by app.repository.equalizer.collectAsState()
+    val tracks = remember(r) { r.ids.mapNotNull { library.byId[it] } }
+    if (tracks.isEmpty()) { Dialogs.close(); return }
+    // What they have now: one preset for all of them, or null when they differ.
+    val now = remember(tracks) { tracks.map { (it.raw["equalizer"] as? String).orEmpty().trim() }.distinct().singleOrNull() }
+    var choice by remember(r) { mutableStateOf(now) }
+    val names = listOf("") + eq.presets.map { it.name }
+    AlertDialog(
+        onDismissRequest = { Dialogs.close() },
+        title = { Text("Set EQ") },
+        text = {
+            Column {
+                Text(r.title, color = Lux.dim, fontSize = 14.sp, maxLines = 2, modifier = Modifier.padding(bottom = 8.dp))
+                LazyColumn(Modifier.heightIn(max = 360.dp)) {
+                    items(names) { name ->
+                        Row(
+                            Modifier.fillMaxWidth().clickable { choice = name }.padding(vertical = 4.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            RadioButton(
+                                selected = choice.equals(name, ignoreCase = true), onClick = { choice = name },
+                                colors = RadioButtonDefaults.colors(selectedColor = Lux.accent),
+                            )
+                            Text(
+                                name.ifEmpty { "None (follow the equalizer)" },
+                                color = if (name.isEmpty()) Lux.dim else Lux.text, fontSize = 16.sp,
+                            )
+                        }
+                    }
+                }
+                Text(
+                    if (tracks.size == 1) "Kept with the song and sent to LuxTunes at the next sync."
+                    else "Set on all ${tracks.size} songs and sent to LuxTunes at the next sync.",
+                    color = Lux.dim, fontSize = 13.sp, modifier = Modifier.padding(top = 8.dp),
+                )
+            }
+        },
+        confirmButton = {
+            TextButton(enabled = choice != null && choice != now, onClick = {
+                val picked = choice ?: return@TextButton
+                app.repository.editTags(tracks.map { it.id }, mapOf("equalizer" to picked))
+                Dialogs.close()
+                Notice.show(if (picked.isEmpty()) "EQ cleared" else "EQ set to $picked")
+            }) { Text("Save") }
+        },
+        dismissButton = { TextButton(onClick = { Dialogs.close() }) { Text("Cancel") } },
+    )
 }
 
 /** From Now Playing and the ⋮ menus: the queue, a new playlist, or one of the phone's playlists. */

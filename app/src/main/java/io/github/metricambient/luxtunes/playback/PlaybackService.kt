@@ -178,8 +178,18 @@ class PlaybackService : MediaSessionService() {
 
     override fun onTaskRemoved(rootIntent: Intent?) {
         savePosition()
+        // Paused with songs queued: keep going, so the notification stays to play again.
         val player = session?.player
-        if (player == null || !player.playWhenReady || player.mediaItemCount == 0) stopSelf()
+        if (player == null || player.mediaItemCount == 0) stopSelf()
+    }
+
+    /**
+     * Stay a foreground service while paused too, as long as there's something to play.
+     * Otherwise Android may stop the app in the background, and the notification goes with it.
+     */
+    override fun onUpdateNotification(session: MediaSession, startInForegroundRequired: Boolean) {
+        val queued = session.player.mediaItemCount > 0 && session.player.playbackState != Player.STATE_IDLE
+        super.onUpdateNotification(session, startInForegroundRequired || queued)
     }
 
     override fun onDestroy() {

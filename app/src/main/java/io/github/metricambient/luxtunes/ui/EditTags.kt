@@ -79,6 +79,7 @@ internal fun InfoDialog(ids: List<String>) {
             "Disc" to countText(numberOf(t, "disc_number"), numberOf(t, "disc_count")),
             "Compilation" to (if (numberOf(t, "compilation") != 0L) "Yes" else ""),
             "Comments" to textOf(t, "comments"),
+            "Equalizer" to textOf(t, "equalizer"),
             "Time" to formatTime(t.totalTime),
             "Rating" to ratingText(t),
             "Plays" to "${t.playCount}",

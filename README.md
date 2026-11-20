@@ -22,10 +22,14 @@ next sync.
 
 - Plays what LuxTunes put in the `LuxTunes` folder on the phone (internal storage or SD
   card), with LuxTunes' own song details, ratings, play counts, lyrics and playlists.
-- Browse by artist, album, song and playlist, with search in every tab, a fast-scroll
-  handle with letters, and sorting (also in reverse).
+- Browse by artist, album, song and playlist, with the tabs along the bottom, play and
+  shuffle buttons and search at the top of every tab, quick filters for albums, a
+  fast-scroll handle with letters, and sorting (also in reverse). A floating mini player
+  shows what's playing.
 - Now Playing with album art, star ratings and lyrics; timed lyrics (LuxTunes 0.8.5+)
-  light up the line being sung. Lock-screen, notification and Bluetooth controls.
+  light up the line being sung. Hold Previous or Next to rewind or fast-forward. Works in
+  split screen and landscape. Lock-screen, notification and Bluetooth controls; the
+  notification stays while paused.
 - Records plays, skips and ratings and hands them to LuxTunes at the next USB sync. A skip
   is pressing Next between 2 and 20 seconds into a song, as in LuxTunes.
 - Shuffle works as in LuxTunes: albums heard lately come up early less often, songs heard
@@ -38,7 +42,7 @@ next sync.
   compilation (or Various Artists), as in LuxTunes.
 - Movies and TV shows play full screen.
 - Settings → Sound: LuxTunes' ten-band equalizer with the same presets (synced with the
-  computer), crossfade or gapless, autoplay, playback speed for music and for
+  computer) and a preset per song, album, artist or playlist (Set EQ…), crossfade or gapless, autoplay, playback speed for music and for
   audiobooks/podcasts, ReplayGain and mono; what happens during phone calls and when other
   apps play sound.
 - Sleep timer, from 15 minutes to 8 hours, fading out at the end.
@@ -47,7 +51,7 @@ next sync.
 - Dark, Material and Light themes with your own colors, or an accent color taken from the
   album art.
 - Tabs for artists, album artists, genres, composers, podcasts, audiobooks, movies and TV
-  shows (choose them in Settings → Tabs, drag to reorder), select mode, Get Info with
+  shows (choose them in Settings → Tabs, drag to reorder), Edit mode to tick several, Get Info with
   editing of song details (sent to LuxTunes at the next sync), and deleting songs from the
   phone (LuxTunes puts them back at the next sync if they're still chosen there).
 - Add Folder to Library moves (or copies) songs already on the phone into the library;
