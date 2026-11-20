@@ -104,12 +104,18 @@ private val HELP: List<Pair<String, String>> = listOf(
         "list from that song, just that song, or the list shuffled).\n\n" +
         "The floating bar near the bottom shows what's playing; tap it for Now Playing. Beside " +
         "it, Play and Shuffle play whatever screen you're on (a tab, an artist, an album or a " +
-        "playlist). In Now Playing, tap the " +
-        "album art to rate the song and see its lyrics. With timed lyrics from LuxTunes, the " +
+        "playlist). Now Playing opens out of the bar and shrinks back into it.\n\n" +
+        "In Now Playing, tap the album art (or the empty space around it) to see the lyrics and " +
+        "rate the song: the stars appear under the art when there's room, otherwise on it. " +
+        "Tap again to hide them. With timed lyrics from LuxTunes, the " +
         "line being sung lights up and stays in the middle (Settings → Operation turns this off).\n\n" +
         "Shuffle and Repeat are next to the play button. Turning Shuffle off goes back to the " +
         "original order. When they're on, they light up with a dot underneath.\n\n" +
         "Hold down Previous or Next to rewind or fast-forward through the song.\n\n" +
+        "Names too long to fit (song, artist, album, a page's title) scroll across after a few " +
+        "seconds, then pause and go again.\n\n" +
+        "The bar at the bottom of Now Playing has Back, Get Info, the sleep timer, the " +
+        "equalizer, Add to Playlist, the queue and More.\n\n" +
         "Shuffle works as in LuxTunes: albums you've heard in the last two weeks come up early " +
         "less often, and songs you heard in the last two days (or this session) wait until " +
         "everything else has played. Albums and artists are kept well apart: in a big list, " +
@@ -147,12 +153,13 @@ private val HELP: List<Pair<String, String>> = listOf(
     "Queue (Up Next)" to
         "In any ⋮ menu, Add to Queue plays songs right after the current one (and after anything " +
         "you queued before). Add to End of Queue puts them at the very end.\n\n" +
-        "See or change the queue with the list button at the bottom of Now Playing.",
+        "See or change the queue with the list button at the bottom of Now Playing; Back " +
+        "returns to Now Playing.",
     "Artists, albums and playlists" to
         "On an artist page, two buttons beside the picture switch with one tap: shuffling by " +
         "songs or by albums (the Shuffle button beside the floating bar shows which), and " +
         "Song View (all the songs in one list) or Album View. Both are kept for next time.\n\n" +
-        "Back is at the bottom left of every page, and More at the bottom right.\n\n" +
+        "Back (the arrow) is at the bottom left of every page, and More (⋮) at the bottom right.\n\n" +
         "Below an artist's albums, Featured On lists songs by other artists that feature them, " +
         "and Play and Shuffle take them in with the artist's own songs " +
         "(Settings → Operation → Exclude Featured hides them).\n\n" +
@@ -161,7 +168,8 @@ private val HELP: List<Pair<String, String>> = listOf(
         "turns this off.",
     "Playlists and smart playlists" to
         "In the Playlists tab, use Create Playlist, or add songs from any ⋮ menu → Add to " +
-        "playlist.\n\nCreate Smart Playlist makes a playlist that fills itself from rules, " +
+        "playlist. When the list of playlists is longer than the window, an arrow at its top or " +
+        "bottom shows there's more to scroll to.\n\nCreate Smart Playlist makes a playlist that fills itself from rules, " +
         "like \"Rating is 5 stars\" or \"Genre contains Rock\". Smart playlists work the same " +
         "way as in LuxTunes and go back to it at the next sync.",
     "Selecting several songs" to

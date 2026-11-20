@@ -68,6 +68,7 @@ import androidx.navigation.NavBackStackEntry
 import androidx.navigation.NavHostController
 import io.github.metricambient.luxtunes.data.Track
 import kotlinx.coroutines.delay
+import androidx.compose.runtime.SideEffect
 import androidx.compose.foundation.border
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.graphics.Brush
@@ -129,15 +130,18 @@ fun NowPlayingScreen(nav: NavHostController) {
                 IconButton(onClick = { Dialogs.show(DialogRequest.Info(listOf(track.id))) }) {
                     Icon(Icons.Filled.Info, "Get Info", tint = Lux.icon)
                 }
-                IconButton(onClick = { Dialogs.show(DialogRequest.AddToPlaylist(listOf(track.id))) }) {
-                    Icon(Icons.AutoMirrored.Filled.PlaylistAdd, "Add to Playlist", tint = Lux.icon)
-                }
             }
             SleepTimerBadge(alwaysShow = true)
             IconButton(onClick = { eqPopup = true }) {
                 Icon(Icons.Filled.Equalizer, "Equalizer", tint = if (eq.on) Lux.accent else Lux.icon)
             }
-            IconButton(onClick = { nav.goFromNowPlaying(Routes.QUEUE) }) {
+            if (track != null) {
+                IconButton(onClick = { Dialogs.show(DialogRequest.AddToPlaylist(listOf(track.id))) }) {
+                    Icon(Icons.AutoMirrored.Filled.PlaylistAdd, "Add to Playlist", tint = Lux.icon)
+                }
+            }
+            // The queue opens over Now Playing, so Back comes back here.
+            IconButton(onClick = { nav.go(Routes.QUEUE) }) {
                 Icon(Icons.AutoMirrored.Filled.QueueMusic, "Play Queue - Up Next", tint = Lux.icon)
             }
             val menu = mutableListOf<Pair<String, () -> Unit>>()
@@ -162,13 +166,8 @@ fun NowPlayingScreen(nav: NavHostController) {
         // With no room for the art, tapping here shows the rating instead.
         val tap = if (!artShown && track != null) Modifier.clickable { overlay = !overlay } else Modifier
         Column(Modifier.fillMaxWidth().then(tap).padding(start = 16.dp, end = 16.dp, top = 12.dp, bottom = 4.dp)) {
-            ScrollingTitle(track?.displayName ?: "Not playing")
-            if (track != null) {
-                Text(
-                    "${track.artist} / ${track.album}", color = Lux.dim, fontSize = 15.sp,
-                    maxLines = 1, overflow = TextOverflow.Ellipsis,
-                )
-            }
+            ScrollingText(track?.displayName ?: "Not playing", Lux.text, 22.sp)
+            if (track != null) ScrollingText("${track.artist} / ${track.album}", Lux.dim, 15.sp)
         }
     }
     val ratingBar: @Composable (Modifier) -> Unit = { place ->
@@ -257,27 +256,33 @@ fun NowPlayingScreen(nav: NavHostController) {
     }
 
     // Split screen and small windows: the art shrinks first, then goes; the controls always stay.
-    // The rating moves out of the art, at full size and full width, once the art is too small for it.
-    // Any room left over goes between the art and the controls.
+    // Tapping the art, or the empty space around it, shows the lyrics (over the art) and the
+    // rating: in the empty space under the art when there's room, else on the art itself.
     val landscape = LocalConfiguration.current.orientation == Configuration.ORIENTATION_LANDSCAPE
+    val toggleOverlay = Modifier.clickable(
+        interactionSource = remember { MutableInteractionSource() }, indication = null,
+    ) { if (track != null) overlay = !overlay }
+    var sideRoom by remember { mutableStateOf(true) }        // landscape: room for the rating beside the art
     Column(Modifier.fillMaxSize().background(Lux.background)) {
         if (landscape) {
             // Art on the right at full height; everything else to its left; the bar below both.
             BoxWithConstraints(Modifier.fillMaxWidth().weight(1f)) {
                 val art = minOf(maxHeight, maxWidth - CONTROLS_WIDTH)
                 val showArt = art >= MIN_ART
-                val ratingOutside = !showArt || art < RATING_ART
                 LaunchedEffect(showArt) { artShown = showArt }
                 Row(Modifier.fillMaxSize(), verticalAlignment = Alignment.CenterVertically) {
                     Column(Modifier.weight(1f).fillMaxHeight()) {
                         titleBlock()
-                        BoxWithConstraints(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.BottomCenter) {
-                            if (overlay && ratingOutside && maxHeight >= RATING_HEIGHT) ratingBar(Modifier.fillMaxWidth())
+                        BoxWithConstraints(Modifier.weight(1f).fillMaxWidth().then(toggleOverlay), contentAlignment = Alignment.BottomCenter) {
+                            val room = maxHeight >= RATING_HEIGHT
+                            SideEffect { sideRoom = room }
+                            if (overlay && room) ratingBar(Modifier.fillMaxWidth())
                         }
                         controls()
                         seekBar()
+                        Spacer(Modifier.height(8.dp))
                     }
-                    if (showArt) artwork(art, !ratingOutside)
+                    if (showArt) artwork(art, !sideRoom && art >= RATING_ART)
                 }
             }
             bottomBar()
@@ -285,23 +290,28 @@ fun NowPlayingScreen(nav: NavHostController) {
             titleBlock()
             Spacer(Modifier.height(8.dp))
             // Square, as big as fits: the full width on tall phones, smaller on short ones.
-            BoxWithConstraints(Modifier.fillMaxWidth().weight(1f)) {
+            BoxWithConstraints(Modifier.fillMaxWidth().weight(1f).then(toggleOverlay)) {
                 val fits = minOf(maxWidth, maxHeight)
                 val showArt = fits >= MIN_ART
-                val ratingOutside = !showArt || fits < RATING_ART
-                // The rating below the art needs its height; if that leaves the art too small, no rating.
-                val ratingRoom = maxHeight - RATING_HEIGHT
-                val showRating = overlay && ratingOutside && ratingRoom >= (if (showArt) MIN_ART else 0.dp)
-                val art = if (showRating) minOf(maxWidth, ratingRoom) else fits
+                // Room under the art: the rating goes there. Otherwise on the art if it's big
+                // enough; otherwise the art shrinks to make room under it (or there's no rating).
+                val below = maxHeight - (if (showArt) fits else 0.dp) >= RATING_HEIGHT + 8.dp
+                val inside = !below && showArt && fits >= RATING_ART
+                val squeeze = !below && !inside && overlay && maxHeight - RATING_HEIGHT >= (if (showArt) MIN_ART else 0.dp)
+                val art = if (squeeze) minOf(maxWidth, maxHeight - RATING_HEIGHT) else fits
                 LaunchedEffect(showArt) { artShown = showArt }
                 Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
-                    if (showArt) artwork(art, !ratingOutside)
-                    if (showRating) ratingBar(Modifier.fillMaxWidth())
+                    if (showArt) artwork(art, inside)
+                    if (overlay && (below || squeeze)) {
+                        if (below) Spacer(Modifier.height(8.dp))
+                        ratingBar(Modifier.fillMaxWidth())
+                    }
                 }
             }
             Spacer(Modifier.height(8.dp))
             controls()
             seekBar()
+            Spacer(Modifier.height(16.dp))
             bottomBar()
         }
     }
@@ -437,42 +447,3 @@ private fun NavHostController.upTo(track: Track, album: Boolean) {
     if (album) navigate(Routes.album(track.albumKey))
 }
 
-/**
- * The song title. Too long to fit: after a few seconds it scrolls round once, pauses
- * a few seconds, and goes again, until the song changes. Short titles stay still.
- */
-@Composable
-private fun ScrollingTitle(text: String) {
-    val scroll = rememberScrollState()
-    val density = LocalDensity.current
-    var boxWidth by remember { mutableIntStateOf(0) }
-    var textWidth by remember(text) { mutableIntStateOf(0) }
-    val gap = 48.dp
-    val tooLong = boxWidth > 0 && textWidth > boxWidth
-    LaunchedEffect(text, tooLong) {
-        scroll.scrollTo(0)
-        if (!tooLong) return@LaunchedEffect
-        val loop = textWidth + with(density) { gap.roundToPx() }      // one title + the gap
-        val millis = (loop / with(density) { 40.dp.toPx() } * 1000).toInt()   // 40 dp a second
-        while (true) {
-            delay(3000)
-            scroll.animateScrollTo(loop, tween(millis, easing = LinearEasing))
-            scroll.scrollTo(0)          // the second copy is where the first was: no jump
-        }
-    }
-    Row(
-        Modifier
-            .fillMaxWidth()
-            .onSizeChanged { boxWidth = it.width }
-            .horizontalScroll(scroll, enabled = false),
-    ) {
-        Text(
-            text, color = Lux.text, fontSize = 22.sp, maxLines = 1, softWrap = false,
-            onTextLayout = { textWidth = it.size.width },
-        )
-        if (tooLong) {
-            Spacer(Modifier.width(gap))
-            Text(text, color = Lux.text, fontSize = 22.sp, maxLines = 1, softWrap = false)
-        }
-    }
-}

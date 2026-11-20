@@ -37,6 +37,10 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.scaleOut
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -174,7 +178,7 @@ private fun MainScreens() {
                 nav,
                 startDestination = Routes.HOME,
                 // Quick fades (the default is 0.7 s, long enough to tap the old screen by mistake).
-                // Now Playing slides up over the screen below, which stays put meanwhile.
+                // Now Playing opens out of the floating player over the screen below, which stays put meanwhile.
                 enterTransition = { fadeIn(tween(150)) },
                 exitTransition = {
                     if (targetState.destination.route == Routes.NOW) ExitTransition.KeepUntilTransitionsFinished
@@ -188,8 +192,15 @@ private fun MainScreens() {
                 screen(nav, Routes.HOME) { HomeScreen(nav) }
                 screen(
                     nav, Routes.NOW,
-                    enter = { slideInVertically(tween(300)) { it } },
-                    popExit = { slideOutVertically(tween(300)) { it } },
+                    // Opens out of the floating player and shrinks back into it.
+                    enter = {
+                        scaleIn(tween(320, easing = FastOutSlowInEasing), initialScale = 0.08f, transformOrigin = TransformOrigin(MiniSpot.x, MiniSpot.y)) +
+                            fadeIn(tween(200))
+                    },
+                    popExit = {
+                        scaleOut(tween(300, easing = FastOutSlowInEasing), targetScale = 0.08f, transformOrigin = TransformOrigin(MiniSpot.x, MiniSpot.y)) +
+                            fadeOut(tween(260))
+                    },
                 ) { NowPlayingScreen(nav) }
                 screen(nav, Routes.SETTINGS) { SettingsScreen(nav) }
                 screen(nav, Routes.SETTINGS_TABS) { TabsSettingsScreen(nav) }

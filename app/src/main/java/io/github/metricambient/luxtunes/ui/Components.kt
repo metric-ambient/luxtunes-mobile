@@ -2,6 +2,17 @@ package io.github.metricambient.luxtunes.ui
 
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.tween
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.unit.TextUnit
+import kotlinx.coroutines.delay
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -260,4 +271,51 @@ fun MenuTitle(text: String) {
             .background(lerp(Lux.panel, Lux.text, 0.12f))
             .padding(horizontal = 16.dp, vertical = 12.dp),
     )
+}
+
+/**
+ * One line of text. Too long to fit: after a few seconds it scrolls round once, pauses a
+ * few seconds, and goes again, until the text changes. Short text stays still. Each time
+ * it comes into view it starts again from the left, still.
+ */
+@Composable
+fun ScrollingText(
+    text: String,
+    color: Color,
+    fontSize: TextUnit,
+    modifier: Modifier = Modifier,
+    fontWeight: FontWeight? = null,
+) {
+    val scroll = rememberScrollState()
+    val density = LocalDensity.current
+    var boxWidth by remember { mutableIntStateOf(0) }
+    var textWidth by remember(text) { mutableIntStateOf(0) }
+    val gap = 48.dp
+    val tooLong = boxWidth > 0 && textWidth > boxWidth
+    LaunchedEffect(text, tooLong) {
+        scroll.scrollTo(0)
+        if (!tooLong) return@LaunchedEffect
+        val loop = textWidth + with(density) { gap.roundToPx() }      // one copy + the gap
+        val millis = (loop / with(density) { 40.dp.toPx() } * 1000).toInt()   // 40 dp a second
+        while (true) {
+            delay(3000)
+            scroll.animateScrollTo(loop, tween(millis, easing = LinearEasing))
+            scroll.scrollTo(0)          // the second copy is where the first was: no jump
+        }
+    }
+    Row(
+        modifier
+            .fillMaxWidth()
+            .onSizeChanged { boxWidth = it.width }
+            .horizontalScroll(scroll, enabled = false),
+    ) {
+        Text(
+            text, color = color, fontSize = fontSize, fontWeight = fontWeight, maxLines = 1, softWrap = false,
+            onTextLayout = { textWidth = it.size.width },
+        )
+        if (tooLong) {
+            Spacer(Modifier.width(gap))
+            Text(text, color = color, fontSize = fontSize, fontWeight = fontWeight, maxLines = 1, softWrap = false)
+        }
+    }
 }

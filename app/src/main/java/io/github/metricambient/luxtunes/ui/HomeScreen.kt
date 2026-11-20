@@ -286,10 +286,7 @@ private fun TabHeader(nav: NavHostController, tabName: String, library: LibraryS
         Modifier.fillMaxWidth().height(64.dp).padding(start = 16.dp, end = 4.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Text(
-            tabName, color = Lux.text, fontSize = 30.sp, fontWeight = FontWeight.Bold,
-            maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f),
-        )
+        ScrollingText(tabName, Lux.text, 30.sp, Modifier.weight(1f), fontWeight = FontWeight.Bold)
         if (!settings.hideSearch && library.allTracks.isNotEmpty()) {
             IconButton(onClick = { nav.go(Routes.SEARCH) }) { Icon(Icons.Filled.Search, "Search", tint = Lux.icon, modifier = Modifier.size(26.dp)) }
         }

@@ -114,10 +114,7 @@ private fun LazyListScope.pageTop(
                 Spacer(Modifier.width(14.dp))
                 Column(Modifier.weight(1f).fillMaxHeight()) {
                     Column(Modifier.weight(1f).fillMaxWidth(), verticalArrangement = Arrangement.Center) {
-                        Text(
-                            title, color = Lux.text, fontSize = 24.sp, fontWeight = FontWeight.Bold, lineHeight = 28.sp,
-                            maxLines = 2, overflow = TextOverflow.Ellipsis,
-                        )
+                        ScrollingText(title, Lux.text, 24.sp, fontWeight = FontWeight.Bold)
                         if (info.isNotEmpty()) Text(
                             info, color = Lux.dim, fontSize = 13.sp, lineHeight = 18.sp,
                             maxLines = 3, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 4.dp),
