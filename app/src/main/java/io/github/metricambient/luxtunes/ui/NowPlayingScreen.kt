@@ -68,6 +68,19 @@ import androidx.navigation.NavBackStackEntry
 import androidx.navigation.NavHostController
 import io.github.metricambient.luxtunes.data.Track
 import kotlinx.coroutines.delay
+import androidx.compose.foundation.border
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.graphics.Brush
+import io.github.metricambient.luxtunes.data.ThemeStyle
+import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.role
+import androidx.compose.ui.semantics.semantics
+import kotlinx.coroutines.launch
 
 @Composable
 fun NowPlayingScreen(nav: NavHostController) {
@@ -102,19 +115,22 @@ fun NowPlayingScreen(nav: NavHostController) {
     }
 
     // The pieces of the screen, arranged below by orientation.
-    val topBar: @Composable () -> Unit = {
-        // Back, then the actions
-        Row(Modifier.fillMaxWidth().padding(top = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+    val bottomBar: @Composable () -> Unit = {
+        // Back at the left, the ⋮ menu at the right, the song's actions between
+        Row(
+            Modifier.fillMaxWidth().height(BOTTOM_BAR).background(Lux.bar).padding(horizontal = 4.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
             IconButton(onClick = { nav.popBackStack() }) {
                 Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back", tint = Lux.text)
             }
-            Spacer(Modifier.weight(1f))
             if (track != null) {
                 IconButton(onClick = { Dialogs.show(DialogRequest.Info(listOf(track.id))) }) {
                     Icon(Icons.Filled.Info, "Get Info", tint = Lux.icon)
                 }
                 IconButton(onClick = { Dialogs.show(DialogRequest.AddToPlaylist(listOf(track.id))) }) {
-                    Icon(Icons.AutoMirrored.Filled.PlaylistAdd, "Add to playlist", tint = Lux.icon)
+                    Icon(Icons.AutoMirrored.Filled.PlaylistAdd, "Add to Playlist", tint = Lux.icon)
                 }
             }
             SleepTimerBadge(alwaysShow = true)
@@ -129,21 +145,22 @@ fun NowPlayingScreen(nav: NavHostController) {
                 menu += "Get Info" to { Dialogs.show(DialogRequest.Info(listOf(track.id))) }
                 menu += "Go to Album" to { nav.upTo(track, album = true) }
                 menu += "Go to Artist" to { nav.upTo(track, album = false) }
-                menu += "Add to playlist…" to { Dialogs.show(DialogRequest.AddToPlaylist(listOf(track.id))) }
-                menu += "Delete from phone" to { Dialogs.show(DialogRequest.Delete(listOf(track.id))) }
+                menu += "Add to Playlist…" to { Dialogs.show(DialogRequest.AddToPlaylist(listOf(track.id))) }
+                menu += "Set EQ…" to { Dialogs.show(DialogRequest.SetEq(listOf(track.id), track.displayName)) }
+                menu += "Delete from Phone" to { Dialogs.show(DialogRequest.Delete(listOf(track.id))) }
             }
             menu += sleepTimerMenu()
             menu += "Add Folder to Library…" to { AddFolder.show() }
             menu += "Search" to { nav.goFromNowPlaying(Routes.SEARCH) }
             menu += "Settings" to { nav.goFromNowPlaying(Routes.SETTINGS) }
-            MoreMenu(menu)
+            MoreMenu(menu, title = track?.displayName)
         }
     }
     val titleBlock: @Composable () -> Unit = {
         // The song on its own line, artist / album below it
         // With no room for the art, tapping here shows the rating instead.
         val tap = if (!artShown && track != null) Modifier.clickable { overlay = !overlay } else Modifier
-        Column(Modifier.fillMaxWidth().then(tap).padding(horizontal = 16.dp, vertical = 4.dp)) {
+        Column(Modifier.fillMaxWidth().then(tap).padding(start = 16.dp, end = 16.dp, top = 12.dp, bottom = 4.dp)) {
             ScrollingTitle(track?.displayName ?: "Not playing")
             if (track != null) {
                 Text(
@@ -195,37 +212,21 @@ fun NowPlayingScreen(nav: NavHostController) {
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            IconButton(onClick = { app.player.toggleShuffle() }, modifier = Modifier.size(48.dp)) {
-                Icon(Icons.Filled.Shuffle, "Shuffle", tint = if (state.shuffle) Lux.accent else Lux.icon, modifier = Modifier.size(32.dp))
-            }
-            IconButton(onClick = { app.player.previous() }, modifier = Modifier.size(64.dp)) {
-                Icon(Icons.Filled.SkipPrevious, "Previous", tint = Lux.icon, modifier = Modifier.size(56.dp))
-            }
-            Box(
-                Modifier
-                    .size(104.dp)
-                    .clip(CircleShape)
-                    .background(if (state.isPlaying) Lux.accent else Lux.dim)
-                    .clickable { app.player.togglePlay() },
-                contentAlignment = Alignment.Center,
-            ) {
-                Icon(
-                    if (state.isPlaying) Icons.Filled.Pause else Icons.Filled.PlayArrow,
-                    if (state.isPlaying) "Pause" else "Play",
-                    tint = if (state.isPlaying) Lux.onAccent else Lux.background, modifier = Modifier.size(70.dp),
-                )
-            }
-            IconButton(onClick = { app.player.next() }, modifier = Modifier.size(64.dp)) {
-                Icon(Icons.Filled.SkipNext, "Next", tint = Lux.icon, modifier = Modifier.size(56.dp))
-            }
-            IconButton(onClick = { app.player.cycleRepeat() }, modifier = Modifier.size(48.dp)) {
-                Icon(
-                    if (state.repeatMode == Player.REPEAT_MODE_ONE) Icons.Filled.RepeatOne else Icons.Filled.Repeat,
-                    "Repeat",
-                    tint = if (state.repeatMode == Player.REPEAT_MODE_OFF) Lux.icon else Lux.accent,
-                    modifier = Modifier.size(32.dp),
-                )
-            }
+            ToggleButton(
+                if (state.shuffle) LuxIcons.ShuffleOn else LuxIcons.Shuffle, "Shuffle", state.shuffle,
+            ) { app.player.toggleShuffle() }
+            SkipButton(Icons.Filled.SkipPrevious, "Previous", forward = false) { app.player.previous() }
+            PlayPauseButton(state.isPlaying) { app.player.togglePlay() }
+            SkipButton(Icons.Filled.SkipNext, "Next", forward = true) { app.player.next() }
+            val repeatOn = state.repeatMode != Player.REPEAT_MODE_OFF
+            ToggleButton(
+                when {
+                    state.repeatMode == Player.REPEAT_MODE_ONE -> LuxIcons.RepeatOneOn
+                    repeatOn -> LuxIcons.RepeatOn
+                    else -> LuxIcons.Repeat
+                },
+                "Repeat", repeatOn,
+            ) { app.player.cycleRepeat() }
         }
     }
     val seekBar: @Composable () -> Unit = {
@@ -256,52 +257,111 @@ fun NowPlayingScreen(nav: NavHostController) {
 
     // Split screen and small windows: the art shrinks first, then goes; the controls always stay.
     // The rating moves out of the art, at full size and full width, once the art is too small for it.
+    // Any room left over goes between the art and the controls.
     val landscape = LocalConfiguration.current.orientation == Configuration.ORIENTATION_LANDSCAPE
-    BoxWithConstraints(Modifier.fillMaxSize().background(Lux.background)) {
+    Column(Modifier.fillMaxSize().background(Lux.background)) {
         if (landscape) {
-            // Art on the right at full height; everything else to its left.
-            val art = minOf(maxHeight, maxWidth - CONTROLS_WIDTH)
-            val showArt = art >= MIN_ART
-            val ratingOutside = !showArt || art < RATING_ART
-            LaunchedEffect(showArt) { artShown = showArt }
-            Row(Modifier.fillMaxSize(), verticalAlignment = Alignment.CenterVertically) {
-                Column(Modifier.weight(1f).fillMaxHeight()) {
-                    topBar()
-                    titleBlock()
-                    BoxWithConstraints(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.BottomCenter) {
-                        if (overlay && ratingOutside && maxHeight >= RATING_HEIGHT) ratingBar(Modifier.fillMaxWidth())
+            // Art on the right at full height; everything else to its left; the bar below both.
+            BoxWithConstraints(Modifier.fillMaxWidth().weight(1f)) {
+                val art = minOf(maxHeight, maxWidth - CONTROLS_WIDTH)
+                val showArt = art >= MIN_ART
+                val ratingOutside = !showArt || art < RATING_ART
+                LaunchedEffect(showArt) { artShown = showArt }
+                Row(Modifier.fillMaxSize(), verticalAlignment = Alignment.CenterVertically) {
+                    Column(Modifier.weight(1f).fillMaxHeight()) {
+                        titleBlock()
+                        BoxWithConstraints(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.BottomCenter) {
+                            if (overlay && ratingOutside && maxHeight >= RATING_HEIGHT) ratingBar(Modifier.fillMaxWidth())
+                        }
+                        controls()
+                        seekBar()
                     }
-                    controls()
-                    seekBar()
+                    if (showArt) artwork(art, !ratingOutside)
                 }
-                if (showArt) artwork(art, !ratingOutside)
             }
+            bottomBar()
         } else {
-            Column(Modifier.fillMaxSize()) {
-                topBar()
-                titleBlock()
-                Spacer(Modifier.height(8.dp))
-                // Square, as big as fits: the full width on tall phones, smaller on short ones.
-                BoxWithConstraints(Modifier.fillMaxWidth().weight(1f, fill = false)) {
-                    val fits = minOf(maxWidth, maxHeight)
-                    val showArt = fits >= MIN_ART
-                    val ratingOutside = !showArt || fits < RATING_ART
-                    // The rating below the art needs its height; if that leaves the art too small, no rating.
-                    val ratingRoom = maxHeight - RATING_HEIGHT
-                    val showRating = overlay && ratingOutside && ratingRoom >= (if (showArt) MIN_ART else 0.dp)
-                    val art = if (showRating) minOf(maxWidth, ratingRoom) else fits
-                    LaunchedEffect(showArt) { artShown = showArt }
-                    Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
-                        if (showArt) artwork(art, !ratingOutside)
-                        if (showRating) ratingBar(Modifier.fillMaxWidth())
-                    }
+            titleBlock()
+            Spacer(Modifier.height(8.dp))
+            // Square, as big as fits: the full width on tall phones, smaller on short ones.
+            BoxWithConstraints(Modifier.fillMaxWidth().weight(1f)) {
+                val fits = minOf(maxWidth, maxHeight)
+                val showArt = fits >= MIN_ART
+                val ratingOutside = !showArt || fits < RATING_ART
+                // The rating below the art needs its height; if that leaves the art too small, no rating.
+                val ratingRoom = maxHeight - RATING_HEIGHT
+                val showRating = overlay && ratingOutside && ratingRoom >= (if (showArt) MIN_ART else 0.dp)
+                val art = if (showRating) minOf(maxWidth, ratingRoom) else fits
+                LaunchedEffect(showArt) { artShown = showArt }
+                Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
+                    if (showArt) artwork(art, !ratingOutside)
+                    if (showRating) ratingBar(Modifier.fillMaxWidth())
                 }
-                Spacer(Modifier.height(24.dp))
-                controls()
-                Spacer(Modifier.height(8.dp))
-                seekBar()
             }
+            Spacer(Modifier.height(8.dp))
+            controls()
+            seekBar()
+            bottomBar()
         }
+    }
+}
+
+/** Shuffle or repeat: in the accent color with a dot under it when on. */
+@Composable
+private fun ToggleButton(icon: ImageVector, label: String, on: Boolean, onClick: () -> Unit) {
+    Box(
+        Modifier
+            .size(56.dp)
+            .clip(CircleShape)
+            .clickable(onClickLabel = label, onClick = onClick)
+            .semantics { role = Role.Switch; contentDescription = label + if (on) ", on" else ", off" },
+        contentAlignment = Alignment.Center,
+    ) {
+        Icon(icon, null, tint = if (on) Lux.accent else Lux.icon, modifier = Modifier.size(30.dp))
+        if (on) Box(Modifier.align(Alignment.BottomCenter).padding(bottom = 5.dp).size(6.dp).clip(CircleShape).background(Lux.accent))
+    }
+}
+
+/**
+ * Play/pause. Dark and Light: an accent ring with a soft glow around it. Material: the
+ * solid button as before (accent while playing, grey while paused).
+ */
+@Composable
+private fun PlayPauseButton(playing: Boolean, onClick: () -> Unit) {
+    val material = Lux.style == ThemeStyle.MATERIAL
+    val accent = Lux.accent
+    Box(
+        Modifier
+            .size(96.dp)
+            .then(
+                if (material) Modifier
+                else Modifier.drawBehind {
+                    // The glow: fading out from just inside the ring to well beyond it.
+                    drawCircle(
+                        Brush.radialGradient(
+                            0.55f to accent.copy(alpha = 0.45f), 1f to Color.Transparent,
+                            center = center, radius = size.minDimension * 0.75f,
+                        ),
+                        radius = size.minDimension * 0.75f,
+                    )
+                }
+            )
+            .clip(CircleShape)
+            .background(if (!material) Lux.background else if (playing) accent else Lux.dim)
+            .then(if (material) Modifier else Modifier.border(3.dp, accent, CircleShape))
+            .clickable(onClick = onClick),
+        contentAlignment = Alignment.Center,
+    ) {
+        Icon(
+            if (playing) Icons.Filled.Pause else Icons.Filled.PlayArrow,
+            if (playing) "Pause" else "Play",
+            tint = when {
+                !material -> accent
+                playing -> Lux.onAccent
+                else -> Lux.background
+            },
+            modifier = Modifier.size(62.dp),
+        )
     }
 }
 

@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -36,6 +37,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
@@ -133,16 +135,22 @@ fun ListRow(
                 Text(subtitle, fontSize = 14.sp, color = Lux.dim, maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
         }
-        if (menu.isNotEmpty()) MoreMenu(menu) else Box(Modifier.width(16.dp))
+        if (menu.isNotEmpty()) MoreMenu(menu, title = title) else Box(Modifier.width(16.dp))
     }
 }
 
 @Composable
-fun MoreMenu(items: List<Pair<String, () -> Unit>>, icon: ImageVector = Icons.Filled.MoreVert, tint: Color = Lux.icon) {
+fun MoreMenu(
+    items: List<Pair<String, () -> Unit>>,
+    icon: ImageVector = Icons.Filled.MoreVert,
+    tint: Color = Lux.icon,
+    title: String? = null,          // what the menu is for, shown at its top
+) {
     var open by remember { mutableStateOf(false) }
     Box {
         IconButton(onClick = { open = true }) { Icon(icon, "More", tint = tint) }
         DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
+            if (!title.isNullOrBlank()) MenuTitle(title)
             for ((label, action) in items) {
                 DropdownMenuItem(text = { Text(label) }, onClick = { open = false; action() })
             }
@@ -232,5 +240,19 @@ fun Heading(text: String) {
     Text(
         text, color = Lux.accent, fontWeight = FontWeight.Medium, fontSize = 15.sp,
         modifier = Modifier.padding(start = 16.dp, top = 16.dp, bottom = 4.dp),
+    )
+}
+
+/** The name at the top of a ⋮ menu, on a lighter band, so you can see what it's for. */
+@Composable
+fun MenuTitle(text: String) {
+    Text(
+        text, color = Lux.text, fontSize = 16.sp, fontWeight = FontWeight.Bold,
+        maxLines = 2, overflow = TextOverflow.Ellipsis,
+        modifier = Modifier
+            .widthIn(max = 280.dp)
+            .fillMaxWidth()
+            .background(lerp(Lux.panel, Lux.text, 0.12f))
+            .padding(horizontal = 16.dp, vertical = 12.dp),
     )
 }

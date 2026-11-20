@@ -1,6 +1,16 @@
 package io.github.metricambient.luxtunes.ui
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.material.icons.filled.ArrowDropDown
+import androidx.compose.material.icons.filled.Check
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.ui.graphics.lerp
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
@@ -65,75 +75,143 @@ import io.github.metricambient.luxtunes.data.artTrackOf
 import io.github.metricambient.luxtunes.data.sortText
 
 /**
- * The top of an album, artist or playlist page: the art over a blurred copy of
- * itself, a bar with the song count, length and year, and a round play button.
+ * An album, artist or playlist page: the list, with the bottom bar (back, and the page's
+ * ⋮ menu) under it. The floating mini player sits above the bar; the list leaves room for it.
  */
-private fun LazyListScope.pageHeader(
-    nav: NavHostController,
+@Composable
+private fun Page(nav: NavHostController, menu: Menu, title: String?, content: LazyListScope.() -> Unit) {
+    Column(Modifier.fillMaxSize()) {
+        LazyColumn(
+            Modifier.weight(1f).fillMaxWidth(),
+            contentPadding = PaddingValues(bottom = LocalMiniSpace.current),
+            content = content,
+        )
+        PageBottomBar(nav, menu, title)
+    }
+}
+
+/**
+ * The top of a page: the art at the left; beside it the name and a line or two about it,
+ * centred in the space above the Play and Shuffle buttons, which line up with the art's
+ * bottom. `shuffleBy` null: Shuffle has no choices (an album: by songs only).
+ */
+private fun LazyListScope.pageTop(
     art: Track?,
-    summary: String,
-    tracks: List<Track>,
-    menu: Menu = emptyList(),
-    fab: (@Composable (Modifier) -> Unit)? = null,       // replaces the plain play button
+    title: String,
+    info: String,
+    onPlay: () -> Unit,
+    onShuffle: () -> Unit,
+    shuffleBy: ArtistPlay? = null,
+    onShuffleBy: (ArtistPlay) -> Unit = {},
 ) {
     item {
-        val player = app().player
-        Box(Modifier.fillMaxWidth().height(330.dp)) {
-            Artwork(art, Modifier.fillMaxWidth().height(330.dp).blur(24.dp).alpha(0.6f), noteSize = 0.dp)
-            Box(Modifier.fillMaxWidth().height(330.dp).background(Lux.background.copy(alpha = 0.25f)))
-            Artwork(art, Modifier.align(Alignment.TopCenter).padding(top = 40.dp).size(225.dp), noteSize = 120.dp)
-            Row(Modifier.fillMaxWidth().padding(4.dp), verticalAlignment = Alignment.CenterVertically) {
-                IconButton(onClick = { nav.popBackStack() }) {
-                    Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back", tint = Lux.text)
-                }
-                Spacer(Modifier.weight(1f))
-                IconButton(onClick = { Dialogs.show(DialogRequest.AddToPlaylist(tracks.map { it.id })) }) {
-                    Icon(Icons.AutoMirrored.Filled.PlaylistAdd, "Add to Playlist", tint = Lux.text)
-                }
-                IconButton(onClick = { player.play(tracks); showPlayer(nav, tracks) }) {
-                    Icon(Icons.Filled.PlayArrow, "Play", tint = Lux.text)
-                }
-                if (menu.isNotEmpty()) MoreMenu(menu, tint = Lux.text)
-            }
-            Text(
-                summary,
-                color = Lux.text, fontSize = 17.sp, textAlign = TextAlign.Center,
-                modifier = Modifier
-                    .align(Alignment.TopCenter)
-                    .offset(y = 265.dp)
-                    .fillMaxWidth()
-                    .background(Lux.accent)
-                    .padding(vertical = 6.dp),
-            )
-            val fabPlace = Modifier.align(Alignment.TopEnd).offset(x = (-24).dp, y = 270.dp).size(58.dp)
-            if (fab != null) {
-                fab(fabPlace)
-            } else {
-                FloatingActionButton(
-                    onClick = { player.play(tracks); showPlayer(nav, tracks) },
-                    shape = CircleShape,
-                    containerColor = Lux.accent,
-                    contentColor = Lux.onAccent,
-                    modifier = fabPlace,
-                ) {
-                    Icon(Icons.Filled.MusicNote, "Play")
+        BoxWithConstraints(Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, top = 20.dp, bottom = 8.dp)) {
+            val artSize = minOf(150.dp, maxWidth * 0.42f)
+            // Narrow windows (split screen): Play shows just its icon, so Shuffle keeps its words.
+            val roomy = maxWidth - artSize - 12.dp >= 200.dp
+            Row(Modifier.fillMaxWidth().height(artSize)) {
+                Artwork(art, Modifier.size(artSize).clip(RoundedCornerShape(16.dp)), noteSize = artSize * 0.5f)
+                Spacer(Modifier.width(12.dp))
+                Column(Modifier.weight(1f).fillMaxHeight()) {
+                    Column(Modifier.weight(1f).fillMaxWidth(), verticalArrangement = Arrangement.Center) {
+                        Text(
+                            title, color = Lux.text, fontSize = 22.sp, fontWeight = FontWeight.Bold, lineHeight = 26.sp,
+                            maxLines = 2, overflow = TextOverflow.Ellipsis,
+                        )
+                        if (info.isNotEmpty()) Text(
+                            info, color = Lux.dim, fontSize = 13.sp, lineHeight = 17.sp,
+                            maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 4.dp),
+                        )
+                    }
+                    Spacer(Modifier.height(8.dp))
+                    Row(Modifier.fillMaxWidth().height(48.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        PlayButton(roomy, onPlay)
+                        ShuffleButton(Modifier.weight(1f), shuffleBy, onShuffle, onShuffleBy)
+                    }
                 }
             }
         }
     }
 }
 
-private fun summaryOf(tracks: List<Track>, year: Int = 0): String {
-    val text = "${plural(tracks.size, "song")} (${formatLength(tracks.sumOf { it.totalTime })})"
-    return if (year > 0) "$text · $year" else text
+/** Play from the top: the accent button. */
+@Composable
+private fun PlayButton(withWord: Boolean, onClick: () -> Unit) {
+    Row(
+        Modifier
+            .fillMaxHeight()
+            .width(if (withWord) 72.dp else 48.dp)
+            .clip(RoundedCornerShape(14.dp))
+            .background(Lux.accent)
+            .clickable(onClickLabel = "Play from the top", onClick = onClick)
+            .padding(end = if (withWord) 6.dp else 0.dp),
+        horizontalArrangement = Arrangement.Center,
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Icon(Icons.Filled.PlayArrow, if (withWord) null else "Play", tint = Lux.onAccent, modifier = Modifier.size(26.dp))
+        if (withWord) Text("Play", color = Lux.onAccent, fontSize = 15.sp, fontWeight = FontWeight.Medium)
+    }
 }
+
+/**
+ * Shuffle, with what it shuffles by underneath (By Songs / By Albums) and an arrow at
+ * the right to change that. The choice is kept for next time.
+ */
+@Composable
+private fun ShuffleButton(modifier: Modifier, by: ArtistPlay?, onShuffle: () -> Unit, onBy: (ArtistPlay) -> Unit) {
+    var open by remember { mutableStateOf(false) }
+    Row(modifier.fillMaxHeight().clip(RoundedCornerShape(14.dp)).background(Lux.panel)) {
+        Row(
+            Modifier.weight(1f).fillMaxHeight().clickable(onClick = onShuffle).padding(horizontal = 6.dp),
+            horizontalArrangement = Arrangement.Center,
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Icon(LuxIcons.Shuffle, null, tint = Lux.text, modifier = Modifier.size(20.dp))
+            Spacer(Modifier.width(6.dp))
+            Column {
+                Text("Shuffle", color = Lux.text, fontSize = 15.sp, fontWeight = FontWeight.Medium, maxLines = 1)
+                if (by != null) Text(
+                    if (by == ArtistPlay.SHUFFLE_ALBUMS) "By Albums" else "By Songs",
+                    color = Lux.dim, fontSize = 11.sp, lineHeight = 13.sp, maxLines = 1,
+                )
+            }
+        }
+        if (by != null) {
+            Box(Modifier.width(1.dp).fillMaxHeight().padding(vertical = 10.dp).background(lerp(Lux.panel, Lux.text, 0.25f)))
+            Box(
+                Modifier.width(34.dp).fillMaxHeight().clickable(onClickLabel = "Shuffle by…") { open = true },
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(Icons.Filled.ArrowDropDown, "Shuffle by", tint = Lux.text)
+                DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
+                    for (choice in listOf(ArtistPlay.SHUFFLE_SONGS, ArtistPlay.SHUFFLE_ALBUMS)) {
+                        val chosen = choice == by
+                        DropdownMenuItem(
+                            text = { Text(if (choice == ArtistPlay.SHUFFLE_ALBUMS) "By Albums" else "By Songs", color = if (chosen) Lux.accent else Lux.text) },
+                            trailingIcon = { if (chosen) Icon(Icons.Filled.Check, null, tint = Lux.accent) },
+                            onClick = { open = false; onBy(choice) },
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+/** How a Shuffle button shuffles: by albums, or (also for the old "from the top" default) by songs. */
+private fun shuffleBy(saved: ArtistPlay) = if (saved == ArtistPlay.SHUFFLE_ALBUMS) ArtistPlay.SHUFFLE_ALBUMS else ArtistPlay.SHUFFLE_SONGS
+
+/** "11 songs · 42m" */
+private fun lengthOf(tracks: List<Track>) = "${plural(tracks.size, "song")} · ${formatLength(tracks.sumOf { it.totalTime })}"
 
 @Composable
 private fun Missing(nav: NavHostController, what: String) {
-    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-        Text("This $what isn't on the phone any more.", color = Lux.dim)
+    Column(Modifier.fillMaxSize()) {
+        Box(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
+            Text("This $what isn't on the phone any more.", color = Lux.dim)
+        }
+        PageBottomBar(nav, emptyList())
     }
-    IconButton(onClick = { nav.popBackStack() }) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back", tint = Lux.text) }
 }
 
 @Composable
@@ -146,25 +224,23 @@ fun AlbumScreen(nav: NavHostController, key: String) {
     val album = library.albumByKey[key] ?: library.albumWith(seen) ?: return Missing(nav, "album")
     if (seen.isEmpty()) seen += album.tracks.map { it.id }
     PageAccent(album.artTrack)
-    val menu = groupMenu(album.tracks, nav)
-    val settings by app.prefs.settings.collectAsState()
-    // One album: shuffling by albums would be the same as shuffling its songs.
-    PlayDialPage(
-        nav, album.tracks, listOf(ArtistPlay.FROM_TOP, ArtistPlay.SHUFFLE_SONGS), settings.albumPlay,
-        onDefault = { choice -> app.prefs.update { it.copy(albumPlay = choice) } },
-    ) { fab ->
-        LazyColumn(Modifier.fillMaxSize()) {
-            pageHeader(nav, album.artTrack, summaryOf(album.tracks, album.year), album.tracks, menu, fab)
-            item { Spacer(Modifier.height(16.dp)) }
-            itemsIndexed(album.tracks, key = { _, t -> t.id }) { i, t ->
-                SongRow(
-                    track = t,
-                    number = if (t.trackNumber > 0) t.trackNumber else i + 1,
-                    current = t.id == playerState.currentId,
-                    onClick = { tapSong(app, nav, album.tracks, i) },
-                    menu = songMenu(t, nav),
-                )
-            }
+    val menu = groupMenu(album.tracks, nav, album.name)
+    val info = listOf(album.artist, if (album.year > 0) "${album.year}" else "").filter { it.isNotBlank() }.joinToString(" · ") +
+        "\n" + lengthOf(album.tracks)
+    Page(nav, menu, album.name) {
+        pageTop(
+            album.artTrack, album.name, info,
+            onPlay = { playWith(app, nav, album.tracks, ArtistPlay.FROM_TOP) },
+            onShuffle = { playWith(app, nav, album.tracks, ArtistPlay.SHUFFLE_SONGS) },
+        )
+        itemsIndexed(album.tracks, key = { _, t -> t.id }) { i, t ->
+            SongRow(
+                track = t,
+                number = if (t.trackNumber > 0) t.trackNumber else i + 1,
+                current = t.id == playerState.currentId,
+                onClick = { tapSong(app, nav, album.tracks, i) },
+                menu = songMenu(t, nav),
+            )
         }
     }
 }
@@ -198,104 +274,73 @@ fun GroupScreen(nav: NavHostController, kind: String, name: String) {
             app.prefs.update { it.copy(artistSongs = !it.artistSongs) }
         },
         "Add to Queue" to { app.player.addToQueue(tracks) },
-        "Delete" to { Dialogs.show(DialogRequest.Delete(tracks.map { it.id })) },
+        "Add to End of Queue" to { app.player.addToEnd(tracks) },
+        "Add to Playlist…" to { Dialogs.show(DialogRequest.AddToPlaylist(tracks.map { it.id })) },
+        "Set EQ…" to { Dialogs.show(DialogRequest.SetEq(tracks.map { it.id }, artist.name)) },
+        "Get Info" to { Dialogs.show(DialogRequest.Info(tracks.map { it.id })) },
+        "Delete from Phone" to { Dialogs.show(DialogRequest.Delete(tracks.map { it.id })) },
     )
-
-    PlayDialPage(
-        nav, tracks, ArtistPlay.entries, settings.artistPlay,
-        onDefault = { choice -> app.prefs.update { it.copy(artistPlay = choice) } },
-    ) { fab ->
-        LazyColumn(Modifier.fillMaxSize()) {
-            pageHeader(nav, artTrackOf(tracks), summaryOf(tracks), tracks, menu, fab)
+    val info = (if (kind == "tvshow") plural(artist.albums.size, "season") else plural(artist.albums.size, "album")) +
+        " · " + plural(tracks.size, if (kind == "tvshow") "episode" else "song") + "\n" + formatLength(tracks.sumOf { it.totalTime })
+    // Play and Shuffle take in the Featured On songs too (unless Exclude Featured hides them).
+    val all = tracks + featuredOn
+    val by = shuffleBy(settings.artistPlay)
+    Page(nav, menu, artist.name) {
+        pageTop(
+            artTrackOf(tracks), artist.name, info,
+            onPlay = { playWith(app, nav, all, ArtistPlay.FROM_TOP) },
+            onShuffle = { playWith(app, nav, all, by) },
+            shuffleBy = by,
+            onShuffleBy = { choice -> app.prefs.update { it.copy(artistPlay = choice) } },
+        )
+        item {
+            Text(
+                artist.name + if (years.isNotEmpty()) "  ·  ${years.min()}–${years.max()}" else "",
+                color = Lux.dim, fontSize = 15.sp,
+                modifier = Modifier.padding(start = 16.dp, top = 12.dp, bottom = 4.dp),
+            )
+        }
+        if (settings.artistSongs) {
+            itemsIndexed(tracks, key = { _, t -> t.id }) { i, t ->
+                SongRow(
+                    track = t,
+                    current = t.id == playerState.currentId,
+                    onClick = { tapSong(app, nav, tracks, i) },
+                    menu = songMenu(t, nav),
+                    leading = { Artwork(t, Modifier.size(56.dp), noteSize = 28.dp) },
+                )
+            }
+        } else {
+            itemsIndexed(artist.albums, key = { _, a -> a.key }) { _, album ->
+                ListRow(
+                    title = album.name,
+                    subtitle = if (album.year > 0) "${album.year}" else plural(album.tracks.size, if (kind == "tvshow") "episode" else "song"),
+                    onClick = { nav.go(Routes.album(album.key)) },
+                    leading = { Artwork(album.artTrack, Modifier.size(64.dp), noteSize = 32.dp) },
+                    menu = groupMenu(album.tracks, nav),
+                )
+            }
+        }
+        if (featuredOn.isNotEmpty()) {
             item {
+                // Styled like the artist line above.
+                val featuredYears = featuredOn.map { it.year }.filter { it > 0 }
                 Text(
-                    artist.name + if (years.isNotEmpty()) "  ·  ${years.min()}–${years.max()}" else "",
+                    "Featured On" + if (featuredYears.isNotEmpty()) "  ·  ${featuredYears.min()}–${featuredYears.max()}" else "",
                     color = Lux.dim, fontSize = 15.sp,
                     modifier = Modifier.padding(start = 16.dp, top = 16.dp, bottom = 4.dp),
                 )
             }
-            if (settings.artistSongs) {
-                itemsIndexed(tracks, key = { _, t -> t.id }) { i, t ->
-                    SongRow(
-                        track = t,
-                        current = t.id == playerState.currentId,
-                        onClick = { tapSong(app, nav, tracks, i) },
-                        menu = songMenu(t, nav),
-                        leading = { Artwork(t, Modifier.size(56.dp), noteSize = 28.dp) },
-                    )
-                }
-            } else {
-                itemsIndexed(artist.albums, key = { _, a -> a.key }) { _, album ->
-                    ListRow(
-                        title = album.name,
-                        subtitle = if (album.year > 0) "${album.year}" else plural(album.tracks.size, if (kind == "tvshow") "episode" else "song"),
-                        onClick = { nav.go(Routes.album(album.key)) },
-                        leading = { Artwork(album.artTrack, Modifier.size(64.dp), noteSize = 32.dp) },
-                        menu = groupMenu(album.tracks, nav),
-                    )
-                }
+            itemsIndexed(featuredOn, key = { _, t -> "featured\u0000" + t.id }) { i, t ->
+                SongRow(
+                    track = t,
+                    current = t.id == playerState.currentId,
+                    onClick = { tapSong(app, nav, featuredOn, i) },
+                    menu = songMenu(t, nav),
+                    leading = { Artwork(t, Modifier.size(56.dp), noteSize = 28.dp) },
+                    subtitle = "${t.artist} · ${t.album}",
+                )
             }
-            if (featuredOn.isNotEmpty()) {
-                item { Heading("Featured On") }
-                itemsIndexed(featuredOn, key = { _, t -> "featured\u0000" + t.id }) { i, t ->
-                    SongRow(
-                        track = t,
-                        current = t.id == playerState.currentId,
-                        onClick = { tapSong(app, nav, featuredOn, i) },
-                        menu = songMenu(t, nav),
-                        leading = { Artwork(t, Modifier.size(56.dp), noteSize = 28.dp) },
-                        subtitle = "${t.artist} · ${t.album}",
-                    )
-                }
-            }
-        }
-    }
-}
-
-/**
- * A page with the round play button that opens its choices (Play From Top, Shuffle
- * By Albums, Shuffle By Songs). The last choice becomes the button's default.
- * `content` gets the button, for the page header.
- */
-@Composable
-private fun PlayDialPage(
-    nav: NavHostController,
-    tracks: List<Track>,
-    choices: List<ArtistPlay>,
-    current: ArtistPlay,
-    onDefault: (ArtistPlay) -> Unit,
-    content: @Composable (fab: @Composable (Modifier) -> Unit) -> Unit,
-) {
-    val app = app()
-    var dialOpen by remember { mutableStateOf(false) }
-    var origin by remember { mutableStateOf(Offset.Zero) }
-    var fabBounds by remember { mutableStateOf(Rect.Zero) }
-    val default = if (current in choices) current else choices.first()
-    val fab: @Composable (Modifier) -> Unit = { place ->
-        FloatingActionButton(
-            onClick = { dialOpen = true },
-            shape = CircleShape,
-            containerColor = Lux.accent,
-            contentColor = Lux.onAccent,
-            modifier = place.onGloballyPositioned { fabBounds = it.boundsInRoot() },
-        ) {
-            ArtistPlayIcon(default, default.label)
-        }
-    }
-    Box(Modifier.fillMaxSize().onGloballyPositioned { origin = it.positionInRoot() }) {
-        content(fab)
-        if (dialOpen) {
-            SpeedDial(
-                fab = fabBounds.translate(-origin),
-                choices = choices,
-                default = default,
-                onClose = { dialOpen = false },
-                onPick = { choice ->
-                    dialOpen = false
-                    onDefault(choice)
-                    playWith(app, nav, tracks, choice)
-                },
-            )
         }
     }
 }
@@ -311,79 +356,6 @@ private fun playWith(app: LuxTunesApp, nav: NavHostController, tracks: List<Trac
 }
 
 @Composable
-private fun ArtistPlayIcon(how: ArtistPlay, description: String?, size: Dp = 28.dp) {
-    when (how) {
-        ArtistPlay.FROM_TOP -> Icon(Icons.Filled.PlayArrow, description, modifier = Modifier.size(size))
-        ArtistPlay.SHUFFLE_ALBUMS -> Icon(Icons.Filled.Shuffle, description, modifier = Modifier.size(size))
-        ArtistPlay.SHUFFLE_SONGS -> Box(Modifier.size(size)) {
-            Icon(Icons.Filled.Shuffle, description, modifier = Modifier.size(size * 0.55f).align(Alignment.TopStart))
-            Icon(Icons.Filled.MusicNote, null, modifier = Modifier.size(size * 0.8f).align(Alignment.BottomEnd))
-        }
-    }
-}
-
-/**
- * The artist play button, opened: the other choices stacked above it with their
- * names, the current default in its place. Tapping outside closes it.
- */
-@Composable
-private fun SpeedDial(fab: Rect, choices: List<ArtistPlay>, default: ArtistPlay, onClose: () -> Unit, onPick: (ArtistPlay) -> Unit) {
-    val density = LocalDensity.current
-    val fabWidth = with(density) { fab.width.toDp() }
-    Box(
-        Modifier
-            .fillMaxSize()
-            .background(Color.Black.copy(alpha = 0.6f))
-            .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) { onClose() },
-    ) {
-        Column(
-            horizontalAlignment = Alignment.End,
-            verticalArrangement = Arrangement.spacedBy(14.dp),
-            modifier = Modifier
-                .fillMaxSize()
-                .layout { measurable, constraints ->
-                    // Bottom-right corner on the button's bottom-right corner.
-                    val p = measurable.measure(constraints.copy(minWidth = 0, minHeight = 0))
-                    layout(constraints.maxWidth, constraints.maxHeight) {
-                        p.place((fab.right - p.width).roundToInt(), (fab.bottom - p.height).roundToInt())
-                    }
-                },
-        ) {
-            val order = choices.filter { it != default } + default
-            for (how in order) {
-                val main = how == default
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(
-                        how.label,
-                        color = Color.Black, fontSize = 17.sp,
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(6.dp))
-                            .background(Color.White)
-                            .clickable { onPick(how) }
-                            .padding(horizontal = 12.dp, vertical = 6.dp),
-                    )
-                    Spacer(Modifier.width(16.dp))
-                    Box(Modifier.width(fabWidth), contentAlignment = Alignment.Center) {
-                        Box(
-                            Modifier
-                                .size(if (main) fabWidth else 46.dp)
-                                .clip(CircleShape)
-                                .background(Lux.accent)
-                                .clickable { onPick(how) },
-                            contentAlignment = Alignment.Center,
-                        ) {
-                            CompositionLocalProvider(LocalContentColor provides Lux.onAccent) {
-                                ArtistPlayIcon(how, how.label, if (main) 28.dp else 24.dp)
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    }
-}
-
-@Composable
 fun PlaylistScreen(nav: NavHostController, id: String) {
     val app = app()
     val library by app.repository.state.collectAsState()
@@ -393,37 +365,37 @@ fun PlaylistScreen(nav: NavHostController, id: String) {
     val entries = playlist.trackIds.mapIndexedNotNull { pos, tid -> library.byId[tid]?.let { pos to it } }
     val tracks = entries.map { it.second }
     val settings by app.prefs.settings.collectAsState()
-    PlayDialPage(
-        nav, tracks, ArtistPlay.entries, settings.playlistPlay,
-        onDefault = { choice -> app.prefs.update { it.copy(playlistPlay = choice) } },
-    ) { fab ->
-        LazyColumn(Modifier.fillMaxSize()) {
-            pageHeader(nav, artTrackOf(tracks), summaryOf(tracks), tracks, fab = fab)
-            item {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(
-                        playlist.name + when {
-                            playlist.isSmart -> "  ·  Smart playlist"
-                            playlist.onPhone -> "  ·  Made on this phone"
-                            else -> ""
-                        } + if (playlist.changed) "  ·  Changes go to LuxTunes at the next sync" else "",
-                        color = Lux.dim, fontSize = 15.sp,
-                        modifier = Modifier.weight(1f).padding(start = 16.dp, top = 16.dp, bottom = 4.dp),
-                    )
-                    MoreMenu(playlistMenu(playlist, nav))
-                }
-            }
-            itemsIndexed(entries, key = { _, e -> "${e.first}:${e.second.id}" }) { i, (pos, t) ->
-                val remove: Menu = if (!playlist.isSmart && library.canEdit(playlist)) {
-                    listOf("Remove from playlist" to { app.repository.removeFromPlaylist(playlist.id, pos) })
-                } else emptyList()
-                SongRow(
-                    track = t,
-                    current = t.id == playerState.currentId,
-                    onClick = { tapSong(app, nav, tracks, i) },
-                    menu = songMenu(t, nav, remove),
-                )
-            }
+    val kindText = when {
+        playlist.isSmart -> "Smart Playlist"
+        playlist.onPhone -> "Made on this phone"
+        else -> "Playlist"
+    }
+    val by = shuffleBy(settings.playlistPlay)
+    Page(nav, playlistMenu(playlist, nav), playlist.name) {
+        pageTop(
+            artTrackOf(tracks), playlist.name, kindText + "\n" + lengthOf(tracks),
+            onPlay = { playWith(app, nav, tracks, ArtistPlay.FROM_TOP) },
+            onShuffle = { playWith(app, nav, tracks, by) },
+            shuffleBy = by,
+            onShuffleBy = { choice -> app.prefs.update { it.copy(playlistPlay = choice) } },
+        )
+        if (playlist.changed) item {
+            Text(
+                "Changes go to LuxTunes at the next sync",
+                color = Lux.dim, fontSize = 14.sp,
+                modifier = Modifier.padding(start = 16.dp, top = 4.dp, bottom = 4.dp),
+            )
+        }
+        itemsIndexed(entries, key = { _, e -> "${e.first}:${e.second.id}" }) { i, (pos, t) ->
+            val remove: Menu = if (!playlist.isSmart && library.canEdit(playlist)) {
+                listOf("Remove from Playlist" to { app.repository.removeFromPlaylist(playlist.id, pos) })
+            } else emptyList()
+            SongRow(
+                track = t,
+                current = t.id == playerState.currentId,
+                onClick = { tapSong(app, nav, tracks, i) },
+                menu = songMenu(t, nav, remove),
+            )
         }
     }
 }
@@ -435,7 +407,7 @@ fun QueueScreen(nav: NavHostController) {
     val library by app.repository.state.collectAsState()
     val playerState by app.player.state.collectAsState()
     val tracks = playerState.queue.mapNotNull { library.byId[it] }
-    LazyColumn(Modifier.fillMaxSize()) {
+    LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = LocalMiniSpace.current)) {
         item {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 IconButton(onClick = { nav.popBackStack() }) {

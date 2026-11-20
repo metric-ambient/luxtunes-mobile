@@ -158,17 +158,18 @@ fun LibrarySettingsScreen(nav: NavHostController) {
         InfoRow("changes.json", written)
         if (library.transferMode) InfoRow("USB file transfer", "On")
         Spacer(Modifier.height(16.dp))
-        Button(
-            onClick = { Dialogs.show(DialogRequest.ChooseStorage(firstTime = false)) },
+        ButtonWithHelp(
+            "Change Library Location",
+            if (canChoose) "Choose whether the LuxTunes folder is on the phone's own storage or the SD card."
+            else "There's no SD card in the phone, so the library can only be on its own storage.",
             enabled = canChoose,
-            colors = ButtonDefaults.buttonColors(containerColor = Lux.accent, contentColor = Lux.onAccent),
-            modifier = Modifier.padding(horizontal = 16.dp),
-        ) { Text("Change Library Location") }
-        Button(
-            onClick = { AddFolder.show() },
-            colors = ButtonDefaults.buttonColors(containerColor = Lux.accent, contentColor = Lux.onAccent),
-            modifier = Modifier.padding(start = 16.dp, top = 8.dp),
-        ) { Text("Add Folder to Library…") }
+        ) { Dialogs.show(DialogRequest.ChooseStorage(firstTime = false)) }
+        ButtonWithHelp(
+            "Add Folder to Library…",
+            "Moves the songs in a folder on the phone into the LuxTunes folder (or copies them, with " +
+                "\"Do not move original files on import\" on), sorted by artist and album as LuxTunes " +
+                "does, and adds them to the library. They go to LuxTunes on your computer at the next sync.",
+        ) { AddFolder.show() }
         Spacer(Modifier.height(8.dp))
         ToggleRow(
             "Do not move original files on import",
@@ -176,16 +177,33 @@ fun LibrarySettingsScreen(nav: NavHostController) {
                 "each file, so the songs take up twice the space.",
             settings.keepOriginals,
         ) { on -> app.prefs.update { it.copy(keepOriginals = on) } }
-        Text(
-            (if (canChoose) "Choose whether the LuxTunes folder is on the phone's own storage or the SD card."
-            else "There's no SD card in the phone, so the library can only be on its own storage.") +
-                "\n\nAdd Folder to Library moves the songs in a folder on the phone into the LuxTunes " +
-                "folder (or copies them, with the switch above on), sorted by artist and album as " +
-                "LuxTunes does, and adds them to the library. They go to LuxTunes on your computer at " +
-                "the next sync.",
-            color = Lux.dim, fontSize = 14.sp, modifier = Modifier.padding(16.dp),
-        )
     }
+}
+
+/** A button with a round ? at the right edge that explains it. */
+@Composable
+private fun ButtonWithHelp(label: String, help: String, enabled: Boolean = true, onClick: () -> Unit) {
+    var showHelp by remember { mutableStateOf(false) }
+    Row(
+        Modifier.fillMaxWidth().padding(start = 16.dp, end = 4.dp, top = 4.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Button(
+            onClick = onClick,
+            enabled = enabled,
+            colors = ButtonDefaults.buttonColors(containerColor = Lux.accent, contentColor = Lux.onAccent),
+        ) { Text(label) }
+        Spacer(Modifier.weight(1f))
+        IconButton(onClick = { showHelp = true }) {
+            Icon(Icons.AutoMirrored.Filled.HelpOutline, "About $label", tint = Lux.icon)
+        }
+    }
+    if (showHelp) AlertDialog(
+        onDismissRequest = { showHelp = false },
+        title = { Text(label.removeSuffix("…")) },
+        text = { Text(help) },
+        confirmButton = { TextButton(onClick = { showHelp = false }) { Text("OK") } },
+    )
 }
 
 @Composable
@@ -431,8 +449,8 @@ fun TabsSettingsScreen(nav: NavHostController) {
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
         ScreenTitle(nav, "Tabs")
         ToggleRow(
-            "Hide Search Bar",
-            "No search bar above the lists, in any orientation. Search stays in the ⋮ menu.",
+            "Hide Search Button",
+            "No search button at the top of the tabs. Search stays in the ⋮ menu.",
             s.hideSearch,
         ) { on -> prefs.update { it.copy(hideSearch = on) } }
         ToggleRow(

@@ -36,6 +36,7 @@ import androidx.compose.foundation.layout.systemBarsPadding
 import androidx.compose.material3.Button
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -152,8 +153,23 @@ private fun MainScreens() {
     val nav = rememberNavController()
     val entry by nav.currentBackStackEntryAsState()
     val route = entry?.destination?.route
-    Column(Modifier.fillMaxSize()) {
-        Box(Modifier.weight(1f)) {
+    val wantMini = route != Routes.NOW && route != Routes.VIDEO &&
+        route?.startsWith(Routes.SETTINGS) != true && route?.startsWith("smart/") != true
+    // Leaving Now Playing: wait until it has slid away, so the bar doesn't
+    // appear on top of it halfway down.
+    var showMini by remember { mutableStateOf(wantMini) }
+    var lastRoute by remember { mutableStateOf(route) }
+    LaunchedEffect(wantMini, route) {
+        val from = lastRoute
+        lastRoute = route
+        if (wantMini && !showMini && (from == Routes.NOW || from == Routes.VIDEO)) delay(320)
+        showMini = wantMini
+    }
+    val mini = showMini && wantMini
+    // The mini player floats over the bottom of the screen, above its bottom bar if it has one;
+    // lists leave room for it at their end.
+    Box(Modifier.fillMaxSize()) {
+        CompositionLocalProvider(LocalMiniSpace provides if (mini) 84.dp else 0.dp) {
             NavHost(
                 nav,
                 startDestination = Routes.HOME,
@@ -208,19 +224,10 @@ private fun MainScreens() {
                 }
             }
         }
-        val wantMini = route != Routes.NOW && route != Routes.VIDEO &&
-            route?.startsWith(Routes.SETTINGS) != true && route?.startsWith("smart/") != true
-        // Leaving Now Playing: wait until it has slid away, so the bar doesn't
-        // appear on top of it halfway down.
-        var showMini by remember { mutableStateOf(wantMini) }
-        var lastRoute by remember { mutableStateOf(route) }
-        LaunchedEffect(wantMini, route) {
-            val from = lastRoute
-            lastRoute = route
-            if (wantMini && !showMini && (from == Routes.NOW || from == Routes.VIDEO)) delay(320)
-            showMini = wantMini
-        }
-        if (showMini && wantMini) MiniPlayer(nav, showMenu = route == Routes.HOME)
+        if (mini) MiniPlayer(
+            nav,
+            Modifier.align(Alignment.BottomCenter).padding(start = 10.dp, end = 10.dp, bottom = miniLift(route) + 10.dp),
+        )
     }
 }
 

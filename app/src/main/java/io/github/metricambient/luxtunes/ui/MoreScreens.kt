@@ -102,11 +102,12 @@ private val HELP: List<Pair<String, String>> = listOf(
     "Playing music" to
         "Tap a song to play it (Settings → Tabs → Default Song Action decides what plays: the " +
         "list from that song, just that song, or the list shuffled).\n\n" +
-        "The bar at the bottom shows what's playing; tap it for Now Playing. There, tap the " +
+        "The floating bar near the bottom shows what's playing; tap it for Now Playing. There, tap the " +
         "album art to rate the song and see its lyrics. With timed lyrics from LuxTunes, the " +
         "line being sung lights up and stays in the middle (Settings → Operation turns this off).\n\n" +
         "Shuffle and Repeat are next to the play button. Turning Shuffle off goes back to the " +
-        "original order.\n\n" +
+        "original order. When they're on, they light up with a dot underneath.\n\n" +
+        "Hold down Previous or Next to rewind or fast-forward through the song.\n\n" +
         "Shuffle works as in LuxTunes: albums you've heard in the last two weeks come up early " +
         "less often, and songs you heard in the last two days (or this session) wait until " +
         "everything else has played. Albums and artists are kept well apart: in a big list, " +
@@ -117,10 +118,12 @@ private val HELP: List<Pair<String, String>> = listOf(
         "Start scrolling a long list and a handle appears on the right edge. Drag it to jump " +
         "anywhere in the list; a big letter in the middle shows where you are (or the year, " +
         "rating or plays, depending on how the list is sorted).\n\n" +
-        "The sort button at the bottom has Inverse sort, to turn any order around: least played " +
-        "first, oldest first, Z to A. Each tab remembers where you were in it.\n\n" +
-        "When there are more tabs than fit, an arrow at the edge of the tab bar shows which way " +
-        "they are; tap it or swipe the tabs.",
+        "At the top of each tab: play it from the top, shuffle it, search it, and sort it. Sort " +
+        "has Inverse sort, to turn any order around: least played first, oldest first, Z to A. " +
+        "Each tab remembers where you were in it.\n\n" +
+        "The Albums tab has quick filters along the top: All, Recently Added and Compilations.\n\n" +
+        "The tabs are along the bottom. When there are more than fit, an arrow at the edge shows " +
+        "which way they are; tap it or swipe the tabs.",
     "Adding songs from the phone" to
         "Settings → My Library → Add Folder to Library (also in the ⋮ menus) moves the songs in " +
         "a folder on the phone into the LuxTunes folder, sorted into artist and album folders the " +
@@ -140,14 +143,16 @@ private val HELP: List<Pair<String, String>> = listOf(
     "Queue (Up Next)" to
         "In any ⋮ menu, Add to Queue plays songs right after the current one (and after anything " +
         "you queued before). Add to End of Queue puts them at the very end.\n\n" +
-        "See or change the queue with the list button at the top of Now Playing.",
-    "Artists, albums and the round button" to
-        "On an artist page, the round button opens three choices: Play From Top, Shuffle By " +
-        "Albums and Shuffle By Songs. Album and playlist pages have the same button. The one " +
-        "you pick becomes the button's default.\n\n" +
-        "The ⋮ at the top of an artist page can show all the songs in one list (Show as Songs).\n\n" +
-        "Below an artist's albums, Featured On lists songs by other artists that feature them " +
-        "(Settings → Operation → Exclude Featured hides it).\n\n" +
+        "See or change the queue with the list button at the bottom of Now Playing.",
+    "Artists, albums and playlists" to
+        "At the top of an artist, album or playlist page: Play (from the top) and Shuffle. On " +
+        "artist and playlist pages, the arrow beside Shuffle chooses By Songs or By Albums, and " +
+        "the choice is kept for next time.\n\n" +
+        "Back is at the bottom left of every page, and the page's ⋮ menu at the bottom right. " +
+        "On an artist page it can show all the songs in one list (Show as Songs).\n\n" +
+        "Below an artist's albums, Featured On lists songs by other artists that feature them, " +
+        "and Play and Shuffle take them in with the artist's own songs " +
+        "(Settings → Operation → Exclude Featured hides them).\n\n" +
         "Songs on a compilation (a soundtrack, a \"Now\" album) are listed under the compilation in " +
         "Artists: its Album Artist, or Various Artists. Settings → Tabs → Group Compilations " +
         "turns this off.",
@@ -157,7 +162,7 @@ private val HELP: List<Pair<String, String>> = listOf(
         "like \"Rating is 5 stars\" or \"Genre contains Rock\". Smart playlists work the same " +
         "way as in LuxTunes and go back to it at the next sync.",
     "Selecting several songs" to
-        "Use the select button in the bar at the bottom of a list, tick the songs, albums or " +
+        "Choose Edit (Edit Songs, Edit Albums…) in the ⋮ menu at the bottom right, tick the songs, albums or " +
         "artists you want, then add them to the queue or a playlist, open Get Info (to edit " +
         "them together), or delete them from the phone.\n\n" +
         "Deleting only removes the file from this phone. LuxTunes decides what's on the phone: " +
@@ -166,18 +171,20 @@ private val HELP: List<Pair<String, String>> = listOf(
         "Settings → Sound has the equalizer (with the same presets as LuxTunes), crossfade " +
         "between songs, playback speed for music, audiobooks and podcasts, ReplayGain (evens out " +
         "loudness) and mono.\n\n" +
-        "The equalizer button at the top of Now Playing switches presets quickly.\n\n" +
+        "The equalizer button at the bottom of Now Playing switches presets quickly.\n\n" +
+        "Set EQ… in a song's, album's, artist's or playlist's ⋮ menu gives those songs their own " +
+        "preset (as LuxTunes does). It goes to LuxTunes at the next sync.\n\n" +
         "Audio Priority, further down Settings → Sound, decides what happens during phone calls and " +
         "when another app plays sound: pause, carry on afterwards, or ignore other apps.",
     "Making it look your way" to
         "Settings → Theme: choose Dark, Material or Light, and your own background, accent and " +
         "text colors. Auto Accent takes the accent from the album art.\n\n" +
-        "Settings → Tabs: choose which tabs show and what a tap does. In the overview, " +
-        "long-press a tab and drag it to move it.\n\n" +
+        "Settings → Tabs: choose which tabs show and what a tap does. In the tab bar at the " +
+        "bottom, long-press a tab and drag it to move it.\n\n" +
         "Settings → Operation: open Now Playing when a song starts or not, smart playlists at " +
         "the end of the list, no album art, and highlighting timed lyrics.",
     "Sleep timer" to
-        "Tap the moon at the top of Now Playing (or choose Sleep Timer… in a ⋮ menu) and pick " +
+        "Tap the moon at the bottom of Now Playing (or choose Sleep Timer… in a ⋮ menu) and pick " +
         "how long: 15 minutes to 8 hours. When the time is up, the music fades out and pauses; " +
         "Play carries on from the same spot.\n\n" +
         "While it runs, the moon shows the time left. Tap it to change the time or turn it off.",
