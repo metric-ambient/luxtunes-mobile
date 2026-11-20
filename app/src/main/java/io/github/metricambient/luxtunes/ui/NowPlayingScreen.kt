@@ -12,10 +12,10 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -60,10 +60,13 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.media3.common.Player
+import androidx.navigation.NavBackStackEntry
 import androidx.navigation.NavHostController
+import io.github.metricambient.luxtunes.data.Track
 import kotlinx.coroutines.delay
 
 @Composable
@@ -82,6 +85,7 @@ fun NowPlayingScreen(nav: NavHostController) {
         if (track?.isVideo == true) nav.navigate(Routes.VIDEO) { popUpTo(Routes.NOW) { inclusive = true } }
     }
     var overlay by remember { mutableStateOf(false) }
+    var artShown by remember { mutableStateOf(true) }      // false when the window has no room for it
 
     // Position, polled while this screen is showing.
     var position by remember { mutableLongStateOf(0L) }
@@ -117,27 +121,29 @@ fun NowPlayingScreen(nav: NavHostController) {
             IconButton(onClick = { eqPopup = true }) {
                 Icon(Icons.Filled.Equalizer, "Equalizer", tint = if (eq.on) Lux.accent else Lux.icon)
             }
-            IconButton(onClick = { nav.go(Routes.QUEUE) }) {
+            IconButton(onClick = { nav.goFromNowPlaying(Routes.QUEUE) }) {
                 Icon(Icons.AutoMirrored.Filled.QueueMusic, "Play Queue - Up Next", tint = Lux.icon)
             }
             val menu = mutableListOf<Pair<String, () -> Unit>>()
             if (track != null) {
                 menu += "Get Info" to { Dialogs.show(DialogRequest.Info(listOf(track.id))) }
-                menu += "Go to Album" to { nav.go(Routes.album(track.albumKey)) }
-                menu += "Go to Artist" to { nav.go(Routes.artist(track.browseArtist)) }
+                menu += "Go to Album" to { nav.upTo(track, album = true) }
+                menu += "Go to Artist" to { nav.upTo(track, album = false) }
                 menu += "Add to playlist…" to { Dialogs.show(DialogRequest.AddToPlaylist(listOf(track.id))) }
                 menu += "Delete from phone" to { Dialogs.show(DialogRequest.Delete(listOf(track.id))) }
             }
             menu += sleepTimerMenu()
             menu += "Add Folder to Library…" to { AddFolder.show() }
-            menu += "Search" to { nav.go(Routes.SEARCH) }
-            menu += "Settings" to { nav.go(Routes.SETTINGS) }
+            menu += "Search" to { nav.goFromNowPlaying(Routes.SEARCH) }
+            menu += "Settings" to { nav.goFromNowPlaying(Routes.SETTINGS) }
             MoreMenu(menu)
         }
     }
     val titleBlock: @Composable () -> Unit = {
         // The song on its own line, artist / album below it
-        Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp)) {
+        // With no room for the art, tapping here shows the rating instead.
+        val tap = if (!artShown && track != null) Modifier.clickable { overlay = !overlay } else Modifier
+        Column(Modifier.fillMaxWidth().then(tap).padding(horizontal = 16.dp, vertical = 4.dp)) {
             ScrollingTitle(track?.displayName ?: "Not playing")
             if (track != null) {
                 Text(
@@ -147,17 +153,30 @@ fun NowPlayingScreen(nav: NavHostController) {
             }
         }
     }
-    val artwork: @Composable (Modifier) -> Unit = { place ->
+    val ratingBar: @Composable (Modifier) -> Unit = { place ->
+        if (track != null) Box(
+            place.background(Lux.shade).padding(vertical = 6.dp),
+            contentAlignment = Alignment.Center,
+        ) {
+            // A tapped rating shows at once, before the library has caught up.
+            val now = ratingsNow[track.id]
+            StarRating(
+                now ?: track.rating, if (now != null) false else track.ratingComputed,
+                onRate = { app.repository.setRating(track.id, it) },
+            )
+        }
+    }
+    // ratingInside: the rating sits on the art; otherwise the layout puts it full width elsewhere.
+    val artwork: @Composable (Dp, Boolean) -> Unit = { size, ratingInside ->
         // Art; tap it for the rating (and lyrics, when LuxTunes has them)
         Box(
-            place
-                .aspectRatio(1f, matchHeightConstraintsFirst = true)
+            Modifier.size(size)
                 .clickable(
                     interactionSource = remember { MutableInteractionSource() },
                     indication = null,
                 ) { if (track != null) overlay = !overlay },
         ) {
-            Artwork(track, Modifier.fillMaxSize(), noteSize = 220.dp)
+            Artwork(track, Modifier.fillMaxSize(), noteSize = minOf(220.dp, size * 0.6f))
             if (overlay && track != null) {
                 val lyrics = track.lyrics ?: fileLyrics[track.id]
                 if (lyrics != null || track.syncedLyrics != null) {
@@ -165,17 +184,7 @@ fun NowPlayingScreen(nav: NavHostController) {
                         LyricsView(track.id, lyrics, track.syncedLyrics, position, settings.followLyrics)
                     }
                 }
-                Box(
-                    Modifier.align(Alignment.BottomCenter).fillMaxWidth().background(Lux.shade).padding(vertical = 6.dp),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    // A tapped rating shows at once, before the library has caught up.
-                    val now = ratingsNow[track.id]
-                    StarRating(
-                        now ?: track.rating, if (now != null) false else track.ratingComputed,
-                        onRate = { app.repository.setRating(track.id, it) },
-                    )
-                }
+                if (ratingInside) ratingBar(Modifier.align(Alignment.BottomCenter).fillMaxWidth())
             }
         }
     }
@@ -245,32 +254,88 @@ fun NowPlayingScreen(nav: NavHostController) {
         }
     }
 
+    // Split screen and small windows: the art shrinks first, then goes; the controls always stay.
+    // The rating moves out of the art, at full size and full width, once the art is too small for it.
     val landscape = LocalConfiguration.current.orientation == Configuration.ORIENTATION_LANDSCAPE
-    if (landscape) {
-        // Art on the right at full height; everything else to its left.
-        Row(Modifier.fillMaxSize().background(Lux.background)) {
-            Column(Modifier.weight(1f).fillMaxHeight()) {
+    BoxWithConstraints(Modifier.fillMaxSize().background(Lux.background)) {
+        if (landscape) {
+            // Art on the right at full height; everything else to its left.
+            val art = minOf(maxHeight, maxWidth - CONTROLS_WIDTH)
+            val showArt = art >= MIN_ART
+            val ratingOutside = !showArt || art < RATING_ART
+            LaunchedEffect(showArt) { artShown = showArt }
+            Row(Modifier.fillMaxSize(), verticalAlignment = Alignment.CenterVertically) {
+                Column(Modifier.weight(1f).fillMaxHeight()) {
+                    topBar()
+                    titleBlock()
+                    BoxWithConstraints(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.BottomCenter) {
+                        if (overlay && ratingOutside && maxHeight >= RATING_HEIGHT) ratingBar(Modifier.fillMaxWidth())
+                    }
+                    controls()
+                    seekBar()
+                }
+                if (showArt) artwork(art, !ratingOutside)
+            }
+        } else {
+            Column(Modifier.fillMaxSize()) {
                 topBar()
                 titleBlock()
-                Spacer(Modifier.weight(1f))
+                Spacer(Modifier.height(8.dp))
+                // Square, as big as fits: the full width on tall phones, smaller on short ones.
+                BoxWithConstraints(Modifier.fillMaxWidth().weight(1f, fill = false)) {
+                    val fits = minOf(maxWidth, maxHeight)
+                    val showArt = fits >= MIN_ART
+                    val ratingOutside = !showArt || fits < RATING_ART
+                    // The rating below the art needs its height; if that leaves the art too small, no rating.
+                    val ratingRoom = maxHeight - RATING_HEIGHT
+                    val showRating = overlay && ratingOutside && ratingRoom >= (if (showArt) MIN_ART else 0.dp)
+                    val art = if (showRating) minOf(maxWidth, ratingRoom) else fits
+                    LaunchedEffect(showArt) { artShown = showArt }
+                    Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
+                        if (showArt) artwork(art, !ratingOutside)
+                        if (showRating) ratingBar(Modifier.fillMaxWidth())
+                    }
+                }
+                Spacer(Modifier.height(24.dp))
                 controls()
+                Spacer(Modifier.height(8.dp))
                 seekBar()
             }
-            artwork(Modifier.fillMaxHeight())
-        }
-    } else {
-        Column(Modifier.fillMaxSize().background(Lux.background)) {
-            topBar()
-            titleBlock()
-            Spacer(Modifier.height(8.dp))
-            // Square, as big as fits: the full width on tall phones, smaller on short ones.
-            artwork(Modifier.align(Alignment.CenterHorizontally).weight(1f, fill = false))
-            Spacer(Modifier.height(24.dp))
-            controls()
-            Spacer(Modifier.height(8.dp))
-            seekBar()
         }
     }
+}
+
+/** Below this the art isn't worth showing. */
+private val MIN_ART = 120.dp
+/** Art smaller than this gets the rating below it instead of on it. */
+private val RATING_ART = 280.dp
+private val RATING_HEIGHT = 56.dp
+/** What the controls need beside the art in landscape. */
+private val CONTROLS_WIDTH = 344.dp
+
+/**
+ * Go to the song's album or artist the way the library is laid out, so Back goes up:
+ * album → its artist → the main screen. An artist or album page already under Now
+ * Playing is kept (with its scroll position); anything else above the main screen goes.
+ */
+private fun NavHostController.upTo(track: Track, album: Boolean) {
+    fun arg(e: NavBackStackEntry, key: String) = e.arguments?.getString(key).orEmpty()
+    fun isAlbum(e: NavBackStackEntry) = e.destination.route == "album/{key}" && arg(e, "key") == track.albumKey
+    fun isArtist(e: NavBackStackEntry) = e.destination.route == "group/{kind}/{name}" &&
+        arg(e, "kind") in listOf("artist", "trackartist") &&
+        (arg(e, "name").equals(track.browseArtist, ignoreCase = true) || arg(e, "name").equals(track.artist, ignoreCase = true))
+    fun wanted(e: NavBackStackEntry) = if (album) isAlbum(e) else isArtist(e)
+
+    if (currentBackStackEntry?.destination?.route == Routes.NOW) popBackStack()
+    while (true) {
+        val top = currentBackStackEntry ?: break
+        if (top.destination.route == Routes.HOME || wanted(top) || (album && isArtist(top))) break
+        if (!popBackStack()) break
+    }
+    val top = currentBackStackEntry
+    if (top != null && wanted(top)) return
+    if (top?.destination?.route == Routes.HOME && track.browseArtist.isNotBlank()) navigate(Routes.artist(track.browseArtist))
+    if (album) navigate(Routes.album(track.albumKey))
 }
 
 /**

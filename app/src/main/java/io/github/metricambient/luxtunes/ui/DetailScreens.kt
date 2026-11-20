@@ -183,8 +183,8 @@ fun GroupScreen(nav: NavHostController, kind: String, name: String) {
     val tracks = artist.tracks                       // by album, oldest album first
     val years = artist.albums.map { it.year }.filter { it > 0 }
     // Songs by other artists that feature this one (as LuxTunes' "Featured On").
-    val featuredOn = remember(library, kind, artist.name) {
-        if (kind != "artist" && kind != "trackartist") emptyList() else {
+    val featuredOn = remember(library, kind, artist.name, settings.excludeFeatured) {
+        if (settings.excludeFeatured || (kind != "artist" && kind != "trackartist")) emptyList() else {
             val own = tracks.map { it.id }.toSet()
             val who = artist.name.lowercase()
             library.tracks.filter { t -> t.id !in own && t.featured.any { it.lowercase() == who } }
@@ -453,8 +453,8 @@ fun QueueScreen(nav: NavHostController) {
                 current = i == playerState.queueIndex,
                 onClick = {
                     app.player.skipToQueueItem(i)
-                    // Back to Now Playing if we came from there, instead of stacking a second one.
-                    if (!nav.popBackStack(Routes.NOW, inclusive = false)) nav.go(Routes.NOW)
+                    // Now Playing takes the queue's place, so Back goes to the screen before both.
+                    nav.navigate(Routes.NOW) { popUpTo(Routes.QUEUE) { inclusive = true }; launchSingleTop = true }
                 },
                 menu = emptyList(),
             )
