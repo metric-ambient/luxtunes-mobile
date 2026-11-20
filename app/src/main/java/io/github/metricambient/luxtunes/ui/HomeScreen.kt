@@ -183,16 +183,21 @@ fun HomeScreen(nav: NavHostController) {
         else -> library.tracks.filter { it.id in selected }
     }
 
-    val menu: Menu = (if (tabName in EDITABLE) listOf("Edit $tabName" to { selecting = true }) else emptyList<Pair<String, () -> Unit>>()) +
-        sleepTimerMenu() + listOf(
-            "Search" to { nav.go(Routes.SEARCH) },
-            "Rescan Device" to { app.repository.refreshAsync() },
-            "Add Folder to Library…" to { AddFolder.show() },
-            "Switch Theme" to { nav.go(Routes.SETTINGS_THEME) },
-            "Settings" to { nav.go(Routes.SETTINGS) },
-        )
+    val menu: Menu = sleepTimerMenu() + listOf(
+        "Search" to { nav.go(Routes.SEARCH) },
+        "Rescan Device" to { Notice.show("Looking for a new sync…"); app.repository.refreshAsync() },
+        "Add Folder to Library…" to { AddFolder.show() },
+        "Change Theme" to { nav.go(Routes.SETTINGS_THEME) },
+        "Settings" to { nav.go(Routes.SETTINGS) },
+    )
 
     Column(Modifier.fillMaxSize()) {
+        TopTabs(
+            tabs = tabs,
+            selected = tabName,
+            onSelect = { tabName = it },
+            onReorder = { order -> app.prefs.update { it.copy(tabs = order) } },
+        )
         if (selecting) {
             SelectBar(
                 count = selected.size,
@@ -203,7 +208,11 @@ fun HomeScreen(nav: NavHostController) {
                 onDelete = { Dialogs.show(DialogRequest.Delete(selectedTracks().map { it.id })); stopSelecting() },
             )
         } else {
-            TabHeader(nav, tabName, library, settings, query, onSearch = { searching = !searching || query.isNotEmpty() })
+            TabHeader(
+                nav, tabName, library, settings, query,
+                onSearch = { searching = !searching || query.isNotEmpty() },
+                onEdit = if (tabName in EDITABLE) ({ selecting = true }) else null,
+            )
         }
         Column(Modifier.weight(1f)) {
             if (library.allTracks.isEmpty()) {
@@ -236,13 +245,7 @@ fun HomeScreen(nav: NavHostController) {
                 }
             }
         }
-        BottomTabs(
-            tabs = tabs,
-            selected = tabName,
-            onSelect = { tabName = it },
-            onReorder = { order -> app.prefs.update { it.copy(tabs = order) } },
-            menu = menu,
-        )
+        BottomBar(nav, menu, back = false)
     }
 }
 
@@ -257,10 +260,11 @@ private fun tabSongs(tabName: String, library: LibraryState, settings: AppSettin
     else -> null
 }
 
-/** The top of the overview: the tab's name, then play from the top, shuffle, search and sort. */
+/** Under the tabs: the tab's name, then play from the top, shuffle, search, sort and Edit (tick several). */
 @Composable
 private fun TabHeader(
-    nav: NavHostController, tabName: String, library: LibraryState, settings: AppSettings, query: String, onSearch: () -> Unit,
+    nav: NavHostController, tabName: String, library: LibraryState, settings: AppSettings, query: String,
+    onSearch: () -> Unit, onEdit: (() -> Unit)?,
 ) {
     val app = app()
     Row(
@@ -287,6 +291,9 @@ private fun TabHeader(
             IconButton(onClick = onSearch) { Icon(Icons.Filled.Search, "Search", tint = Lux.icon, modifier = Modifier.size(26.dp)) }
         }
         if (tabName in EDITABLE) SortButton(tabName, settings)
+        if (onEdit != null && library.allTracks.isNotEmpty()) {
+            IconButton(onClick = onEdit) { Icon(Icons.Filled.Checklist, "Edit $tabName", tint = Lux.icon, modifier = Modifier.size(26.dp)) }
+        }
     }
 }
 
@@ -657,32 +664,34 @@ private fun AlbumsTab(
     FastScroll(gridState, albums.size, { i -> albums.getOrNull(i)?.let { if (filter == "Recently Added") null else albumLabel(it, settings.albumSort) } }) {
     LazyVerticalGrid(
         columns = GridCells.Fixed(columns), modifier = Modifier.fillMaxSize(), state = gridState,
-        contentPadding = PaddingValues(bottom = LocalMiniSpace.current),
+        contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = 16.dp),
+        horizontalArrangement = Arrangement.spacedBy(14.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
+        // Each album: its rounded cover, then its name and artist underneath.
         items(albums, key = { it.key }) { album ->
-            Box(
+            Column(
                 Modifier
                     .fillMaxWidth()
-                    .aspectRatio(1f)
+                    .clip(RoundedCornerShape(12.dp))
                     .clickable {
                         if (selecting) toggle(album.key)
                         else tapGroup(app, nav, album.tracks, settings.albumAction, Routes.album(album.key))
                     },
             ) {
-                if (settings.albumArt) Artwork(album.artTrack, Modifier.fillMaxSize(), noteSize = (96 / columns * 2).dp)
-                else Box(Modifier.fillMaxSize().background(Lux.panel))
+                Box(Modifier.fillMaxWidth().aspectRatio(1f).clip(RoundedCornerShape(12.dp))) {
+                    if (settings.albumArt) Artwork(album.artTrack, Modifier.fillMaxSize(), noteSize = (96 / columns * 2).dp)
+                    else Box(Modifier.fillMaxSize().background(Lux.placeholder))
+                    if (selecting) Box(Modifier.align(Alignment.TopStart).padding(6.dp)) { Tick(album.key in selected) }
+                }
                 Text(
-                    album.name,
-                    color = Lux.text, fontSize = if (columns > 2) 13.sp else 17.sp,
-                    maxLines = if (settings.albumArt) 1 else 3, overflow = TextOverflow.Ellipsis,
-                    textAlign = TextAlign.Center,
-                    modifier = Modifier
-                        .align(if (settings.albumArt) Alignment.BottomCenter else Alignment.Center)
-                        .fillMaxWidth()
-                        .background(if (settings.albumArt) Lux.shade else Lux.panel)
-                        .padding(horizontal = 8.dp, vertical = 10.dp),
+                    album.name, color = Lux.text, fontSize = if (columns > 2) 13.sp else 15.sp, fontWeight = FontWeight.Medium,
+                    maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 6.dp),
                 )
-                if (selecting) Box(Modifier.align(Alignment.TopStart).padding(6.dp)) { Tick(album.key in selected) }
+                Text(
+                    album.artist, color = Lux.dim, fontSize = if (columns > 2) 12.sp else 13.sp,
+                    maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(bottom = 4.dp),
+                )
             }
         }
     }

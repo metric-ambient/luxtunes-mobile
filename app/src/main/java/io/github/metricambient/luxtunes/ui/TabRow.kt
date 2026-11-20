@@ -58,13 +58,12 @@ private val MIN_TAB = 72.dp
 private val SCROLL_TAB = 78.dp
 
 /**
- * The overview's tabs along the bottom, each an icon over its name, and the main ⋮ menu
- * at the right. If they all fit they share the bar; if not, they scroll, with an arrow
- * at each side that has more. Tap one to show it; long-press and drag one sideways to
- * move it (the new order is saved when you let go).
+ * The overview's tabs along the top, each an icon over its name. If they all fit they
+ * share the row; if not, they scroll, with an arrow at each side that has more. Tap one
+ * to show it; long-press and drag one sideways to move it (saved when you let go).
  */
 @Composable
-fun BottomTabs(tabs: List<String>, selected: String, onSelect: (String) -> Unit, onReorder: (List<String>) -> Unit, menu: Menu) {
+fun TopTabs(tabs: List<String>, selected: String, onSelect: (String) -> Unit, onReorder: (List<String>) -> Unit) {
     var order by remember(tabs) { mutableStateOf(tabs) }
     var dragging by remember { mutableStateOf<String?>(null) }
     var offset by remember { mutableFloatStateOf(0f) }
@@ -73,8 +72,9 @@ fun BottomTabs(tabs: List<String>, selected: String, onSelect: (String) -> Unit,
     val scroll = rememberScrollState()
     val scope = rememberCoroutineScope()
 
-    Row(Modifier.fillMaxWidth().height(BOTTOM_BAR).background(Lux.bar)) {
-        BoxWithConstraints(Modifier.weight(1f).fillMaxHeight()) {
+    val material = Lux.style == ThemeStyle.MATERIAL
+    Column(Modifier.fillMaxWidth().background(if (material) Lux.bar else Lux.background)) {
+        BoxWithConstraints(Modifier.fillMaxWidth().height(58.dp)) {
             val fits = maxWidth / order.size.coerceAtLeast(1) >= MIN_TAB
             val tabWidth = if (fits) maxWidth / order.size.coerceAtLeast(1) else SCROLL_TAB
             Row(Modifier.fillMaxSize().horizontalScroll(scroll)) {
@@ -143,15 +143,12 @@ fun BottomTabs(tabs: List<String>, selected: String, onSelect: (String) -> Unit,
                 }
             }
         }
-        Box(Modifier.width(1.dp).fillMaxHeight().padding(vertical = 14.dp).background(Lux.panel))
-        Box(Modifier.width(52.dp).fillMaxHeight(), contentAlignment = Alignment.Center) {
-            MoreMenu(menu)
-        }
+        if (!material) Box(Modifier.fillMaxWidth().height(1.dp).background(Lux.panel))
     }
 }
 
 /**
- * One tab: its icon over its name. The chosen one is in the accent color with a line above
+ * One tab: its icon over its name. The chosen one is in the accent color with a line under
  * it (Dark and Light), or sits on a highlight that takes in the icon and the name (Material).
  */
 @Composable
@@ -166,11 +163,11 @@ private fun TabItem(name: String, chosen: Boolean) {
         if (chosen && !material) {
             Box(
                 Modifier
-                    .align(Alignment.TopCenter)
+                    .align(Alignment.BottomCenter)
                     .fillMaxWidth()
                     .padding(horizontal = 16.dp)
                     .height(3.dp)
-                    .clip(RoundedCornerShape(bottomStart = 3.dp, bottomEnd = 3.dp))
+                    .clip(RoundedCornerShape(topStart = 3.dp, topEnd = 3.dp))
                     .background(Lux.accent)
             )
         }
@@ -194,7 +191,7 @@ private fun TabItem(name: String, chosen: Boolean) {
 /** An arrow over a fade at one edge of the tabs, showing there are more that way. */
 @Composable
 private fun EdgeArrow(left: Boolean, modifier: Modifier, onClick: () -> Unit) {
-    val solid = Lux.bar
+    val solid = if (Lux.style == ThemeStyle.MATERIAL) Lux.bar else Lux.background
     val fade = listOf(solid, solid.copy(alpha = 0.9f), solid.copy(alpha = 0f))
     Box(
         modifier

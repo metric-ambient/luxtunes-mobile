@@ -21,11 +21,12 @@ android {
         // Every GitHub build gets a higher number, so a new APK installs over the old one
         // (as long as it's signed with the same key).
         versionCode = (System.getenv("GITHUB_RUN_NUMBER") ?: "1").toInt()
-        // A release build (tag v0.2.0) takes its version from the tag.
+        // A release build (tag v0.2.0) takes its version from the tag. Any other build is
+        // a test build: "dev" (Settings shows it with its build number).
         versionName = System.getenv("GITHUB_REF_NAME")
             ?.takeIf { System.getenv("GITHUB_REF_TYPE") == "tag" }
             ?.removePrefix("v")
-            ?: "0.7.0"
+            ?: "dev"
     }
 
     signingConfigs {

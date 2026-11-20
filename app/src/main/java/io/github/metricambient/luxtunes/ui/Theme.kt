@@ -50,6 +50,9 @@ class LuxPalette(val style: ThemeStyle, colors: ThemeColors, val autoAccent: Boo
     val faint = lerp(background, text, 0.33f)                              // unavailable, placeholders
     val track = lerp(background, text, 0.27f)                              // empty part of bars
     val shade = background.copy(alpha = 0.75f)                             // over album art
+    val bottomBar = lerp(background, text, if (isLight) 0.11f else 0.18f)  // the bar along the bottom
+    val raised = lerp(background, text, if (isLight) 0.15f else 0.25f)     // buttons that aren't the accent
+    val placeholder = lerp(background, text, if (isLight) 0.17f else 0.23f) // where art is missing
 }
 
 /**
@@ -80,6 +83,9 @@ object Lux {
     val faint: Color get() = palette.faint
     val track: Color get() = palette.track
     val shade: Color get() = palette.shade
+    val bottomBar: Color get() = palette.bottomBar
+    val raised: Color get() = palette.raised
+    val placeholder: Color get() = palette.placeholder
     /** The overview's tab bar: the accent in Material, the background otherwise. */
     val tabBar: Color get() = if (style == ThemeStyle.MATERIAL) accent else background
 

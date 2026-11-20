@@ -86,8 +86,8 @@ fun Artwork(
     val settings by app.prefs.settings.collectAsState()
     // Settings → Operation → Disable Album Art: always the plain note.
     val art = if (settings.noAlbumArt) null else app.repository.art(song)
-    Box(modifier.background(Lux.bar), contentAlignment = Alignment.Center) {
-        Icon(note, null, tint = Lux.faint, modifier = Modifier.size(noteSize))
+    Box(modifier.background(Lux.placeholder), contentAlignment = Alignment.Center) {
+        Icon(note, null, tint = Lux.dim, modifier = Modifier.size(noteSize))
         if (art != null) {
             AsyncImage(
                 model = art,

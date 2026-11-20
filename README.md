@@ -22,10 +22,9 @@ next sync.
 
 - Plays what LuxTunes put in the `LuxTunes` folder on the phone (internal storage or SD
   card), with LuxTunes' own song details, ratings, play counts, lyrics and playlists.
-- Browse by artist, album, song and playlist, with the tabs along the bottom, play and
-  shuffle buttons and search at the top of every tab, quick filters for albums, a
-  fast-scroll handle with letters, and sorting (also in reverse). A floating mini player
-  shows what's playing.
+- Browse by artist, album, song and playlist, with play, shuffle, search, sort and edit
+  buttons under the tabs, an album grid with quick filters, a fast-scroll handle with
+  letters, and sorting (also in reverse). What's playing is always in the bar at the bottom.
 - Now Playing with album art, star ratings and lyrics; timed lyrics (LuxTunes 0.8.5+)
   light up the line being sung. Hold Previous or Next to rewind or fast-forward. Works in
   split screen and landscape. Lock-screen, notification and Bluetooth controls; the
