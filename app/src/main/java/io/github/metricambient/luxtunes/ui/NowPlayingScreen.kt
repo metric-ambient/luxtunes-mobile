@@ -205,7 +205,11 @@ fun NowPlayingScreen(nav: NavHostController) {
                 val lyrics = track.lyrics ?: fileLyrics[track.id]
                 if (lyrics != null || track.syncedLyrics != null) {
                     Box(Modifier.fillMaxSize().background(Lux.shade)) {
-                        LyricsView(track.id, lyrics, track.syncedLyrics, position, settings.followLyrics)
+                        // Room at the bottom for the stars only when they're on the art.
+                        LyricsView(
+                            track.id, lyrics, track.syncedLyrics, position, settings.followLyrics,
+                            bottomSpace = if (ratingInside) 64.dp else 0.dp,
+                        )
                     }
                 }
                 if (ratingInside) ratingBar(Modifier.align(Alignment.BottomCenter).fillMaxWidth())
