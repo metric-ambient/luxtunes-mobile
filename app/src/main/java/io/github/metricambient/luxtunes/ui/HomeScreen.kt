@@ -9,6 +9,15 @@ import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import android.content.res.Configuration
 import androidx.compose.foundation.background
+import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.combinedClickable
+import androidx.activity.compose.BackHandler
+import androidx.compose.material.icons.filled.Bedtime
+import androidx.compose.material.icons.filled.CreateNewFolder
+import androidx.compose.material.icons.filled.Sync
+import androidx.compose.material.icons.filled.Palette
+import androidx.compose.material.icons.filled.SystemUpdate
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -145,12 +154,13 @@ private fun albumLabel(a: Album, sort: GroupSort): String = when (sort) {
 
 // ---- The screen ---------------------------------------------------------------------------
 
-/** The tabs whose rows can be ticked (Edit) and that have a sort order. */
+/** The tabs whose rows can be ticked (long-press) and that have a sort order. */
 private val EDITABLE = listOf("Artists", "Album Artists", "Songs", "Albums")
 
 /**
- * The overview: the tab's name at the top with its play, shuffle, search and sort
- * buttons; the list; the tabs along the bottom, with the main ⋮ menu at the right.
+ * The overview: the tab's name at the top with Search and Sort; the list; Play and
+ * Shuffle beside the floating player; the tabs along the bottom with More at the right.
+ * Long-press a row to start ticking several.
  */
 @Composable
 fun HomeScreen(nav: NavHostController) {
@@ -160,20 +170,26 @@ fun HomeScreen(nav: NavHostController) {
     val tabs = settings.tabs.ifEmpty { listOf("Songs") }
     var tabName by rememberSaveable { mutableStateOf(tabs.first()) }
     if (tabName !in tabs) tabName = tabs.first()
-    val queries = remember { mutableStateOf(mapOf<String, String>()) }
     val tabStates = rememberSaveableStateHolder()
-    val query = queries.value[tabName].orEmpty()
-    val setQuery = { q: String -> queries.value = queries.value + (tabName to q) }
-    // The search box shows after tapping the search button (and while it has text in it).
-    var searching by rememberSaveable { mutableStateOf(false) }
-    LaunchedEffect(settings.hideSearch) { if (settings.hideSearch) { queries.value = emptyMap(); searching = false } }
+    val query = ""          // (searching is the Search screen now)
 
     // Select mode: ticked artist names / album keys / song IDs.
     var selecting by remember { mutableStateOf(false) }
     var selected by remember { mutableStateOf(setOf<String>()) }
     fun stopSelecting() { selecting = false; selected = emptySet() }
     val toggle = { key: String -> selected = if (key in selected) selected - key else selected + key }
+    // A long-press starts ticking with that row ticked (and in select mode, ticks or unticks it).
+    val longPress = { key: String -> if (!selecting) { selecting = true; selected = setOf(key) } else toggle(key) }
     LaunchedEffect(tabName) { stopSelecting() }
+    BackHandler(enabled = selecting) { stopSelecting() }
+
+    // Everything the tab lists, as select keys (for Select all).
+    fun allKeys(): Set<String> = when (tabName) {
+        "Artists" -> library.trackArtists.map { it.name }
+        "Album Artists" -> library.artists.map { it.name }
+        "Albums" -> library.albums.map { it.key }
+        else -> library.tracks.map { it.id }
+    }.toSet()
 
     // The songs the ticked rows stand for, in a sensible order.
     fun selectedTracks(): List<Track> = when (tabName) {
@@ -183,75 +199,78 @@ fun HomeScreen(nav: NavHostController) {
         else -> library.tracks.filter { it.id in selected }
     }
 
-    val menu: Menu = sleepTimerMenu() + listOf(
-        "Search" to { nav.go(Routes.SEARCH) },
-        "Rescan Device" to { Notice.show("Looking for a new sync…"); app.repository.refreshAsync() },
-        "Add Folder to Library…" to { AddFolder.show() },
-        "Change Theme" to { nav.go(Routes.SETTINGS_THEME) },
-        "Settings" to { nav.go(Routes.SETTINGS) },
+    // Play and Shuffle beside the floating player play this tab, in its order.
+    if (library.allTracks.isNotEmpty() && tabName in listOf("Songs", "Albums", "Artists", "Album Artists", "Genres", "Composers")) {
+        PlayCardFor(
+            play = { tabSongs(tabName, library, settings)?.takeIf { it.isNotEmpty() }?.let { s -> app.player.play(s) { showPlayer(nav, s) } } },
+            shuffle = { tabSongs(tabName, library, settings)?.takeIf { it.isNotEmpty() }?.let { s -> app.player.shuffle(s) { showPlayer(nav, s) } } },
+        )
+    }
+
+    val sleep = sleepTimerMenu().map { (label, action) -> MoreItem(label, Icons.Filled.Bedtime, action) }
+    val more = sleep + listOf(
+        MoreItem("Add Folder to Library…", Icons.Filled.CreateNewFolder) { AddFolder.show() },
+        MoreItem("Rescan Device", Icons.Filled.Sync) { Notice.show("Looking for a new sync…"); app.repository.refreshAsync() },
+        MoreItem("Change Theme", Icons.Filled.Palette) { nav.go(Routes.SETTINGS_THEME) },
+        MoreItem("Check for Updates", Icons.Filled.SystemUpdate) { UpdateCheck.start() },
+        MoreItem("Settings", Icons.Filled.Settings) { nav.go(Routes.SETTINGS) },
     )
 
     Column(Modifier.fillMaxSize()) {
-        TopTabs(
-            tabs = tabs,
-            selected = tabName,
-            onSelect = { tabName = it },
-            onReorder = { order -> app.prefs.update { it.copy(tabs = order) } },
-        )
         if (selecting) {
+            val all = allKeys()
             SelectBar(
                 count = selected.size,
+                allTicked = all.isNotEmpty() && selected.containsAll(all),
                 onClose = { stopSelecting() },
+                onAll = { selected = if (selected.containsAll(all)) emptySet() else all },
                 onQueue = { app.player.addToQueue(selectedTracks()); stopSelecting() },
                 onPlaylist = { Dialogs.show(DialogRequest.AddToPlaylist(selectedTracks().map { it.id })); stopSelecting() },
                 onInfo = { Dialogs.show(DialogRequest.Info(selectedTracks().map { it.id })); stopSelecting() },
                 onDelete = { Dialogs.show(DialogRequest.Delete(selectedTracks().map { it.id })); stopSelecting() },
             )
         } else {
-            TabHeader(
-                nav, tabName, library, settings, query,
-                onSearch = { searching = !searching || query.isNotEmpty() },
-                onEdit = if (tabName in EDITABLE) ({ selecting = true }) else null,
-            )
+            TabHeader(nav, tabName, library, settings)
         }
-        Column(Modifier.weight(1f)) {
+        Box(Modifier.weight(1f)) {
             if (library.allTracks.isEmpty()) {
                 Empty(library)
             } else {
-                if (!settings.hideSearch && (searching || query.isNotEmpty())) {
-                    SearchField(query, setQuery, Modifier.padding(vertical = 4.dp))
+              // Each tab keeps its own scroll position while you're on other tabs or screens.
+              tabStates.SaveableStateProvider(tabName) {
+                when (tabName) {
+                    "Artists" -> GroupTab(nav, library.trackArtists, "trackartist", Icons.Filled.Person,
+                        settings.artistIcons, GroupAction.VIEW, settings.artistSort, query, selecting, selected, toggle, settings.artistSortReverse, longPress)
+                    "Album Artists" -> GroupTab(nav, library.artists, "artist", Icons.Filled.Person,
+                        settings.albumArtistIcons, GroupAction.VIEW, settings.artistSort, query, selecting, selected, toggle, settings.artistSortReverse, longPress)
+                    "Genres" -> GroupTab(nav, library.genres, "genre", Icons.Filled.Category,
+                        settings.genreIcons, settings.genreAction, GroupSort.NAME, query, false, emptySet(), toggle)
+                    "Composers" -> GroupTab(nav, library.composers, "composer", Icons.Filled.Piano,
+                        settings.composerIcons, settings.composerAction, GroupSort.NAME, query, false, emptySet(), toggle)
+                    "Movies" -> MoviesTab(nav, library.movies, query)
+                    "TV Shows" -> TvShowsTab(nav, library.tvShows, query)
+                    "Playlists" -> PlaylistsTab(nav, library, settings, query)
+                    "Songs" -> SongsTab(nav, library, settings, query, selecting, selected, toggle, longPress)
+                    "Albums" -> AlbumsTab(nav, library, settings, query, selecting, selected, toggle, longPress)
+                    "Podcasts" -> ShowsTab(nav, library.podcasts, query, settings.podcastAction, "No podcasts on this phone. Choose some on the Podcasts tab of the phone's page in LuxTunes.")
+                    "Audiobooks" -> ShowsTab(nav, library.audiobooks, query, settings.audiobookAction, "No audiobooks on this phone. Choose some on the Books tab of the phone's page in LuxTunes.")
                 }
-                Box(Modifier.weight(1f)) {
-                  // Each tab keeps its own scroll position while you're on other tabs or screens.
-                  tabStates.SaveableStateProvider(tabName) {
-                    when (tabName) {
-                        "Artists" -> GroupTab(nav, library.trackArtists, "trackartist", Icons.Filled.Person,
-                            settings.artistIcons, GroupAction.VIEW, settings.artistSort, query, selecting, selected, toggle, settings.artistSortReverse)
-                        "Album Artists" -> GroupTab(nav, library.artists, "artist", Icons.Filled.Person,
-                            settings.albumArtistIcons, GroupAction.VIEW, settings.artistSort, query, selecting, selected, toggle, settings.artistSortReverse)
-                        "Genres" -> GroupTab(nav, library.genres, "genre", Icons.Filled.Category,
-                            settings.genreIcons, settings.genreAction, GroupSort.NAME, query, false, emptySet(), toggle)
-                        "Composers" -> GroupTab(nav, library.composers, "composer", Icons.Filled.Piano,
-                            settings.composerIcons, settings.composerAction, GroupSort.NAME, query, false, emptySet(), toggle)
-                        "Movies" -> MoviesTab(nav, library.movies, query)
-                        "TV Shows" -> TvShowsTab(nav, library.tvShows, query)
-                        "Playlists" -> PlaylistsTab(nav, library, settings, query)
-                        "Songs" -> SongsTab(nav, library, settings, query, selecting, selected, toggle)
-                        "Albums" -> AlbumsTab(nav, library, settings, query, selecting, selected, toggle)
-                        "Podcasts" -> ShowsTab(nav, library.podcasts, query, settings.podcastAction, "No podcasts on this phone. Choose some on the Podcasts tab of the phone's page in LuxTunes.")
-                        "Audiobooks" -> ShowsTab(nav, library.audiobooks, query, settings.audiobookAction, "No audiobooks on this phone. Choose some on the Books tab of the phone's page in LuxTunes.")
-                    }
-                  }
-                }
+              }
             }
         }
-        BottomBar(nav, menu, back = false)
+        BottomTabs(
+            tabs = tabs,
+            selected = tabName,
+            onSelect = { tabName = it },
+            onReorder = { order -> app.prefs.update { it.copy(tabs = order) } },
+            more = more,
+        )
     }
 }
 
-/** The songs a tab's play and shuffle buttons start, in the tab's order; null: the tab has none. */
-private fun tabSongs(tabName: String, library: LibraryState, settings: AppSettings, query: String): List<Track>? = when (tabName) {
-    "Songs" -> sortSongs(library.tracks.filter { matches(query, it.name, it.artist, it.album, it.featuredArtist.orEmpty()) }, settings.songSort, settings.songSortReverse)
+/** The songs a tab's Play and Shuffle start, in the tab's order; null: the tab has none. */
+private fun tabSongs(tabName: String, library: LibraryState, settings: AppSettings): List<Track>? = when (tabName) {
+    "Songs" -> sortSongs(library.tracks, settings.songSort, settings.songSortReverse)
     "Albums" -> sortAlbums(library.albums, settings.albumSort, settings.albumSortReverse).flatMap { it.tracks }
     "Artists" -> sortArtists(library.trackArtists, settings.artistSort, settings.artistSortReverse).flatMap { it.tracks }
     "Album Artists" -> sortArtists(library.artists, settings.artistSort, settings.artistSortReverse).flatMap { it.tracks }
@@ -260,40 +279,21 @@ private fun tabSongs(tabName: String, library: LibraryState, settings: AppSettin
     else -> null
 }
 
-/** Under the tabs: the tab's name, then play from the top, shuffle, search, sort and Edit (tick several). */
+/** The top of the overview: the tab's name, then Search (the full search screen) and Sort. */
 @Composable
-private fun TabHeader(
-    nav: NavHostController, tabName: String, library: LibraryState, settings: AppSettings, query: String,
-    onSearch: () -> Unit, onEdit: (() -> Unit)?,
-) {
-    val app = app()
+private fun TabHeader(nav: NavHostController, tabName: String, library: LibraryState, settings: AppSettings) {
     Row(
-        Modifier.fillMaxWidth().height(60.dp).padding(start = 16.dp, end = 4.dp),
+        Modifier.fillMaxWidth().height(64.dp).padding(start = 16.dp, end = 4.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Text(
-            tabName, color = Lux.text, fontSize = 28.sp, fontWeight = FontWeight.Bold,
+            tabName, color = Lux.text, fontSize = 30.sp, fontWeight = FontWeight.Bold,
             maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f),
         )
-        val hasSongs = tabSongs(tabName, library, settings, "") != null && library.allTracks.isNotEmpty()
-        if (hasSongs) {
-            val icon = LuxIcons.tab(tabName)
-            IconButton(onClick = {
-                val songs = tabSongs(tabName, library, settings, query).orEmpty()
-                if (songs.isNotEmpty()) app.player.play(songs) { showPlayer(nav, songs) }
-            }) { TabActionIcon(icon, shuffle = false, description = "Play $tabName from the top") }
-            IconButton(onClick = {
-                val songs = tabSongs(tabName, library, settings, query).orEmpty()
-                if (songs.isNotEmpty()) app.player.shuffle(songs) { showPlayer(nav, songs) }
-            }) { TabActionIcon(icon, shuffle = true, description = "Shuffle $tabName") }
-        }
         if (!settings.hideSearch && library.allTracks.isNotEmpty()) {
-            IconButton(onClick = onSearch) { Icon(Icons.Filled.Search, "Search", tint = Lux.icon, modifier = Modifier.size(26.dp)) }
+            IconButton(onClick = { nav.go(Routes.SEARCH) }) { Icon(Icons.Filled.Search, "Search", tint = Lux.icon, modifier = Modifier.size(26.dp)) }
         }
         if (tabName in EDITABLE) SortButton(tabName, settings)
-        if (onEdit != null && library.allTracks.isNotEmpty()) {
-            IconButton(onClick = onEdit) { Icon(Icons.Filled.Checklist, "Edit $tabName", tint = Lux.icon, modifier = Modifier.size(26.dp)) }
-        }
     }
 }
 
@@ -357,17 +357,21 @@ private fun SortItem(label: String, current: Boolean, onClick: () -> Unit) {
     )
 }
 
-/** The top bar in select mode: close, how many, add to queue / playlist, get info, delete. */
+/**
+ * The top bar in select mode: close, how many, add to queue / playlist, get info, delete,
+ * and at the far right a box that ticks everything in the tab (tap again to clear).
+ */
 @Composable
 private fun SelectBar(
-    count: Int, onClose: () -> Unit, onQueue: () -> Unit, onPlaylist: () -> Unit, onInfo: () -> Unit, onDelete: () -> Unit,
+    count: Int, allTicked: Boolean, onClose: () -> Unit, onAll: () -> Unit,
+    onQueue: () -> Unit, onPlaylist: () -> Unit, onInfo: () -> Unit, onDelete: () -> Unit,
 ) {
     Row(
-        Modifier.fillMaxWidth().height(56.dp).background(Lux.bar),
+        Modifier.fillMaxWidth().height(64.dp).background(Lux.bottomBar),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         IconButton(onClick = onClose) { Icon(Icons.Filled.Close, "Done", tint = Lux.text) }
-        Text("$count selected", color = Lux.text, fontSize = 18.sp, modifier = Modifier.weight(1f))
+        Text("$count selected", color = Lux.text, fontSize = 18.sp, maxLines = 1, modifier = Modifier.weight(1f))
         IconButton(onClick = onQueue, enabled = count > 0) {
             Icon(Icons.AutoMirrored.Filled.QueueMusic, "Add to Queue", tint = Lux.icon)
         }
@@ -379,6 +383,12 @@ private fun SelectBar(
         }
         IconButton(onClick = onDelete, enabled = count > 0) {
             Icon(Icons.Filled.Delete, "Delete from Phone", tint = Lux.icon)
+        }
+        IconButton(onClick = onAll) {
+            Icon(
+                if (allTicked) Icons.Filled.CheckBox else Icons.Filled.CheckBoxOutlineBlank,
+                if (allTicked) "Untick all" else "Tick all", tint = if (allTicked) Lux.accent else Lux.text,
+            )
         }
     }
 }
@@ -409,6 +419,7 @@ private fun GroupTab(
     nav: NavHostController, groups: List<Artist>, kind: String, icon: ImageVector, showIcon: Boolean,
     action: GroupAction, sort: GroupSort, query: String,
     selecting: Boolean, selected: Set<String>, toggle: (String) -> Unit, reverse: Boolean = false,
+    longPress: ((String) -> Unit)? = null,
 ) {
     val app = app()
     val list = sortArtists(groups.filter { matches(query, it.name) }, sort, reverse)
@@ -436,6 +447,7 @@ private fun GroupTab(
                     }
                 },
                 menu = if (selecting) emptyList() else groupMenu(group.tracks, nav, group.name),
+                onLongClick = longPress?.let { lp -> { lp(group.name) } },
             )
         }
     }
@@ -502,7 +514,7 @@ private fun TvShowsTab(nav: NavHostController, shows: List<Artist>, query: Strin
 @Composable
 private fun SongsTab(
     nav: NavHostController, library: LibraryState, settings: AppSettings, query: String,
-    selecting: Boolean, selected: Set<String>, toggle: (String) -> Unit,
+    selecting: Boolean, selected: Set<String>, toggle: (String) -> Unit, longPress: (String) -> Unit,
 ) {
     val app = app()
     val playerState by app.player.state.collectAsState()
@@ -523,6 +535,7 @@ private fun SongsTab(
                         if (showArt) Artwork(t, Modifier.size(48.dp), noteSize = 24.dp)
                     }
                 },
+                onLongClick = { longPress(t.id) },
             )
         }
     }
@@ -624,10 +637,11 @@ private fun PlaylistIcon(icon: ImageVector, tint: androidx.compose.ui.graphics.C
     Icon(icon, null, tint = tint, modifier = Modifier.size(40.dp))
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun AlbumsTab(
     nav: NavHostController, library: LibraryState, settings: AppSettings, query: String,
-    selecting: Boolean, selected: Set<String>, toggle: (String) -> Unit,
+    selecting: Boolean, selected: Set<String>, toggle: (String) -> Unit, longPress: (String) -> Unit,
 ) {
     val app = app()
     val landscape = LocalConfiguration.current.orientation == Configuration.ORIENTATION_LANDSCAPE
@@ -664,7 +678,7 @@ private fun AlbumsTab(
     FastScroll(gridState, albums.size, { i -> albums.getOrNull(i)?.let { if (filter == "Recently Added") null else albumLabel(it, settings.albumSort) } }) {
     LazyVerticalGrid(
         columns = GridCells.Fixed(columns), modifier = Modifier.fillMaxSize(), state = gridState,
-        contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = 16.dp),
+        contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = 16.dp + LocalMiniSpace.current),
         horizontalArrangement = Arrangement.spacedBy(14.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
@@ -674,10 +688,13 @@ private fun AlbumsTab(
                 Modifier
                     .fillMaxWidth()
                     .clip(RoundedCornerShape(12.dp))
-                    .clickable {
-                        if (selecting) toggle(album.key)
-                        else tapGroup(app, nav, album.tracks, settings.albumAction, Routes.album(album.key))
-                    },
+                    .combinedClickable(
+                        onClick = {
+                            if (selecting) toggle(album.key)
+                            else tapGroup(app, nav, album.tracks, settings.albumAction, Routes.album(album.key))
+                        },
+                        onLongClick = { longPress(album.key) },
+                    ),
             ) {
                 Box(Modifier.fillMaxWidth().aspectRatio(1f).clip(RoundedCornerShape(12.dp))) {
                     if (settings.albumArt) Artwork(album.artTrack, Modifier.fillMaxSize(), noteSize = (96 / columns * 2).dp)

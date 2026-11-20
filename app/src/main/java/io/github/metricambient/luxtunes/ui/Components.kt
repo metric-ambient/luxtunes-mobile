@@ -1,6 +1,8 @@
 package io.github.metricambient.luxtunes.ui
 
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -106,6 +108,7 @@ fun optional(show: Boolean, content: @Composable () -> Unit): (@Composable () ->
     if (show) content else null
 
 /** A list row: optional picture, two lines of text, optional ⋮ menu. */
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun ListRow(
     title: String,
@@ -114,11 +117,12 @@ fun ListRow(
     leading: (@Composable () -> Unit)? = null,
     highlighted: Boolean = false,
     menu: List<Pair<String, () -> Unit>> = emptyList(),
+    onLongClick: (() -> Unit)? = null,       // long-press: start ticking (select mode)
 ) {
     Row(
         Modifier
             .fillMaxWidth()
-            .clickable(onClick = onClick)
+            .combinedClickable(onClick = onClick, onLongClick = onLongClick)
             .padding(start = 16.dp, top = 10.dp, bottom = 10.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
@@ -167,11 +171,12 @@ fun SongRow(
     number: Int? = null,
     leading: (@Composable () -> Unit)? = null,
     subtitle: String = "${track.artist} (${formatTime(track.totalTime)})",
+    onLongClick: (() -> Unit)? = null,
 ) {
     if (leading == null && number != null) {
-        ListRow(track.displayName, subtitle, onClick, leading = { TrackNumber(number) }, highlighted = current, menu = menu)
+        ListRow(track.displayName, subtitle, onClick, leading = { TrackNumber(number) }, highlighted = current, menu = menu, onLongClick = onLongClick)
     } else {
-        ListRow(track.displayName, subtitle, onClick, leading = leading, highlighted = current, menu = menu)
+        ListRow(track.displayName, subtitle, onClick, leading = leading, highlighted = current, menu = menu, onLongClick = onLongClick)
     }
 }
 
