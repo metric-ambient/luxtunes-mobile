@@ -2,6 +2,7 @@ package io.github.metricambient.luxtunes.ui
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -10,51 +11,100 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.SkipNext
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavHostController
 import kotlinx.coroutines.delay
 
-/** The bar along the bottom of the main screen and of album, artist and playlist pages. */
+/** The bar along the bottom of the main screen, album, artist and playlist pages and Search. */
 val BOTTOM_BAR = 64.dp
 
-/** Extra room a list leaves at its end (none now that the player is in the bottom bar). */
+/** Room the floating player takes over a screen's list, so the end of the list can scroll clear of it. */
 val LocalMiniSpace = compositionLocalOf { 0.dp }
 
+/** The screen (back stack entry) being drawn, so it can hand its Play and Shuffle to the floating player. */
+val LocalEntryId = compositionLocalOf { "" }
+
+/** How far up the floating player sits on this screen: above its bottom bar, if it has one. */
+fun miniLift(route: String?): Dp = when {
+    route == null -> 0.dp
+    route == Routes.HOME || route == Routes.SEARCH || route.startsWith("album/") ||
+        route.startsWith("group/") || route.startsWith("playlist/") -> BOTTOM_BAR
+    else -> 0.dp
+}
+
+// ---- Play and Shuffle beside the floating player -------------------------------------------
+
 /**
- * The bar along the bottom: back at the left (on pages), what's playing (tap it for
- * Now Playing) with play/pause and next, and the screen's ⋮ menu at the right.
- * A thin accent line along its top shows how far the song is.
+ * What the Play and Shuffle card plays: the screen showing. `label` is shown under the
+ * shuffle icon (an artist's By Songs / By Albums), or nothing.
+ */
+class PlayCard(val owner: String) {
+    var play: () -> Unit = {}
+    var shuffle: () -> Unit = {}
+    var label by mutableStateOf<String?>(null)
+}
+
+object PlayCards {
+    var current by mutableStateOf<PlayCard?>(null)
+}
+
+/** This screen has songs to play: show Play and Shuffle for them beside the floating player. */
+@Composable
+fun PlayCardFor(play: () -> Unit, shuffle: () -> Unit, label: String? = null) {
+    val id = LocalEntryId.current
+    val card = remember(id) { PlayCard(id) }
+    SideEffect {
+        card.play = play
+        card.shuffle = shuffle
+        card.label = label
+    }
+    DisposableEffect(card) {
+        PlayCards.current = card
+        onDispose { if (PlayCards.current === card) PlayCards.current = null }
+    }
+}
+
+/**
+ * The floating player: what's playing (tap it for Now Playing) with pause and next, and
+ * beside it the screen's Play and Shuffle card when it has one.
  */
 @Composable
-fun BottomBar(nav: NavHostController, menu: Menu, back: Boolean, menuTitle: String? = null) {
+fun FloatingPlayer(nav: NavHostController, entryId: String?, modifier: Modifier = Modifier) {
     val app = app()
     val library by app.repository.state.collectAsState()
     val state by app.player.state.collectAsState()
@@ -67,76 +117,127 @@ fun BottomBar(nav: NavHostController, menu: Menu, back: Boolean, menuTitle: Stri
             delay(500)
         }
     }
-    Box(Modifier.fillMaxWidth().height(BOTTOM_BAR).background(Lux.bottomBar)) {
-        Row(Modifier.fillMaxSize(), verticalAlignment = Alignment.CenterVertically) {
-            if (back) {
-                IconButton(onClick = { nav.popBackStack() }) {
-                    Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back", tint = Lux.text)
-                }
-            } else {
-                Spacer(Modifier.width(10.dp))
-            }
-            Row(
-                Modifier
-                    .weight(1f)
-                    .fillMaxHeight()
-                    .clickable(onClickLabel = "Open Now Playing") { nav.go(if (track?.isVideo == true) Routes.VIDEO else Routes.NOW) },
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Artwork(track, Modifier.size(46.dp).clip(RoundedCornerShape(10.dp)), noteSize = 26.dp)
+    val card = PlayCards.current?.takeIf { it.owner == entryId }
+    val shape = RoundedCornerShape(16.dp)
+    Row(modifier.fillMaxWidth().height(62.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        Box(
+            Modifier
+                .weight(1f)
+                .fillMaxHeight()
+                .shadow(10.dp, shape)
+                .clip(shape)
+                .background(Lux.raised)
+                .clickable(onClickLabel = "Open Now Playing") { nav.go(if (track?.isVideo == true) Routes.VIDEO else Routes.NOW) },
+        ) {
+            Row(Modifier.fillMaxSize().padding(start = 8.dp, end = 2.dp), verticalAlignment = Alignment.CenterVertically) {
+                Artwork(track, Modifier.size(44.dp).clip(RoundedCornerShape(10.dp)), noteSize = 24.dp)
                 Column(Modifier.weight(1f).padding(horizontal = 10.dp)) {
                     Text(track?.displayName ?: "Not playing", color = Lux.text, fontSize = 15.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
                     if (track != null) Text(track.artist, color = Lux.dim, fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 }
+                SleepTimerBadge()
+                IconButton(onClick = { app.player.togglePlay() }, modifier = Modifier.size(42.dp)) {
+                    Icon(
+                        if (state.isPlaying) Icons.Filled.Pause else Icons.Filled.PlayArrow,
+                        if (state.isPlaying) "Pause" else "Play", tint = Lux.text, modifier = Modifier.size(30.dp),
+                    )
+                }
+                IconButton(onClick = { app.player.next() }, modifier = Modifier.size(42.dp)) {
+                    Icon(Icons.Filled.SkipNext, "Next", tint = Lux.text, modifier = Modifier.size(30.dp))
+                }
             }
-            SleepTimerBadge()
-            Box(
+            Box(Modifier.align(Alignment.BottomStart).fillMaxWidth(progress).height(2.dp).background(Lux.accent))
+        }
+        if (card != null) {
+            Row(
                 Modifier
-                    .size(42.dp)
-                    .clip(RoundedCornerShape(13.dp))
-                    .background(Lux.accent)
-                    .clickable { app.player.togglePlay() },
-                contentAlignment = Alignment.Center,
+                    .width(110.dp)
+                    .fillMaxHeight()
+                    .shadow(10.dp, shape)
+                    .clip(shape)
+                    .background(Lux.raised)
+                    .padding(horizontal = 6.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween,
             ) {
-                Icon(
-                    if (state.isPlaying) Icons.Filled.Pause else Icons.Filled.PlayArrow,
-                    if (state.isPlaying) "Pause" else "Play", tint = Lux.onAccent, modifier = Modifier.size(28.dp),
-                )
-            }
-            IconButton(onClick = { app.player.next() }) {
-                Icon(Icons.Filled.SkipNext, "Next", tint = Lux.text, modifier = Modifier.size(30.dp))
-            }
-            if (menu.isNotEmpty()) {
-                Box(Modifier.width(1.dp).fillMaxHeight().padding(vertical = 16.dp).background(Lux.raised))
-                MoreMenu(menu, title = menuTitle)
-            } else {
-                Spacer(Modifier.width(4.dp))
+                Box(
+                    Modifier.size(42.dp, 48.dp).clip(RoundedCornerShape(13.dp)).clickable(onClickLabel = "Play from the top") { card.play() },
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Icon(Icons.Filled.PlayArrow, "Play from the top", tint = Lux.accent, modifier = Modifier.size(32.dp))
+                }
+                Column(
+                    Modifier
+                        .size(52.dp, 50.dp)
+                        .clip(RoundedCornerShape(14.dp))
+                        .background(Lux.accent)
+                        .clickable(onClickLabel = "Shuffle") { card.shuffle() },
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.Center,
+                ) {
+                    val label = card.label
+                    Icon(LuxIcons.ShuffleOn, "Shuffle", tint = Lux.onAccent, modifier = Modifier.size(if (label == null) 26.dp else 22.dp))
+                    if (label != null) Text(label, color = Lux.onAccent, fontSize = 10.sp, lineHeight = 11.sp, maxLines = 1)
+                }
             }
         }
-        Box(Modifier.align(Alignment.TopStart).fillMaxWidth(progress).height(2.dp).background(Lux.accent))
     }
 }
 
-/** A page's bottom bar: back, what's playing, and the page's ⋮ menu. */
-@Composable
-fun PageBottomBar(nav: NavHostController, menu: Menu, title: String? = null) = BottomBar(nav, menu, back = true, menuTitle = title)
+// ---- Bottom bars -----------------------------------------------------------------------------
 
-/**
- * A tab's icon with a small play or shuffle mark at its lower right: the "play this
- * tab from the top" and "shuffle this tab" buttons.
- */
+/** A bottom-bar button: an icon with its name under it. */
 @Composable
-fun TabActionIcon(tab: ImageVector, shuffle: Boolean, description: String) {
-    Box(Modifier.size(32.dp)) {
-        Icon(tab, description, tint = Lux.icon, modifier = Modifier.size(24.dp).align(Alignment.TopStart).offset(1.dp, 1.dp))
-        Box(
-            Modifier.size(17.dp).align(Alignment.BottomEnd).clip(CircleShape).background(Lux.background),
-            contentAlignment = Alignment.Center,
-        ) {
-            Icon(
-                if (shuffle) LuxIcons.ShuffleOn else Icons.Filled.PlayArrow, null,
-                tint = Lux.accent, modifier = Modifier.size(if (shuffle) 13.dp else 15.dp),
-            )
+fun BarButton(icon: ImageVector, label: String, modifier: Modifier = Modifier, tint: androidx.compose.ui.graphics.Color = Lux.icon, onClick: () -> Unit) {
+    Column(
+        modifier
+            .width(60.dp)
+            .fillMaxHeight()
+            .clickable(onClickLabel = label, role = Role.Button, onClick = onClick),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center,
+    ) {
+        Icon(icon, null, tint = tint, modifier = Modifier.size(25.dp))
+        Text(label, color = tint, fontSize = 12.sp, maxLines = 1)
+    }
+}
+
+/** One item of the More menu: its name, what it does, and an icon if it has one. */
+class MoreItem(val label: String, val icon: ImageVector? = null, val action: () -> Unit)
+
+/** The More button at the bottom right of every screen, and its menu (just as wide as it needs). */
+@Composable
+fun MoreButton(items: List<MoreItem>, title: String? = null) {
+    var open by remember { mutableStateOf(false) }
+    Box {
+        BarButton(Icons.Filled.MoreVert, "More") { open = true }
+        DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
+            if (!title.isNullOrBlank()) MenuTitle(title)
+            for (item in items) {
+                DropdownMenuItem(
+                    text = { Text(item.label) },
+                    leadingIcon = if (item.icon != null) {
+                        { Icon(item.icon, null, tint = if (item.label == "Settings") Lux.accent else Lux.icon) }
+                    } else null,
+                    onClick = { open = false; item.action() },
+                )
+            }
         }
+    }
+}
+
+/** A page's ⋮ menu items as More items (no icons). */
+fun Menu.asMoreItems(): List<MoreItem> = map { (label, action) -> MoreItem(label, null, action) }
+
+/** A page's bottom bar: Back at the left, More at the right. */
+@Composable
+fun PageBottomBar(nav: NavHostController, menu: Menu, title: String? = null) {
+    Row(
+        Modifier.fillMaxWidth().height(BOTTOM_BAR).background(Lux.bottomBar).padding(horizontal = 4.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        BarButton(Icons.AutoMirrored.Filled.ArrowBack, "Back", tint = Lux.text) { nav.popBackStack() }
+        Spacer(Modifier.weight(1f))
+        if (menu.isNotEmpty()) MoreButton(menu.asMoreItems(), title)
     }
 }

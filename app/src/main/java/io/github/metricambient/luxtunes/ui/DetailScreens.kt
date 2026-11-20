@@ -1,6 +1,10 @@
 package io.github.metricambient.luxtunes.ui
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.RowScope
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.material.icons.filled.Album
+import androidx.compose.material.icons.automirrored.filled.ViewList
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxHeight
@@ -92,41 +96,36 @@ private fun Page(nav: NavHostController, menu: Menu, title: String?, content: La
 
 /**
  * The top of a page: the art at the left; beside it the name and a line or two about it,
- * centred in the space above the Play and Shuffle buttons, which line up with the art's
- * bottom. `shuffleBy` null: Shuffle has no choices (an album: by songs only).
+ * centred in the space above `toggles` (an artist's one-tap switches), whose bottom lines
+ * up with the art's. Without toggles the name and info are centred beside the art.
  */
 private fun LazyListScope.pageTop(
     art: Track?,
     title: String,
     info: String,
-    onPlay: () -> Unit,
-    onShuffle: () -> Unit,
-    shuffleBy: ArtistPlay? = null,
-    onShuffleBy: (ArtistPlay) -> Unit = {},
+    maxArt: Dp,
+    toggles: (@Composable RowScope.() -> Unit)? = null,
 ) {
     item {
         BoxWithConstraints(Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, top = 20.dp, bottom = 8.dp)) {
-            val artSize = minOf(150.dp, maxWidth * 0.42f)
-            // Narrow windows (split screen): Play shows just its icon, so Shuffle keeps its words.
-            val roomy = maxWidth - artSize - 12.dp >= 200.dp
+            val artSize = minOf(maxArt, maxWidth * 0.42f)
             Row(Modifier.fillMaxWidth().height(artSize)) {
                 Artwork(art, Modifier.size(artSize).clip(RoundedCornerShape(16.dp)), noteSize = artSize * 0.5f)
-                Spacer(Modifier.width(12.dp))
+                Spacer(Modifier.width(14.dp))
                 Column(Modifier.weight(1f).fillMaxHeight()) {
                     Column(Modifier.weight(1f).fillMaxWidth(), verticalArrangement = Arrangement.Center) {
                         Text(
-                            title, color = Lux.text, fontSize = 22.sp, fontWeight = FontWeight.Bold, lineHeight = 26.sp,
+                            title, color = Lux.text, fontSize = 24.sp, fontWeight = FontWeight.Bold, lineHeight = 28.sp,
                             maxLines = 2, overflow = TextOverflow.Ellipsis,
                         )
                         if (info.isNotEmpty()) Text(
-                            info, color = Lux.dim, fontSize = 13.sp, lineHeight = 17.sp,
-                            maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 4.dp),
+                            info, color = Lux.dim, fontSize = 13.sp, lineHeight = 18.sp,
+                            maxLines = 3, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 4.dp),
                         )
                     }
-                    Spacer(Modifier.height(8.dp))
-                    Row(Modifier.fillMaxWidth().height(48.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        PlayButton(roomy, onPlay)
-                        ShuffleButton(Modifier.weight(1f), shuffleBy, onShuffle, onShuffleBy)
+                    if (toggles != null) {
+                        Spacer(Modifier.height(6.dp))
+                        Row(Modifier.fillMaxWidth().height(34.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) { toggles() }
                     }
                 }
             }
@@ -134,60 +133,22 @@ private fun LazyListScope.pageTop(
     }
 }
 
-/** Play from the top: the accent button. */
+/** A one-tap switch at the top of an artist page: an icon and what a tap switches to. */
 @Composable
-private fun PlayButton(withWord: Boolean, onClick: () -> Unit) {
+private fun RowScope.ToggleChip(icon: ImageVector, label: String, description: String, onClick: () -> Unit) {
     Row(
         Modifier
+            .weight(1f, fill = false)
             .fillMaxHeight()
-            .width(if (withWord) 72.dp else 48.dp)
-            .clip(RoundedCornerShape(14.dp))
-            .background(Lux.accent)
-            .clickable(onClickLabel = "Play from the top", onClick = onClick)
-            .padding(end = if (withWord) 6.dp else 0.dp),
-        horizontalArrangement = Arrangement.Center,
+            .clip(RoundedCornerShape(17.dp))
+            .background(Lux.raised)
+            .clickable(onClickLabel = description, onClick = onClick)
+            .padding(start = 8.dp, end = 10.dp),
         verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(5.dp),
     ) {
-        Icon(Icons.Filled.PlayArrow, if (withWord) null else "Play", tint = Lux.onAccent, modifier = Modifier.size(26.dp))
-        if (withWord) Text("Play", color = Lux.onAccent, fontSize = 15.sp, fontWeight = FontWeight.Medium)
-    }
-}
-
-/**
- * Shuffle, with what it shuffles by underneath (By Songs / By Albums). The switch at the
- * right flips between the two at once; the choice is kept for next time.
- */
-@Composable
-private fun ShuffleButton(modifier: Modifier, by: ArtistPlay?, onShuffle: () -> Unit, onBy: (ArtistPlay) -> Unit) {
-    Row(modifier.fillMaxHeight().clip(RoundedCornerShape(14.dp)).background(Lux.raised)) {
-        Row(
-            Modifier.weight(1f).fillMaxHeight().clickable(onClick = onShuffle).padding(horizontal = 6.dp),
-            horizontalArrangement = Arrangement.Center,
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Icon(LuxIcons.Shuffle, null, tint = Lux.text, modifier = Modifier.size(20.dp))
-            Spacer(Modifier.width(6.dp))
-            Column {
-                Text("Shuffle", color = Lux.text, fontSize = 15.sp, fontWeight = FontWeight.Medium, maxLines = 1)
-                if (by != null) Text(
-                    if (by == ArtistPlay.SHUFFLE_ALBUMS) "By Albums" else "By Songs",
-                    color = Lux.text.copy(alpha = 0.7f), fontSize = 11.sp, lineHeight = 13.sp, maxLines = 1,
-                )
-            }
-        }
-        if (by != null) {
-            val other = if (by == ArtistPlay.SHUFFLE_ALBUMS) ArtistPlay.SHUFFLE_SONGS else ArtistPlay.SHUFFLE_ALBUMS
-            Box(Modifier.width(1.dp).fillMaxHeight().padding(vertical = 10.dp).background(lerp(Lux.raised, Lux.text, 0.25f)))
-            Box(
-                Modifier
-                    .width(36.dp)
-                    .fillMaxHeight()
-                    .clickable(onClickLabel = if (other == ArtistPlay.SHUFFLE_ALBUMS) "Shuffle by albums" else "Shuffle by songs") { onBy(other) },
-                contentAlignment = Alignment.Center,
-            ) {
-                Icon(Icons.Filled.SwapVert, "Switch between shuffling by songs and by albums", tint = Lux.text, modifier = Modifier.size(22.dp))
-            }
-        }
+        Icon(icon, null, tint = Lux.text, modifier = Modifier.size(16.dp))
+        Text(label, color = Lux.text, fontSize = 12.sp, maxLines = 1, softWrap = false, overflow = TextOverflow.Ellipsis)
     }
 }
 
@@ -218,14 +179,14 @@ fun AlbumScreen(nav: NavHostController, key: String) {
     if (seen.isEmpty()) seen += album.tracks.map { it.id }
     PageAccent(album.artTrack)
     val menu = groupMenu(album.tracks, nav, album.name)
-    val info = listOf(album.artist, if (album.year > 0) "${album.year}" else "").filter { it.isNotBlank() }.joinToString(" · ") +
-        "\n" + lengthOf(album.tracks)
+    val info = album.artist + "\n" +
+        (listOf(if (album.year > 0) "${album.year}" else "") + lengthOf(album.tracks)).filter { it.isNotBlank() }.joinToString(" · ")
+    PlayCardFor(
+        play = { playWith(app, nav, album.tracks, ArtistPlay.FROM_TOP) },
+        shuffle = { playWith(app, nav, album.tracks, ArtistPlay.SHUFFLE_SONGS) },
+    )
     Page(nav, menu, album.name) {
-        pageTop(
-            album.artTrack, album.name, info,
-            onPlay = { playWith(app, nav, album.tracks, ArtistPlay.FROM_TOP) },
-            onShuffle = { playWith(app, nav, album.tracks, ArtistPlay.SHUFFLE_SONGS) },
-        )
+        pageTop(album.artTrack, album.name, info, maxArt = 176.dp)
         itemsIndexed(album.tracks, key = { _, t -> t.id }) { i, t ->
             SongRow(
                 track = t,
@@ -263,9 +224,6 @@ fun GroupScreen(nav: NavHostController, kind: String, name: String) {
     PageAccent(artTrackOf(tracks))
 
     val menu: Menu = listOf(
-        (if (settings.artistSongs) "Show as Albums" else "Show as Songs") to {
-            app.prefs.update { it.copy(artistSongs = !it.artistSongs) }
-        },
         "Add to Queue" to { app.player.addToQueue(tracks) },
         "Add to End of Queue" to { app.player.addToEnd(tracks) },
         "Add to Playlist…" to { Dialogs.show(DialogRequest.AddToPlaylist(tracks.map { it.id })) },
@@ -278,14 +236,25 @@ fun GroupScreen(nav: NavHostController, kind: String, name: String) {
     // Play and Shuffle take in the Featured On songs too (unless Exclude Featured hides them).
     val all = tracks + featuredOn
     val by = shuffleBy(settings.artistPlay)
+    val other = if (by == ArtistPlay.SHUFFLE_ALBUMS) ArtistPlay.SHUFFLE_SONGS else ArtistPlay.SHUFFLE_ALBUMS
+    PlayCardFor(
+        play = { playWith(app, nav, all, ArtistPlay.FROM_TOP) },
+        shuffle = { playWith(app, nav, all, by) },
+        label = if (by == ArtistPlay.SHUFFLE_ALBUMS) "By Albums" else "By Songs",
+    )
     Page(nav, menu, artist.name) {
-        pageTop(
-            artTrackOf(tracks), artist.name, info,
-            onPlay = { playWith(app, nav, all, ArtistPlay.FROM_TOP) },
-            onShuffle = { playWith(app, nav, all, by) },
-            shuffleBy = by,
-            onShuffleBy = { choice -> app.prefs.update { it.copy(artistPlay = choice) } },
-        )
+        pageTop(artTrackOf(tracks), artist.name, info, maxArt = 140.dp) {
+            // Each shows what a tap switches to.
+            ToggleChip(
+                LuxIcons.Shuffle, if (other == ArtistPlay.SHUFFLE_ALBUMS) "by Albums" else "by Songs",
+                if (other == ArtistPlay.SHUFFLE_ALBUMS) "Shuffle by albums" else "Shuffle by songs",
+            ) { app.prefs.update { it.copy(artistPlay = other) } }
+            ToggleChip(
+                if (settings.artistSongs) Icons.Filled.Album else Icons.AutoMirrored.Filled.ViewList,
+                if (settings.artistSongs) "Album View" else "Song View",
+                if (settings.artistSongs) "Show albums" else "Show all songs",
+            ) { app.prefs.update { it.copy(artistSongs = !it.artistSongs) } }
+        }
         item {
             Text(
                 artist.name + if (years.isNotEmpty()) "  ·  ${years.min()}–${years.max()}" else "",
@@ -363,15 +332,12 @@ fun PlaylistScreen(nav: NavHostController, id: String) {
         playlist.onPhone -> "Made on this phone"
         else -> "Playlist"
     }
-    val by = shuffleBy(settings.playlistPlay)
+    PlayCardFor(
+        play = { playWith(app, nav, tracks, ArtistPlay.FROM_TOP) },
+        shuffle = { playWith(app, nav, tracks, ArtistPlay.SHUFFLE_SONGS) },
+    )
     Page(nav, playlistMenu(playlist, nav), playlist.name) {
-        pageTop(
-            artTrackOf(tracks), playlist.name, kindText + "\n" + lengthOf(tracks),
-            onPlay = { playWith(app, nav, tracks, ArtistPlay.FROM_TOP) },
-            onShuffle = { playWith(app, nav, tracks, by) },
-            shuffleBy = by,
-            onShuffleBy = { choice -> app.prefs.update { it.copy(playlistPlay = choice) } },
-        )
+        pageTop(artTrackOf(tracks), playlist.name, kindText + "\n" + lengthOf(tracks), maxArt = 176.dp)
         if (playlist.changed) item {
             Text(
                 "Changes go to LuxTunes at the next sync",

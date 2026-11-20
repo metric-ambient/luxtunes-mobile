@@ -1,6 +1,19 @@
 package io.github.metricambient.luxtunes.ui
 
 import androidx.compose.foundation.background
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.material3.TextField
+import androidx.compose.material3.TextFieldDefaults
+import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.automirrored.filled.QueueMusic
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -53,42 +66,93 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavHostController
 import io.github.metricambient.luxtunes.BuildConfigInfo
+import io.github.metricambient.luxtunes.data.artTrackOf
 import kotlinx.coroutines.delay
 
 // ---- Search across the whole library -------------------------------------------------------
 
+/**
+ * Search the whole library. It opens on All; the buttons along the top narrow it to
+ * artists, albums, songs or playlists.
+ */
 @Composable
 fun SearchScreen(nav: NavHostController) {
     val app = app()
     val library by app.repository.state.collectAsState()
     val playerState by app.player.state.collectAsState()
-    var query by remember { mutableStateOf("") }
+    var query by rememberSaveable { mutableStateOf("") }
+    var scope by rememberSaveable { mutableStateOf("All") }
     val q = query.trim()
-    val artists = if (q.isEmpty()) emptyList() else library.artists.filter { matches(q, it.name) }.take(20)
-    val albums = if (q.isEmpty()) emptyList() else library.albums.filter { matches(q, it.name, it.artist) }.take(30)
-    val songs = if (q.isEmpty()) emptyList() else library.tracks.filter { matches(q, it.name, it.artist, it.album, it.featuredArtist.orEmpty()) }.take(100)
+    fun wants(kind: String) = q.isNotEmpty() && (scope == "All" || scope == kind)
+    val artists = if (!wants("Artists")) emptyList() else library.artists.filter { matches(q, it.name) }.take(if (scope == "All") 20 else 200)
+    val albums = if (!wants("Albums")) emptyList() else library.albums.filter { matches(q, it.name, it.artist) }.take(if (scope == "All") 30 else 300)
+    val songs = if (!wants("Songs")) emptyList() else library.tracks.filter { matches(q, it.name, it.artist, it.album, it.featuredArtist.orEmpty()) }.take(if (scope == "All") 100 else 500)
+    val playlists = if (!wants("Playlists")) emptyList() else library.playlists.filter { matches(q, it.name) }
+    val focus = remember { FocusRequester() }
+    LaunchedEffect(Unit) { runCatching { focus.requestFocus() } }
     Column(Modifier.fillMaxSize()) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            IconButton(onClick = { nav.popBackStack() }) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back", tint = Lux.text) }
-            SearchField(query, { query = it })
+        TextField(
+            value = query,
+            onValueChange = { query = it },
+            singleLine = true,
+            placeholder = { Text("Search your library", color = Lux.dim) },
+            leadingIcon = { Icon(Icons.Filled.Search, null, tint = Lux.icon) },
+            trailingIcon = {
+                if (query.isNotEmpty()) IconButton(onClick = { query = "" }) { Icon(Icons.Filled.Close, "Clear", tint = Lux.icon) }
+            },
+            shape = RoundedCornerShape(26.dp),
+            colors = TextFieldDefaults.colors(
+                focusedContainerColor = Lux.raised, unfocusedContainerColor = Lux.raised,
+                focusedIndicatorColor = Color.Transparent, unfocusedIndicatorColor = Color.Transparent,
+                cursorColor = Lux.accent, focusedTextColor = Lux.text, unfocusedTextColor = Lux.text,
+            ),
+            modifier = Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, top = 16.dp, bottom = 8.dp).focusRequester(focus),
+        )
+        Row(
+            Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(start = 16.dp, end = 16.dp, top = 4.dp, bottom = 8.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            for (name in listOf("All", "Artists", "Albums", "Songs", "Playlists")) {
+                val on = name == scope
+                Text(
+                    name, color = if (on) Lux.onAccent else Lux.text, fontSize = 14.sp,
+                    fontWeight = if (on) FontWeight.Medium else FontWeight.Normal,
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(16.dp))
+                        .background(if (on) Lux.accent else Lux.raised)
+                        .clickable { scope = name }
+                        .padding(horizontal = 14.dp, vertical = 7.dp),
+                )
+            }
         }
-        LazyColumn(Modifier.fillMaxSize(), contentPadding = androidx.compose.foundation.layout.PaddingValues(bottom = LocalMiniSpace.current)) {
-            if (artists.isNotEmpty()) item { Heading("Artists") }
+        LazyColumn(Modifier.weight(1f).fillMaxWidth(), contentPadding = PaddingValues(bottom = LocalMiniSpace.current)) {
+            if (artists.isNotEmpty() && scope == "All") item { Heading("Artists") }
             items(artists, key = { "ar:" + it.name }) { a ->
                 ListRow(a.name, plural(a.albums.size, "album"), onClick = { nav.go(Routes.artist(a.name)) },
-                    leading = { Icon(Icons.Filled.Person, null, tint = Lux.text, modifier = Modifier.size(40.dp)) })
+                    leading = { Artwork(artTrackOf(a.tracks), Modifier.size(48.dp).clip(RoundedCornerShape(24.dp)), noteSize = 24.dp, note = Icons.Filled.Person) })
             }
-            if (albums.isNotEmpty()) item { Heading("Albums") }
+            if (albums.isNotEmpty() && scope == "All") item { Heading("Albums") }
             items(albums, key = { "al:" + it.key }) { a ->
                 ListRow(a.name, a.artist, onClick = { nav.go(Routes.album(a.key)) },
-                    leading = { Artwork(a.artTrack, Modifier.size(48.dp), noteSize = 24.dp) })
+                    leading = { Artwork(a.artTrack, Modifier.size(48.dp).clip(RoundedCornerShape(8.dp)), noteSize = 24.dp) },
+                    menu = groupMenu(a.tracks, nav, a.name))
             }
-            if (songs.isNotEmpty()) item { Heading("Songs") }
+            if (songs.isNotEmpty() && scope == "All") item { Heading("Songs") }
             items(songs, key = { "so:" + it.id }) { t ->
                 SongRow(t, onClick = { tapSong(app, nav, songs, songs.indexOf(t)) },
                     current = t.id == playerState.currentId, menu = songMenu(t, nav))
             }
+            if (playlists.isNotEmpty() && scope == "All") item { Heading("Playlists") }
+            items(playlists, key = { "pl:" + it.id }) { p ->
+                ListRow(p.name, plural(p.trackIds.size, "song"), onClick = { nav.go(Routes.playlist(p.id)) },
+                    leading = { Icon(Icons.AutoMirrored.Filled.QueueMusic, null, tint = Lux.text, modifier = Modifier.size(40.dp)) },
+                    menu = playlistMenu(p, nav))
+            }
+            if (q.isNotEmpty() && artists.isEmpty() && albums.isEmpty() && songs.isEmpty() && playlists.isEmpty()) item {
+                Text("Nothing found.", color = Lux.dim, modifier = Modifier.padding(16.dp))
+            }
         }
+        PageBottomBar(nav, emptyList())
     }
 }
 

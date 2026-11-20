@@ -165,13 +165,11 @@ private fun MainScreens() {
         if (wantMini && !showMini && (from == Routes.NOW || from == Routes.VIDEO)) delay(320)
         showMini = wantMini
     }
-    // The main screen and album, artist and playlist pages show what's playing in their own
-    // bottom bar; the other screens that want it (Search, the queue) get the bar here.
-    val ownBar = route == Routes.HOME || route?.startsWith("album/") == true ||
-        route?.startsWith("group/") == true || route?.startsWith("playlist/") == true
-    val mini = showMini && wantMini && !ownBar
-    Column(Modifier.fillMaxSize()) {
-        Box(Modifier.weight(1f)) {
+    val mini = showMini && wantMini
+    // The floating player sits over the bottom of the screen, above its bottom bar if it
+    // has one; lists leave room for it at their end.
+    Box(Modifier.fillMaxSize()) {
+        CompositionLocalProvider(LocalMiniSpace provides if (mini) 80.dp else 0.dp) {
             NavHost(
                 nav,
                 startDestination = Routes.HOME,
@@ -226,7 +224,10 @@ private fun MainScreens() {
                 }
             }
         }
-        if (mini) BottomBar(nav, emptyList(), back = false)
+        if (mini) FloatingPlayer(
+            nav, entry?.id,
+            Modifier.align(Alignment.BottomCenter).padding(start = 10.dp, end = 10.dp, bottom = miniLift(route) + 10.dp),
+        )
     }
 }
 
@@ -239,7 +240,9 @@ private fun NavGraphBuilder.screen(
     popExit: (AnimatedContentTransitionScope<NavBackStackEntry>.() -> ExitTransition)? = null,
     content: @Composable (NavBackStackEntry) -> Unit,
 ) = composable(route, arguments, enterTransition = enter, popExitTransition = popExit) { entry ->
-    Box(Modifier.fillMaxSize().onlyWhenCurrent(nav, entry)) { content(entry) }
+    CompositionLocalProvider(LocalEntryId provides entry.id) {
+        Box(Modifier.fillMaxSize().onlyWhenCurrent(nav, entry)) { content(entry) }
+    }
 }
 
 /**

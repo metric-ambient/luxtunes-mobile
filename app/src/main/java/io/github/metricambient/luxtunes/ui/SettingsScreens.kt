@@ -450,7 +450,7 @@ fun TabsSettingsScreen(nav: NavHostController) {
         ScreenTitle(nav, "Tabs")
         ToggleRow(
             "Hide Search Button",
-            "No search button at the top of the tabs. Search stays in the ⋮ menu.",
+            "No search button at the top of the tabs. Search stays in Now Playing's More menu.",
             s.hideSearch,
         ) { on -> prefs.update { it.copy(hideSearch = on) } }
         ToggleRow(
