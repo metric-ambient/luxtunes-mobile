@@ -230,7 +230,7 @@ fun HomeScreen(nav: NavHostController) {
 private fun BottomBar(nav: NavHostController, tabName: String, library: LibraryState, settings: AppSettings, query: String, onSelect: () -> Unit) {
     val app = app()
     val songs = when (tabName) {
-        "Songs" -> sortSongs(library.tracks.filter { matches(query, it.name, it.artist, it.album) }, settings.songSort, settings.songSortReverse)
+        "Songs" -> sortSongs(library.tracks.filter { matches(query, it.name, it.artist, it.album, it.featuredArtist.orEmpty()) }, settings.songSort, settings.songSortReverse)
         "Albums" -> sortAlbums(library.albums, settings.albumSort, settings.albumSortReverse).flatMap { it.tracks }
         else -> byArtist(library)
     }
@@ -486,7 +486,7 @@ private fun SongsTab(
 ) {
     val app = app()
     val playerState by app.player.state.collectAsState()
-    val songs = sortSongs(library.tracks.filter { matches(query, it.name, it.artist, it.album) }, settings.songSort, settings.songSortReverse)
+    val songs = sortSongs(library.tracks.filter { matches(query, it.name, it.artist, it.album, it.featuredArtist.orEmpty()) }, settings.songSort, settings.songSortReverse)
     val listState = rememberLazyListState()
     FastScroll(listState, songs.size, { i -> songs.getOrNull(i)?.let { songLabel(it, settings.songSort) } }) {
     LazyColumn(Modifier.fillMaxSize(), state = listState) {

@@ -130,7 +130,8 @@ private val HELP: List<Pair<String, String>> = listOf(
         "At the next sync, LuxTunes on your computer adds them to its library too.",
     "Editing song details" to
         "Get Info (in a song's ⋮ menu, an album's or artist's ⋮ menu, Now Playing, or the info " +
-        "button in select mode) has an Edit button. Change the name, artist, album, genre, year, " +
+        "button in select mode) has an Edit button. Change the name, artist, featured artists " +
+        "(names separated by commas), album, genre, year, " +
         "track and disc numbers and more.\n\n" +
         "With several songs, only the details you change are changed; a box showing Mixed means " +
         "the songs differ there.\n\n" +
@@ -144,7 +145,11 @@ private val HELP: List<Pair<String, String>> = listOf(
         "On an artist page, the round button opens three choices: Play From Top, Shuffle By " +
         "Albums and Shuffle By Songs. Album and playlist pages have the same button. The one " +
         "you pick becomes the button's default.\n\n" +
-        "The ⋮ at the top of an artist page can show all the songs in one list (Show as Songs).",
+        "The ⋮ at the top of an artist page can show all the songs in one list (Show as Songs).\n\n" +
+        "Below an artist's albums, Featured On lists songs by other artists that feature them.\n\n" +
+        "Songs on a compilation (a soundtrack, a \"Now\" album) are listed under the compilation in " +
+        "Artists: its Album Artist, or Various Artists. Settings → Tabs → Group Compilations " +
+        "turns this off.",
     "Playlists and smart playlists" to
         "In the Playlists tab, use Create Playlist, or add songs from any ⋮ menu → Add to " +
         "playlist.\n\nCreate Smart Playlist makes a playlist that fills itself from rules, " +

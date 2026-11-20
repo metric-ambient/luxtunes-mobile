@@ -68,6 +68,7 @@ internal fun InfoDialog(ids: List<String>) {
         listOf(
             "Name" to t.name,
             "Artist" to t.artist,
+            "Featured Artist" to t.featured.joinToString(", "),
             "Album Artist" to t.albumArtist,
             "Album" to t.album,
             "Genre" to t.genre,
@@ -237,7 +238,10 @@ private fun TagField(value: String, onChange: (String) -> Unit, label: String, m
         value = value,
         onValueChange = onChange,
         label = { Text(label) },
-        placeholder = { if (mixed) Text("Mixed", color = Lux.faint) },
+        placeholder = {
+            if (mixed) Text("Mixed", color = Lux.faint)
+            else if (label == "Featured Artist") Text("Names, separated by commas", color = Lux.faint)
+        },
         singleLine = label != "Comments",
         keyboardOptions = if (number) KeyboardOptions(keyboardType = KeyboardType.Number) else KeyboardOptions.Default,
         modifier = modifier.padding(vertical = 2.dp),
@@ -248,6 +252,7 @@ private fun TagField(value: String, onChange: (String) -> Unit, label: String, m
 private val TEXT_FIELDS = listOf(
     "name" to "Name",
     "artist" to "Artist",
+    "featured_artist" to "Featured Artist",
     "album_artist" to "Album Artist",
     "album" to "Album",
     "genre" to "Genre",

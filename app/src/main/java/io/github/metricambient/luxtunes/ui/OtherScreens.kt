@@ -77,7 +77,7 @@ fun MiniPlayer(nav: NavHostController, showMenu: Boolean) {
         ) {
             Artwork(track, Modifier.size(64.dp), noteSize = 36.dp)
             Column(Modifier.weight(1f).padding(horizontal = 12.dp)) {
-                Text(track?.name ?: "Not playing", color = Lux.text, fontSize = 17.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text(track?.displayName ?: "Not playing", color = Lux.text, fontSize = 17.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 if (track != null) Text(track.artist, color = Lux.dim, fontSize = 14.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
             IconButton(onClick = { app.player.togglePlay() }, modifier = Modifier.size(56.dp)) {
@@ -113,7 +113,7 @@ fun SearchScreen(nav: NavHostController) {
     val q = query.trim()
     val artists = if (q.isEmpty()) emptyList() else library.artists.filter { matches(q, it.name) }.take(20)
     val albums = if (q.isEmpty()) emptyList() else library.albums.filter { matches(q, it.name, it.artist) }.take(30)
-    val songs = if (q.isEmpty()) emptyList() else library.tracks.filter { matches(q, it.name, it.artist, it.album) }.take(100)
+    val songs = if (q.isEmpty()) emptyList() else library.tracks.filter { matches(q, it.name, it.artist, it.album, it.featuredArtist.orEmpty()) }.take(100)
     Column(Modifier.fillMaxSize()) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             IconButton(onClick = { nav.popBackStack() }) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back", tint = Lux.text) }
