@@ -104,7 +104,7 @@ private val HELP: List<Pair<String, String>> = listOf(
         "list from that song, just that song, or the list shuffled).\n\n" +
         "The floating bar near the bottom shows what's playing; tap it for Now Playing. Beside " +
         "it, Play and Shuffle play whatever screen you're on (a tab, an artist, an album or a " +
-        "playlist). Now Playing opens out of the bar and shrinks back into it.\n\n" +
+        "playlist). Tapping the bar grows it into Now Playing, art and all; Back shrinks it back.\n\n" +
         "In Now Playing, tap the album art (or the empty space around it) to see the lyrics and " +
         "rate the song: the stars appear under the art when there's room, otherwise on it. " +
         "Tap again to hide them. With timed lyrics from LuxTunes, the " +
@@ -126,12 +126,13 @@ private val HELP: List<Pair<String, String>> = listOf(
         "Start scrolling a long list and a handle appears on the right edge. Drag it to jump " +
         "anywhere in the list; a big letter in the middle shows where you are (or the year, " +
         "rating or plays, depending on how the list is sorted).\n\n" +
-        "At the top of each tab: Search (the whole library; the buttons along its top narrow " +
-        "it to artists, albums, songs or playlists) and Sort. Sort " +
+        "At the top of each tab: Search and Sort. Search covers the whole library (the buttons " +
+        "along its top narrow it to artists, albums, songs or playlists); it's also in every More " +
+        "menu. Sort " +
         "has Inverse sort, to turn any order around: least played first, oldest first, Z to A. " +
         "Each tab remembers where you were in it.\n\n" +
         "The Albums tab has quick filters along the top: All, Recently Added and Compilations.\n\n" +
-        "The tabs are along the bottom, with More at the bottom right (Sleep Timer, Add Folder, " +
+        "The tabs are along the bottom, with More at the bottom right (Search, Sleep Timer, Add Folder, " +
         "Rescan Device, Change Theme, Check for Updates and Settings). When there are more tabs " +
         "than fit, an arrow at the edge shows which way they are; tap it or swipe the tabs.",
     "Adding songs from the phone" to

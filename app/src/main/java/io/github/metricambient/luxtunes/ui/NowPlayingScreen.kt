@@ -68,6 +68,10 @@ import androidx.navigation.NavBackStackEntry
 import androidx.navigation.NavHostController
 import io.github.metricambient.luxtunes.data.Track
 import kotlinx.coroutines.delay
+import androidx.activity.compose.BackHandler
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.layout.boundsInRoot
+import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.runtime.SideEffect
 import androidx.compose.foundation.border
 import androidx.compose.ui.draw.drawBehind
@@ -99,6 +103,8 @@ fun NowPlayingScreen(nav: NavHostController) {
         if (track?.isVideo == true) nav.navigate(Routes.VIDEO) { popUpTo(Routes.NOW) { inclusive = true } }
     }
     var overlay by remember { mutableStateOf(false) }
+    // Back (the arrow or the phone's) shrinks Now Playing into the floating player.
+    BackHandler { Morph.close(nav) }
     var artShown by remember { mutableStateOf(true) }      // false when the window has no room for it
 
     // Position, polled while this screen is showing.
@@ -123,7 +129,7 @@ fun NowPlayingScreen(nav: NavHostController) {
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            IconButton(onClick = { nav.popBackStack() }) {
+            IconButton(onClick = { Morph.close(nav) }) {
                 Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back", tint = Lux.text)
             }
             if (track != null) {
@@ -188,6 +194,7 @@ fun NowPlayingScreen(nav: NavHostController) {
         // Art; tap it for the rating (and lyrics, when LuxTunes has them)
         Box(
             Modifier.size(size)
+                .onGloballyPositioned { Morph.nowArt = it.boundsInRoot() }
                 .clickable(
                     interactionSource = remember { MutableInteractionSource() },
                     indication = null,
@@ -263,7 +270,8 @@ fun NowPlayingScreen(nav: NavHostController) {
         interactionSource = remember { MutableInteractionSource() }, indication = null,
     ) { if (track != null) overlay = !overlay }
     var sideRoom by remember { mutableStateOf(true) }        // landscape: room for the rating beside the art
-    Column(Modifier.fillMaxSize().background(Lux.background)) {
+    // Hidden while it opens out of the floating player (the card and art grow over it), then fades in.
+    Column(Modifier.fillMaxSize().graphicsLayer { alpha = Morph.contentAlpha() }.background(Lux.background)) {
         if (landscape) {
             // Art on the right at full height; everything else to its left; the bar below both.
             BoxWithConstraints(Modifier.fillMaxWidth().weight(1f)) {

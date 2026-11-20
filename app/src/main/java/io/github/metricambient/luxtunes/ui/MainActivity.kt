@@ -169,11 +169,11 @@ private fun MainScreens() {
         if (wantMini && !showMini && (from == Routes.NOW || from == Routes.VIDEO)) delay(320)
         showMini = wantMini
     }
-    val mini = showMini && wantMini
+    val mini = showMini && wantMini && Morph.running == null
     // The floating player sits over the bottom of the screen, above its bottom bar if it
     // has one; lists leave room for it at their end.
     Box(Modifier.fillMaxSize()) {
-        CompositionLocalProvider(LocalMiniSpace provides if (mini) 80.dp else 0.dp) {
+        CompositionLocalProvider(LocalMiniSpace provides if (showMini && wantMini) 80.dp else 0.dp) {
             NavHost(
                 nav,
                 startDestination = Routes.HOME,
@@ -193,12 +193,16 @@ private fun MainScreens() {
                 screen(
                     nav, Routes.NOW,
                     // Opens out of the floating player and shrinks back into it.
+                    // From the floating player, its card grows into Now Playing (Morph) while the
+                    // screen below stays put; otherwise it opens out of the player's spot.
                     enter = {
-                        scaleIn(tween(320, easing = FastOutSlowInEasing), initialScale = 0.08f, transformOrigin = TransformOrigin(MiniSpot.x, MiniSpot.y)) +
+                        if (Morph.running == Morph.Way.OPEN) fadeIn(tween(380), initialAlpha = 1f)
+                        else scaleIn(tween(320, easing = FastOutSlowInEasing), initialScale = 0.08f, transformOrigin = TransformOrigin(MiniSpot.x, MiniSpot.y)) +
                             fadeIn(tween(200))
                     },
                     popExit = {
-                        scaleOut(tween(300, easing = FastOutSlowInEasing), targetScale = 0.08f, transformOrigin = TransformOrigin(MiniSpot.x, MiniSpot.y)) +
+                        if (Morph.running == Morph.Way.CLOSE) fadeOut(tween(90))
+                        else scaleOut(tween(300, easing = FastOutSlowInEasing), targetScale = 0.08f, transformOrigin = TransformOrigin(MiniSpot.x, MiniSpot.y)) +
                             fadeOut(tween(260))
                     },
                 ) { NowPlayingScreen(nav) }
@@ -239,6 +243,7 @@ private fun MainScreens() {
             nav, entry?.id,
             Modifier.align(Alignment.BottomCenter).padding(start = 10.dp, end = 10.dp, bottom = miniLift(route) + 10.dp),
         )
+        MorphOverlay()
     }
 }
 
