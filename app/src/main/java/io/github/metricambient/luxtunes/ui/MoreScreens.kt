@@ -102,7 +102,7 @@ private val HELP: List<Pair<String, String>> = listOf(
     "Playing music" to
         "Tap a song to play it (Settings → Tabs → Default Song Action decides what plays: the " +
         "list from that song, just that song, or the list shuffled).\n\n" +
-        "The floating bar near the bottom shows what's playing; tap it for Now Playing. There, tap the " +
+        "The bar at the bottom shows what's playing; tap it for Now Playing. There, tap the " +
         "album art to rate the song and see its lyrics. With timed lyrics from LuxTunes, the " +
         "line being sung lights up and stays in the middle (Settings → Operation turns this off).\n\n" +
         "Shuffle and Repeat are next to the play button. Turning Shuffle off goes back to the " +
@@ -118,11 +118,12 @@ private val HELP: List<Pair<String, String>> = listOf(
         "Start scrolling a long list and a handle appears on the right edge. Drag it to jump " +
         "anywhere in the list; a big letter in the middle shows where you are (or the year, " +
         "rating or plays, depending on how the list is sorted).\n\n" +
-        "At the top of each tab: play it from the top, shuffle it, search it, and sort it. Sort " +
+        "Under the tabs: play the tab from the top, shuffle it, search it, sort it, and Edit " +
+        "(tick several). Sort " +
         "has Inverse sort, to turn any order around: least played first, oldest first, Z to A. " +
         "Each tab remembers where you were in it.\n\n" +
         "The Albums tab has quick filters along the top: All, Recently Added and Compilations.\n\n" +
-        "The tabs are along the bottom. When there are more than fit, an arrow at the edge shows " +
+        "When there are more tabs than fit, an arrow at the edge shows " +
         "which way they are; tap it or swipe the tabs.",
     "Adding songs from the phone" to
         "Settings → My Library → Add Folder to Library (also in the ⋮ menus) moves the songs in " +
@@ -148,7 +149,8 @@ private val HELP: List<Pair<String, String>> = listOf(
         "At the top of an artist, album or playlist page: Play (from the top) and Shuffle. On " +
         "artist and playlist pages, the arrow beside Shuffle chooses By Songs or By Albums, and " +
         "the choice is kept for next time.\n\n" +
-        "Back is at the bottom left of every page, and the page's ⋮ menu at the bottom right. " +
+        "Back is at the bottom left of every page, and the page's ⋮ menu at the bottom right; what's " +
+        "playing is between them. " +
         "On an artist page it can show all the songs in one list (Show as Songs).\n\n" +
         "Below an artist's albums, Featured On lists songs by other artists that feature them, " +
         "and Play and Shuffle take them in with the artist's own songs " +
@@ -162,7 +164,7 @@ private val HELP: List<Pair<String, String>> = listOf(
         "like \"Rating is 5 stars\" or \"Genre contains Rock\". Smart playlists work the same " +
         "way as in LuxTunes and go back to it at the next sync.",
     "Selecting several songs" to
-        "Choose Edit (Edit Songs, Edit Albums…) in the ⋮ menu at the bottom right, tick the songs, albums or " +
+        "Tap the Edit button (the ticked list) at the right of the tab's name, tick the songs, albums or " +
         "artists you want, then add them to the queue or a playlist, open Get Info (to edit " +
         "them together), or delete them from the phone.\n\n" +
         "Deleting only removes the file from this phone. LuxTunes decides what's on the phone: " +
@@ -179,8 +181,8 @@ private val HELP: List<Pair<String, String>> = listOf(
     "Making it look your way" to
         "Settings → Theme: choose Dark, Material or Light, and your own background, accent and " +
         "text colors. Auto Accent takes the accent from the album art.\n\n" +
-        "Settings → Tabs: choose which tabs show and what a tap does. In the tab bar at the " +
-        "bottom, long-press a tab and drag it to move it.\n\n" +
+        "Settings → Tabs: choose which tabs show and what a tap does. In the overview, " +
+        "long-press a tab and drag it to move it.\n\n" +
         "Settings → Operation: open Now Playing when a song starts or not, smart playlists at " +
         "the end of the list, no album art, and highlighting timed lyrics.",
     "Sleep timer" to

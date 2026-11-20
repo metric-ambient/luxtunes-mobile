@@ -55,64 +55,6 @@ import androidx.navigation.NavHostController
 import io.github.metricambient.luxtunes.BuildConfigInfo
 import kotlinx.coroutines.delay
 
-// ---- Mini player (bottom of every screen) ----------------------------------------------------
-
-/**
- * The mini player: a card floating over the bottom of the screen. Tap it for Now Playing;
- * play/pause and next on the right; a thin line along its bottom shows how far the song is.
- */
-@Composable
-fun MiniPlayer(nav: NavHostController, modifier: Modifier = Modifier) {
-    val app = app()
-    val library by app.repository.state.collectAsState()
-    val state by app.player.state.collectAsState()
-    val track = state.currentId?.let { library.byId[it] ?: app.repository.track(it) }      // (early: before the library is in)
-    var progress by remember { mutableFloatStateOf(0f) }
-    LaunchedEffect(Unit) {
-        while (true) {
-            val d = app.player.duration
-            progress = if (d > 0) (app.player.position.toFloat() / d).coerceIn(0f, 1f) else 0f
-            delay(500)
-        }
-    }
-    val shape = RoundedCornerShape(16.dp)
-    Box(
-        modifier
-            .fillMaxWidth()
-            .height(64.dp)
-            .shadow(10.dp, shape)
-            .clip(shape)
-            .background(Lux.panel)
-            .clickable { nav.go(if (track?.isVideo == true) Routes.VIDEO else Routes.NOW) },
-    ) {
-        Row(Modifier.fillMaxSize().padding(start = 8.dp, end = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-            Artwork(track, Modifier.size(46.dp).clip(RoundedCornerShape(10.dp)), noteSize = 26.dp)
-            Column(Modifier.weight(1f).padding(horizontal = 12.dp)) {
-                Text(track?.displayName ?: "Not playing", color = Lux.text, fontSize = 16.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                if (track != null) Text(track.artist, color = Lux.dim, fontSize = 14.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
-            }
-            SleepTimerBadge()
-            Box(
-                Modifier
-                    .size(44.dp)
-                    .clip(RoundedCornerShape(14.dp))
-                    .background(Lux.accent)
-                    .clickable { app.player.togglePlay() },
-                contentAlignment = Alignment.Center,
-            ) {
-                Icon(
-                    if (state.isPlaying) Icons.Filled.Pause else Icons.Filled.PlayArrow,
-                    if (state.isPlaying) "Pause" else "Play", tint = Lux.onAccent, modifier = Modifier.size(30.dp),
-                )
-            }
-            IconButton(onClick = { app.player.next() }) {
-                Icon(Icons.Filled.SkipNext, "Next", tint = Lux.text, modifier = Modifier.size(32.dp))
-            }
-        }
-        Box(Modifier.align(Alignment.BottomStart).fillMaxWidth(progress).height(2.dp).background(Lux.accent))
-    }
-}
-
 // ---- Search across the whole library -------------------------------------------------------
 
 @Composable

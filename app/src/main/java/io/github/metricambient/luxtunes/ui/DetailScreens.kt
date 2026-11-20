@@ -4,7 +4,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxHeight
-import androidx.compose.material.icons.filled.ArrowDropDown
+import androidx.compose.material.icons.filled.SwapVert
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -154,13 +154,12 @@ private fun PlayButton(withWord: Boolean, onClick: () -> Unit) {
 }
 
 /**
- * Shuffle, with what it shuffles by underneath (By Songs / By Albums) and an arrow at
- * the right to change that. The choice is kept for next time.
+ * Shuffle, with what it shuffles by underneath (By Songs / By Albums). The switch at the
+ * right flips between the two at once; the choice is kept for next time.
  */
 @Composable
 private fun ShuffleButton(modifier: Modifier, by: ArtistPlay?, onShuffle: () -> Unit, onBy: (ArtistPlay) -> Unit) {
-    var open by remember { mutableStateOf(false) }
-    Row(modifier.fillMaxHeight().clip(RoundedCornerShape(14.dp)).background(Lux.panel)) {
+    Row(modifier.fillMaxHeight().clip(RoundedCornerShape(14.dp)).background(Lux.raised)) {
         Row(
             Modifier.weight(1f).fillMaxHeight().clickable(onClick = onShuffle).padding(horizontal = 6.dp),
             horizontalArrangement = Arrangement.Center,
@@ -172,27 +171,21 @@ private fun ShuffleButton(modifier: Modifier, by: ArtistPlay?, onShuffle: () -> 
                 Text("Shuffle", color = Lux.text, fontSize = 15.sp, fontWeight = FontWeight.Medium, maxLines = 1)
                 if (by != null) Text(
                     if (by == ArtistPlay.SHUFFLE_ALBUMS) "By Albums" else "By Songs",
-                    color = Lux.dim, fontSize = 11.sp, lineHeight = 13.sp, maxLines = 1,
+                    color = Lux.text.copy(alpha = 0.7f), fontSize = 11.sp, lineHeight = 13.sp, maxLines = 1,
                 )
             }
         }
         if (by != null) {
-            Box(Modifier.width(1.dp).fillMaxHeight().padding(vertical = 10.dp).background(lerp(Lux.panel, Lux.text, 0.25f)))
+            val other = if (by == ArtistPlay.SHUFFLE_ALBUMS) ArtistPlay.SHUFFLE_SONGS else ArtistPlay.SHUFFLE_ALBUMS
+            Box(Modifier.width(1.dp).fillMaxHeight().padding(vertical = 10.dp).background(lerp(Lux.raised, Lux.text, 0.25f)))
             Box(
-                Modifier.width(34.dp).fillMaxHeight().clickable(onClickLabel = "Shuffle by…") { open = true },
+                Modifier
+                    .width(36.dp)
+                    .fillMaxHeight()
+                    .clickable(onClickLabel = if (other == ArtistPlay.SHUFFLE_ALBUMS) "Shuffle by albums" else "Shuffle by songs") { onBy(other) },
                 contentAlignment = Alignment.Center,
             ) {
-                Icon(Icons.Filled.ArrowDropDown, "Shuffle by", tint = Lux.text)
-                DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
-                    for (choice in listOf(ArtistPlay.SHUFFLE_SONGS, ArtistPlay.SHUFFLE_ALBUMS)) {
-                        val chosen = choice == by
-                        DropdownMenuItem(
-                            text = { Text(if (choice == ArtistPlay.SHUFFLE_ALBUMS) "By Albums" else "By Songs", color = if (chosen) Lux.accent else Lux.text) },
-                            trailingIcon = { if (chosen) Icon(Icons.Filled.Check, null, tint = Lux.accent) },
-                            onClick = { open = false; onBy(choice) },
-                        )
-                    }
-                }
+                Icon(Icons.Filled.SwapVert, "Switch between shuffling by songs and by albums", tint = Lux.text, modifier = Modifier.size(22.dp))
             }
         }
     }

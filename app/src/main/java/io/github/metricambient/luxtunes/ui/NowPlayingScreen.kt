@@ -118,7 +118,7 @@ fun NowPlayingScreen(nav: NavHostController) {
     val bottomBar: @Composable () -> Unit = {
         // Back at the left, the ⋮ menu at the right, the song's actions between
         Row(
-            Modifier.fillMaxWidth().height(BOTTOM_BAR).background(Lux.bar).padding(horizontal = 4.dp),
+            Modifier.fillMaxWidth().height(BOTTOM_BAR).background(Lux.bottomBar).padding(horizontal = 4.dp),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically,
         ) {
@@ -152,8 +152,9 @@ fun NowPlayingScreen(nav: NavHostController) {
             menu += sleepTimerMenu()
             menu += "Add Folder to Library…" to { AddFolder.show() }
             menu += "Search" to { nav.goFromNowPlaying(Routes.SEARCH) }
-            menu += "Settings" to { nav.goFromNowPlaying(Routes.SETTINGS) }
-            MoreMenu(menu, title = track?.displayName)
+            // Settings opens over Now Playing, so Back comes back here.
+            menu += "Settings" to { nav.go(Routes.SETTINGS) }
+            MoreMenu(menu)
         }
     }
     val titleBlock: @Composable () -> Unit = {

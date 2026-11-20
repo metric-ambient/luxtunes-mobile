@@ -165,11 +165,13 @@ private fun MainScreens() {
         if (wantMini && !showMini && (from == Routes.NOW || from == Routes.VIDEO)) delay(320)
         showMini = wantMini
     }
-    val mini = showMini && wantMini
-    // The mini player floats over the bottom of the screen, above its bottom bar if it has one;
-    // lists leave room for it at their end.
-    Box(Modifier.fillMaxSize()) {
-        CompositionLocalProvider(LocalMiniSpace provides if (mini) 84.dp else 0.dp) {
+    // The main screen and album, artist and playlist pages show what's playing in their own
+    // bottom bar; the other screens that want it (Search, the queue) get the bar here.
+    val ownBar = route == Routes.HOME || route?.startsWith("album/") == true ||
+        route?.startsWith("group/") == true || route?.startsWith("playlist/") == true
+    val mini = showMini && wantMini && !ownBar
+    Column(Modifier.fillMaxSize()) {
+        Box(Modifier.weight(1f)) {
             NavHost(
                 nav,
                 startDestination = Routes.HOME,
@@ -224,10 +226,7 @@ private fun MainScreens() {
                 }
             }
         }
-        if (mini) MiniPlayer(
-            nav,
-            Modifier.align(Alignment.BottomCenter).padding(start = 10.dp, end = 10.dp, bottom = miniLift(route) + 10.dp),
-        )
+        if (mini) BottomBar(nav, emptyList(), back = false)
     }
 }
 
