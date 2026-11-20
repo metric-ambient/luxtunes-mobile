@@ -365,6 +365,44 @@ private fun PlayPauseButton(playing: Boolean, onClick: () -> Unit) {
     }
 }
 
+/**
+ * Previous or Next: a tap skips; holding it down rewinds or fast-forwards through the
+ * song (2 s every 150 ms, about 13× speed) until let go.
+ */
+@Composable
+private fun SkipButton(icon: ImageVector, label: String, forward: Boolean, onTap: () -> Unit) {
+    val app = app()
+    val scope = rememberCoroutineScope()
+    Box(
+        Modifier
+            .size(64.dp)
+            .clip(CircleShape)
+            .semantics { role = Role.Button; contentDescription = label }
+            .pointerInput(forward) {
+                detectTapGestures(
+                    onTap = { onTap() },
+                    onLongPress = { },              // (so a hold isn't also a tap)
+                    onPress = {
+                        val scan = scope.launch {
+                            delay(viewConfiguration.longPressTimeoutMillis)
+                            while (true) {
+                                val end = app.player.duration
+                                val to = app.player.position + if (forward) 2_000 else -2_000
+                                app.player.seekTo(if (end > 0) to.coerceIn(0, end - 500) else to.coerceAtLeast(0))
+                                delay(150)
+                            }
+                        }
+                        tryAwaitRelease()
+                        scan.cancel()
+                    },
+                )
+            },
+        contentAlignment = Alignment.Center,
+    ) {
+        Icon(icon, null, tint = Lux.icon, modifier = Modifier.size(56.dp))
+    }
+}
+
 /** Below this the art isn't worth showing. */
 private val MIN_ART = 120.dp
 /** Art smaller than this gets the rating below it instead of on it. */
