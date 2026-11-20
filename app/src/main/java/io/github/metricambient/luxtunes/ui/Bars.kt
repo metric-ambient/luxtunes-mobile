@@ -53,6 +53,11 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavHostController
 import kotlinx.coroutines.delay
+import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.Equalizer
+import androidx.compose.material.icons.automirrored.filled.PlaylistAdd
+import androidx.compose.material.icons.automirrored.filled.QueueMusic
+import io.github.metricambient.luxtunes.data.Track
 
 /** The bar along the bottom of the main screen, album, artist and playlist pages and Search. */
 val BOTTOM_BAR = 64.dp
@@ -260,15 +265,42 @@ fun MoreButton(items: List<MoreItem>, title: String? = null, named: Boolean = tr
 /** A page's ⋮ menu items as More items (no icons). */
 fun Menu.asMoreItems(): List<MoreItem> = map { (label, action) -> MoreItem(label, null, action) }
 
-/** A page's bottom bar: Back at the left, More at the right (icons only; names are for the main screen). */
+/**
+ * A page's bottom bar: Back at the left, More at the right (icons only; names are for the
+ * main screen). With `tracks` (album, artist and playlist pages), the same buttons as Now
+ * Playing's between them: Get Info and Add to Playlist (for the page's songs), the sleep
+ * timer, the equalizer and the queue.
+ */
 @Composable
-fun PageBottomBar(nav: NavHostController, menu: Menu, title: String? = null) {
+fun PageBottomBar(nav: NavHostController, menu: Menu, title: String? = null, tracks: List<Track>? = null) {
+    val app = app()
+    val eq by app.repository.equalizer.collectAsState()
+    var eqPopup by remember { mutableStateOf(false) }
+    if (eqPopup) EqualizerPopup(nav) { eqPopup = false }
     Row(
         Modifier.fillMaxWidth().height(BOTTOM_BAR).background(Lux.bottomBar).padding(horizontal = 4.dp),
+        horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically,
     ) {
         BarButton(Icons.AutoMirrored.Filled.ArrowBack, "Back", tint = Lux.text, named = false) { nav.popBackStack() }
-        Spacer(Modifier.weight(1f))
+        if (tracks != null) {
+            val ids = tracks.map { it.id }
+            IconButton(onClick = { if (ids.isNotEmpty()) Dialogs.show(DialogRequest.Info(ids)) }) {
+                Icon(Icons.Filled.Info, "Get Info", tint = Lux.icon)
+            }
+            SleepTimerBadge(alwaysShow = true)
+            IconButton(onClick = { eqPopup = true }) {
+                Icon(Icons.Filled.Equalizer, "Equalizer", tint = if (eq.on) Lux.accent else Lux.icon)
+            }
+            IconButton(onClick = { if (ids.isNotEmpty()) Dialogs.show(DialogRequest.AddToPlaylist(ids)) }) {
+                Icon(Icons.AutoMirrored.Filled.PlaylistAdd, "Add to Playlist", tint = Lux.icon)
+            }
+            IconButton(onClick = { nav.go(Routes.QUEUE) }) {
+                Icon(Icons.AutoMirrored.Filled.QueueMusic, "Play Queue - Up Next", tint = Lux.icon)
+            }
+        } else {
+            Spacer(Modifier.weight(1f))
+        }
         // Every page's More menu ends with Search (the same full search as everywhere).
         if (menu.isNotEmpty()) MoreButton(menu.asMoreItems() + MoreItem("Search") { nav.go(Routes.SEARCH) }, title, named = false)
     }
