@@ -83,14 +83,14 @@ import io.github.metricambient.luxtunes.data.sortText
  * ⋮ menu) under it. The floating mini player sits above the bar; the list leaves room for it.
  */
 @Composable
-private fun Page(nav: NavHostController, menu: Menu, title: String?, content: LazyListScope.() -> Unit) {
+private fun Page(nav: NavHostController, menu: Menu, title: String?, tracks: List<Track>, content: LazyListScope.() -> Unit) {
     Column(Modifier.fillMaxSize()) {
         LazyColumn(
             Modifier.weight(1f).fillMaxWidth(),
             contentPadding = PaddingValues(bottom = LocalMiniSpace.current),
             content = content,
         )
-        PageBottomBar(nav, menu, title)
+        PageBottomBar(nav, menu, title, tracks)
     }
 }
 
@@ -182,7 +182,7 @@ fun AlbumScreen(nav: NavHostController, key: String) {
         play = { playWith(app, nav, album.tracks, ArtistPlay.FROM_TOP) },
         shuffle = { playWith(app, nav, album.tracks, ArtistPlay.SHUFFLE_SONGS) },
     )
-    Page(nav, menu, album.name) {
+    Page(nav, menu, album.name, album.tracks) {
         pageTop(album.artTrack, album.name, info, maxArt = 176.dp)
         itemsIndexed(album.tracks, key = { _, t -> t.id }) { i, t ->
             SongRow(
@@ -239,7 +239,7 @@ fun GroupScreen(nav: NavHostController, kind: String, name: String) {
         shuffle = { playWith(app, nav, all, by) },
         label = if (by == ArtistPlay.SHUFFLE_ALBUMS) "By Albums" else "By Songs",
     )
-    Page(nav, menu, artist.name) {
+    Page(nav, menu, artist.name, tracks) {
         pageTop(artTrackOf(tracks), artist.name, info, maxArt = 140.dp) {
             // Each shows what a tap switches to.
             ToggleChip(
@@ -333,7 +333,7 @@ fun PlaylistScreen(nav: NavHostController, id: String) {
         play = { playWith(app, nav, tracks, ArtistPlay.FROM_TOP) },
         shuffle = { playWith(app, nav, tracks, ArtistPlay.SHUFFLE_SONGS) },
     )
-    Page(nav, playlistMenu(playlist, nav), playlist.name) {
+    Page(nav, playlistMenu(playlist, nav), playlist.name, tracks) {
         pageTop(artTrackOf(tracks), playlist.name, kindText + "\n" + lengthOf(tracks), maxArt = 176.dp)
         if (playlist.changed) item {
             Text(

@@ -160,7 +160,9 @@ private val HELP: List<Pair<String, String>> = listOf(
         "On an artist page, two buttons beside the picture switch with one tap: shuffling by " +
         "songs or by albums (the Shuffle button beside the floating bar shows which), and " +
         "Song View (all the songs in one list) or Album View. Both are kept for next time.\n\n" +
-        "Back (the arrow) is at the bottom left of every page, and More (⋮) at the bottom right.\n\n" +
+        "Back (the arrow) is at the bottom left of every page, and More (⋮) at the bottom right. " +
+        "Between them, as in Now Playing: Get Info and Add to Playlist (for the page's songs), the " +
+        "sleep timer, the equalizer and the queue.\n\n" +
         "Below an artist's albums, Featured On lists songs by other artists that feature them, " +
         "and Play and Shuffle take them in with the artist's own songs " +
         "(Settings → Operation → Exclude Featured hides them).\n\n" +
