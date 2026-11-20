@@ -254,6 +254,12 @@ fun NavHostController.go(route: String) {
     navigate(route) { launchSingleTop = true }
 }
 
+/** Go somewhere from Now Playing. It comes off the back stack, so Back never returns to it. */
+fun NavHostController.goFromNowPlaying(route: String) {
+    if (currentBackStackEntry?.destination?.route == Routes.NOW) popBackStack()
+    go(route)
+}
+
 @Composable
 private fun PermissionScreen(onRecheck: () -> Unit) {
     val context = LocalContext.current

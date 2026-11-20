@@ -146,7 +146,8 @@ private val HELP: List<Pair<String, String>> = listOf(
         "Albums and Shuffle By Songs. Album and playlist pages have the same button. The one " +
         "you pick becomes the button's default.\n\n" +
         "The ⋮ at the top of an artist page can show all the songs in one list (Show as Songs).\n\n" +
-        "Below an artist's albums, Featured On lists songs by other artists that feature them.\n\n" +
+        "Below an artist's albums, Featured On lists songs by other artists that feature them " +
+        "(Settings → Operation → Exclude Featured hides it).\n\n" +
         "Songs on a compilation (a soundtrack, a \"Now\" album) are listed under the compilation in " +
         "Artists: its Album Artist, or Various Artists. Settings → Tabs → Group Compilations " +
         "turns this off.",

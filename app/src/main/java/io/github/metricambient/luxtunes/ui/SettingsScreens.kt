@@ -103,7 +103,7 @@ fun SettingsScreen(nav: NavHostController) {
     LazyColumn(Modifier.fillMaxSize()) {
         item { ScreenTitle(nav, "Settings") }
         item { SettingRow(Icons.Filled.Album, "Sound", "Equalizer, crossfade, speed, ReplayGain") { nav.go(Routes.SETTINGS_SOUND) } }
-        item { SettingRow(Icons.Filled.Build, "Operation", "Now Playing, playlists, album art, lyrics") { nav.go(Routes.SETTINGS_OPERATION) } }
+        item { SettingRow(Icons.Filled.Build, "Operation", "Now Playing, playlists, album art, lyrics, Featured On") { nav.go(Routes.SETTINGS_OPERATION) } }
         item { SettingRow(Icons.Filled.Folder, "Tabs", "Choose which tabs to see, and what a tap does") { nav.go(Routes.SETTINGS_TABS) } }
         item { SettingRow(Icons.Filled.Palette, "Theme", "${settings.themeStyle.label} · style and colors") { nav.go(Routes.SETTINGS_THEME) } }
         item { SettingRow(Icons.Filled.Headphones, "Headset/Bluetooth", "Headset buttons, play on connect") { nav.go(Routes.SETTINGS_HEADSET) } }
@@ -371,6 +371,11 @@ fun OperationSettingsScreen(nav: NavHostController) {
             "For songs with timed lyrics, the line being sung is lit up and kept in the middle.",
             s.followLyrics,
         ) { on -> prefs.update { it.copy(followLyrics = on) } }
+        ToggleRow(
+            "Exclude Featured",
+            "Excludes Featured On section in the Artist view.",
+            s.excludeFeatured,
+        ) { on -> prefs.update { it.copy(excludeFeatured = on) } }
     }
 }
 

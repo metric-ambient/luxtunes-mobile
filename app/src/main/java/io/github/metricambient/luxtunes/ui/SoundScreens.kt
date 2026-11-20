@@ -355,7 +355,7 @@ fun EqualizerPopup(nav: NavHostController, onClose: () -> Unit) {
         },
         confirmButton = { TextButton(onClick = onClose) { Text("Done", color = Lux.accent) } },
         dismissButton = {
-            TextButton(onClick = { onClose(); nav.go(Routes.SETTINGS_EQUALIZER) }) { Text("Sliders…", color = Lux.accent) }
+            TextButton(onClick = { onClose(); nav.goFromNowPlaying(Routes.SETTINGS_EQUALIZER) }) { Text("Sliders…", color = Lux.accent) }
         },
     )
 }

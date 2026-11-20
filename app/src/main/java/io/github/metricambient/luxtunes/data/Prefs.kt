@@ -131,6 +131,7 @@ data class AppSettings(
     val keepOriginals: Boolean = false,          // Add Folder: copy the songs instead of moving them
     val followLyrics: Boolean = true,            // timed lyrics: light up the line being sung
     val groupCompilations: Boolean = true,       // Artists: compilation songs under the compilation
+    val excludeFeatured: Boolean = false,        // artist pages: no "Featured On" section
     val artistPlay: ArtistPlay = ArtistPlay.FROM_TOP,
     val albumPlay: ArtistPlay = ArtistPlay.FROM_TOP,      // the same round button on album pages
     val playlistPlay: ArtistPlay = ArtistPlay.FROM_TOP,   // … and on playlist pages
@@ -208,6 +209,7 @@ class Prefs(context: Context) {
             keepOriginals = sp.getBoolean("keepOriginals", d.keepOriginals),
             followLyrics = sp.getBoolean("followLyrics", d.followLyrics),
             groupCompilations = sp.getBoolean("groupCompilations", d.groupCompilations),
+            excludeFeatured = sp.getBoolean("excludeFeatured", d.excludeFeatured),
             artistPlay = enumOf(sp.getString("artistPlay", null), d.artistPlay),
             albumPlay = enumOf(sp.getString("albumPlay", null), d.albumPlay),
             playlistPlay = enumOf(sp.getString("playlistPlay", null), d.playlistPlay),
@@ -282,6 +284,7 @@ class Prefs(context: Context) {
             .putBoolean("keepOriginals", s.keepOriginals)
             .putBoolean("followLyrics", s.followLyrics)
             .putBoolean("groupCompilations", s.groupCompilations)
+            .putBoolean("excludeFeatured", s.excludeFeatured)
             .putString("artistPlay", s.artistPlay.name)
             .putString("albumPlay", s.albumPlay.name)
             .putString("playlistPlay", s.playlistPlay.name)
