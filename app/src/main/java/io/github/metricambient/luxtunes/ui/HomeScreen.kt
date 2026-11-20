@@ -208,7 +208,7 @@ fun HomeScreen(nav: NavHostController) {
     }
 
     val sleep = sleepTimerMenu().map { (label, action) -> MoreItem(label, Icons.Filled.Bedtime, action) }
-    val more = sleep + listOf(
+    val more = listOf(MoreItem("Search", Icons.Filled.Search) { nav.go(Routes.SEARCH) }) + sleep + listOf(
         MoreItem("Add Folder to Library…", Icons.Filled.CreateNewFolder) { AddFolder.show() },
         MoreItem("Rescan Device", Icons.Filled.Sync) { Notice.show("Looking for a new sync…"); app.repository.refreshAsync() },
         MoreItem("Change Theme", Icons.Filled.Palette) { nav.go(Routes.SETTINGS_THEME) },
@@ -287,7 +287,7 @@ private fun TabHeader(nav: NavHostController, tabName: String, library: LibraryS
         verticalAlignment = Alignment.CenterVertically,
     ) {
         ScrollingText(tabName, Lux.text, 30.sp, Modifier.weight(1f), fontWeight = FontWeight.Bold)
-        if (!settings.hideSearch && library.allTracks.isNotEmpty()) {
+        if (library.allTracks.isNotEmpty()) {
             IconButton(onClick = { nav.go(Routes.SEARCH) }) { Icon(Icons.Filled.Search, "Search", tint = Lux.icon, modifier = Modifier.size(26.dp)) }
         }
         if (tabName in EDITABLE) SortButton(tabName, settings)

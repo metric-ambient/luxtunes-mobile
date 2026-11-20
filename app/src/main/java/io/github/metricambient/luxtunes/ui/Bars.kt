@@ -36,6 +36,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -137,6 +138,7 @@ fun FloatingPlayer(nav: NavHostController, entryId: String?, modifier: Modifier 
                 .weight(1f)
                 .fillMaxHeight()
                 .onGloballyPositioned { c ->
+                    Morph.miniCard = c.boundsInRoot()
                     val root = c.findRootCoordinates().size
                     val at = c.boundsInRoot().center
                     if (root.width > 0 && root.height > 0) {
@@ -147,10 +149,16 @@ fun FloatingPlayer(nav: NavHostController, entryId: String?, modifier: Modifier 
                 .shadow(10.dp, shape)
                 .clip(shape)
                 .background(Lux.raised)
-                .clickable(onClickLabel = "Open Now Playing") { nav.go(if (track?.isVideo == true) Routes.VIDEO else Routes.NOW) },
+                .clickable(onClickLabel = "Open Now Playing") {
+                    if (track?.isVideo == true) nav.go(Routes.VIDEO) else Morph.open(nav)
+                },
         ) {
             Row(Modifier.fillMaxSize().padding(start = 8.dp, end = 2.dp), verticalAlignment = Alignment.CenterVertically) {
-                Artwork(track, Modifier.size(44.dp).clip(RoundedCornerShape(10.dp)), noteSize = 24.dp)
+                Artwork(
+                    track,
+                    Modifier.size(44.dp).onGloballyPositioned { Morph.miniArt = it.boundsInRoot() }.clip(RoundedCornerShape(10.dp)),
+                    noteSize = 24.dp,
+                )
                 Column(Modifier.weight(1f).padding(horizontal = 10.dp)) {
                     ScrollingText(track?.displayName ?: "Not playing", Lux.text, 15.sp)
                     if (track != null) ScrollingText(track.artist, Lux.dim, 13.sp)
@@ -261,6 +269,7 @@ fun PageBottomBar(nav: NavHostController, menu: Menu, title: String? = null) {
     ) {
         BarButton(Icons.AutoMirrored.Filled.ArrowBack, "Back", tint = Lux.text, named = false) { nav.popBackStack() }
         Spacer(Modifier.weight(1f))
-        if (menu.isNotEmpty()) MoreButton(menu.asMoreItems(), title, named = false)
+        // Every page's More menu ends with Search (the same full search as everywhere).
+        if (menu.isNotEmpty()) MoreButton(menu.asMoreItems() + MoreItem("Search") { nav.go(Routes.SEARCH) }, title, named = false)
     }
 }

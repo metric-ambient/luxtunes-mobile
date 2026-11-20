@@ -449,11 +449,6 @@ fun TabsSettingsScreen(nav: NavHostController) {
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
         ScreenTitle(nav, "Tabs")
         ToggleRow(
-            "Hide Search Button",
-            "No search button at the top of the tabs. Search stays in Now Playing's More menu.",
-            s.hideSearch,
-        ) { on -> prefs.update { it.copy(hideSearch = on) } }
-        ToggleRow(
             "Group Compilations",
             "In Artists, a compilation's songs are listed under the compilation (its Album Artist, or " +
                 "Various Artists), not under each song's own artist.",
