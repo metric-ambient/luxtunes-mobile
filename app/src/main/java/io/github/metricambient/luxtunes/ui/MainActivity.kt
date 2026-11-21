@@ -91,6 +91,8 @@ object Routes {
     const val SETTINGS = "settings"
     const val SEARCH = "search"
     const val QUEUE = "queue"
+    const val RADIO = "radio"
+    const val RADIO_LIKES = "radio/likes"
     const val SETTINGS_TABS = "settings/tabs"
     const val SETTINGS_ABOUT = "settings/about"
     const val SETTINGS_THEME = "settings/theme"
@@ -223,6 +225,8 @@ private fun MainScreens() {
                 screen(nav, Routes.SETTINGS_LICENSES) { LicensesScreen(nav) }
                 screen(nav, Routes.SEARCH) { SearchScreen(nav) }
                 screen(nav, Routes.QUEUE) { QueueScreen(nav) }
+                screen(nav, Routes.RADIO) { RadioScreen(nav) }
+                screen(nav, Routes.RADIO_LIKES) { RadioLikesScreen(nav) }
                 screen(nav, "album/{key}", listOf(navArgument("key") { type = NavType.StringType })) {
                     AlbumScreen(nav, it.arguments?.getString("key").orEmpty())
                 }

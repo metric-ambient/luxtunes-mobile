@@ -7,6 +7,7 @@ import androidx.lifecycle.DefaultLifecycleObserver
 import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.ProcessLifecycleOwner
 import io.github.metricambient.luxtunes.data.Prefs
+import io.github.metricambient.luxtunes.data.RadioStore
 import io.github.metricambient.luxtunes.data.Repository
 import io.github.metricambient.luxtunes.data.UsbState
 import io.github.metricambient.luxtunes.playback.DeviceWatch
@@ -27,12 +28,15 @@ class LuxTunesApp : Application(), ImageLoaderFactory {
         private set
     lateinit var player: PlayerConnection
         private set
+    lateinit var radio: RadioStore
+        private set
 
     override fun onCreate() {
         super.onCreate()
         prefs = Prefs(this)
         repository = Repository(this, prefs)
         player = PlayerConnection(this)
+        radio = RadioStore(this, repository)
         prefs.current.let { Lux.use(LuxPalette(it.themeStyle, it.colors, it.autoAccent)) }
         UsbState.watch(this) { repository.transferMode = it }
         // Settings → Headset/Bluetooth: play on connect, and High Priority Mode.

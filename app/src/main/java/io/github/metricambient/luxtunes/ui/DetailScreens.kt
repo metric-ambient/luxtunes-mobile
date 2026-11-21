@@ -83,14 +83,21 @@ import io.github.metricambient.luxtunes.data.sortText
  * ⋮ menu) under it. The floating mini player sits above the bar; the list leaves room for it.
  */
 @Composable
-private fun Page(nav: NavHostController, menu: Menu, title: String?, tracks: List<Track>, content: LazyListScope.() -> Unit) {
+internal fun Page(
+    nav: NavHostController,
+    menu: Menu,
+    title: String?,
+    tracks: List<Track>,
+    radio: (() -> Unit)? = null,           // the Radio Mix button: a mix from this page (see PageBottomBar)
+    content: LazyListScope.() -> Unit,
+) {
     Column(Modifier.fillMaxSize()) {
         LazyColumn(
             Modifier.weight(1f).fillMaxWidth(),
             contentPadding = PaddingValues(bottom = LocalMiniSpace.current),
             content = content,
         )
-        PageBottomBar(nav, menu, title, tracks)
+        PageBottomBar(nav, menu, title, tracks, radio)
     }
 }
 
@@ -99,7 +106,7 @@ private fun Page(nav: NavHostController, menu: Menu, title: String?, tracks: Lis
  * centred in the space above `toggles` (an artist's one-tap switches), whose bottom lines
  * up with the art's. Without toggles the name and info are centred beside the art.
  */
-private fun LazyListScope.pageTop(
+internal fun LazyListScope.pageTop(
     art: Track?,
     title: String,
     info: String,
@@ -132,20 +139,21 @@ private fun LazyListScope.pageTop(
 
 /** A one-tap switch at the top of an artist page: an icon and what a tap switches to. */
 @Composable
-private fun RowScope.ToggleChip(icon: ImageVector, label: String, description: String, onClick: () -> Unit) {
+internal fun RowScope.ToggleChip(icon: ImageVector, label: String, description: String, lit: Boolean = false, onClick: () -> Unit) {
+    val content = if (lit) Lux.onAccent else Lux.text          // lit: a switch that's on (accent)
     Row(
         Modifier
             .weight(1f, fill = false)
             .fillMaxHeight()
             .clip(RoundedCornerShape(17.dp))
-            .background(Lux.raised)
+            .background(if (lit) Lux.accent else Lux.raised)
             .clickable(onClickLabel = description, onClick = onClick)
             .padding(start = 8.dp, end = 10.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(5.dp),
     ) {
-        Icon(icon, null, tint = Lux.text, modifier = Modifier.size(16.dp))
-        Text(label, color = Lux.text, fontSize = 12.sp, maxLines = 1, softWrap = false, overflow = TextOverflow.Ellipsis)
+        Icon(icon, null, tint = content, modifier = Modifier.size(16.dp))
+        Text(label, color = content, fontSize = 12.sp, maxLines = 1, softWrap = false, overflow = TextOverflow.Ellipsis)
     }
 }
 
@@ -175,14 +183,14 @@ fun AlbumScreen(nav: NavHostController, key: String) {
     val album = library.albumByKey[key] ?: library.albumWith(seen) ?: return Missing(nav, "album")
     if (seen.isEmpty()) seen += album.tracks.map { it.id }
     PageAccent(album.artTrack)
-    val menu = groupMenu(album.tracks, nav, album.name)
+    val menu = groupMenu(album.tracks, nav, album.name, radio = true)
     val info = album.artist + "\n" +
         (listOf(if (album.year > 0) "${album.year}" else "") + lengthOf(album.tracks)).filter { it.isNotBlank() }.joinToString(" · ")
     PlayCardFor(
         play = { playWith(app, nav, album.tracks, ArtistPlay.FROM_TOP) },
         shuffle = { playWith(app, nav, album.tracks, ArtistPlay.SHUFFLE_SONGS) },
     )
-    Page(nav, menu, album.name, album.tracks) {
+    Page(nav, menu, album.name, album.tracks, radio = { startRadio(app, nav, "album", album.tracks.first()) }) {
         pageTop(album.artTrack, album.name, info, maxArt = 176.dp)
         itemsIndexed(album.tracks, key = { _, t -> t.id }) { i, t ->
             SongRow(
@@ -220,7 +228,13 @@ fun GroupScreen(nav: NavHostController, kind: String, name: String) {
     }
     PageAccent(artTrackOf(tracks))
 
-    val menu: Menu = listOf(
+    // An artist's page starts a Radio Mix from the artist (genre and composer pages don't).
+    val radioSeed = if (kind == "artist" || kind == "trackartist") {
+        // One of the artist's own songs, so the mix is named after them.
+        tracks.firstOrNull { it.artist.equals(artist.name, true) } ?: tracks.firstOrNull()
+    } else null
+    val startArtistRadio: (() -> Unit)? = radioSeed?.let { s -> { startRadio(app, nav, "artist", s) } }
+    val menu: Menu = startArtistRadio?.let { listOf("Start Radio Mix from Artist" to it) }.orEmpty() + listOf(
         "Add to Queue" to { app.player.addToQueue(tracks) },
         "Add to End of Queue" to { app.player.addToEnd(tracks) },
         "Add to Playlist…" to { Dialogs.show(DialogRequest.AddToPlaylist(tracks.map { it.id })) },
@@ -239,7 +253,7 @@ fun GroupScreen(nav: NavHostController, kind: String, name: String) {
         shuffle = { playWith(app, nav, all, by) },
         label = if (by == ArtistPlay.SHUFFLE_ALBUMS) "By Albums" else "By Songs",
     )
-    Page(nav, menu, artist.name, tracks) {
+    Page(nav, menu, artist.name, tracks, radio = startArtistRadio) {
         pageTop(artTrackOf(tracks), artist.name, info, maxArt = 140.dp) {
             // Each shows what a tap switches to.
             ToggleChip(
@@ -276,7 +290,7 @@ fun GroupScreen(nav: NavHostController, kind: String, name: String) {
                     subtitle = if (album.year > 0) "${album.year}" else plural(album.tracks.size, if (kind == "tvshow") "episode" else "song"),
                     onClick = { nav.go(Routes.album(album.key)) },
                     leading = { Artwork(album.artTrack, Modifier.size(64.dp), noteSize = 32.dp) },
-                    menu = groupMenu(album.tracks, nav),
+                    menu = groupMenu(album.tracks, nav, radio = true),
                 )
             }
         }

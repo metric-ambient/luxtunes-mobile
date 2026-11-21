@@ -81,7 +81,7 @@ object MiniSpot {
 fun miniLift(route: String?): Dp = when {
     route == null -> 0.dp
     route == Routes.HOME || route == Routes.SEARCH || route.startsWith("album/") ||
-        route.startsWith("group/") || route.startsWith("playlist/") -> BOTTOM_BAR
+        route.startsWith("group/") || route.startsWith("playlist/") || route.startsWith(Routes.RADIO) -> BOTTOM_BAR
     else -> 0.dp
 }
 
@@ -268,11 +268,19 @@ fun Menu.asMoreItems(): List<MoreItem> = map { (label, action) -> MoreItem(label
 /**
  * A page's bottom bar: Back at the left, More at the right (icons only; names are for the
  * main screen). With `tracks` (album, artist and playlist pages), the same buttons as Now
- * Playing's between them: Get Info and Add to Playlist (for the page's songs), the sleep
- * timer, the equalizer and the queue.
+ * Playing's between them: Radio Mix, the sleep timer, the equalizer, Add to Playlist (for the
+ * page's songs) and the queue. `radio` starts a Radio Mix from what the page shows (album,
+ * artist); without it the Radio Mix button opens the Radio Mix screen. Get Info (for the
+ * page's songs) is in More.
  */
 @Composable
-fun PageBottomBar(nav: NavHostController, menu: Menu, title: String? = null, tracks: List<Track>? = null) {
+fun PageBottomBar(
+    nav: NavHostController,
+    menu: Menu,
+    title: String? = null,
+    tracks: List<Track>? = null,
+    radio: (() -> Unit)? = null,
+) {
     val app = app()
     val eq by app.repository.equalizer.collectAsState()
     var eqPopup by remember { mutableStateOf(false) }
@@ -285,8 +293,8 @@ fun PageBottomBar(nav: NavHostController, menu: Menu, title: String? = null, tra
         BarButton(Icons.AutoMirrored.Filled.ArrowBack, "Back", tint = Lux.text, named = false) { nav.popBackStack() }
         if (tracks != null) {
             val ids = tracks.map { it.id }
-            IconButton(onClick = { if (ids.isNotEmpty()) Dialogs.show(DialogRequest.Info(ids)) }) {
-                Icon(Icons.Filled.Info, "Get Info", tint = Lux.icon)
+            IconButton(onClick = radio ?: { nav.go(Routes.RADIO) }) {
+                Icon(LuxIcons.RadioMix, if (radio != null) "Start Radio Mix" else "Radio Mix", tint = Lux.icon)
             }
             SleepTimerBadge(alwaysShow = true)
             IconButton(onClick = { eqPopup = true }) {
@@ -302,6 +310,10 @@ fun PageBottomBar(nav: NavHostController, menu: Menu, title: String? = null, tra
             Spacer(Modifier.weight(1f))
         }
         // Every page's More menu ends with Search (the same full search as everywhere).
-        if (menu.isNotEmpty()) MoreButton(menu.asMoreItems() + MoreItem("Search") { nav.go(Routes.SEARCH) }, title, named = false)
+        // Get Info for the page's songs too, if the page's menu doesn't have it.
+        val info: Menu = if (!tracks.isNullOrEmpty() && menu.none { it.first == "Get Info" }) {
+            listOf("Get Info" to { Dialogs.show(DialogRequest.Info(tracks.map { it.id })) })
+        } else emptyList()
+        if (menu.isNotEmpty() || info.isNotEmpty()) MoreButton((menu + info).asMoreItems() + MoreItem("Search") { nav.go(Routes.SEARCH) }, title, named = false)
     }
 }

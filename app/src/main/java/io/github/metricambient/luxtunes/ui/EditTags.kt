@@ -29,6 +29,7 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import io.github.metricambient.luxtunes.data.Track
+import io.github.metricambient.luxtunes.data.splitGenres
 import java.io.File
 
 // ---- Get Info ------------------------------------------------------------------------------
@@ -164,7 +165,11 @@ internal fun EditTagsDialog(ids: List<String>) {
             if (!single && (c == "name" || c == "track_number")) continue
             val was = start[c]
             val changed = if (was == null) v.isNotEmpty() else v != was
-            if (changed) put(c, if (c in NUMBER_FIELDS) v.toLongOrNull() ?: 0L else v.trim())
+            if (changed) put(c, when (c) {
+                in NUMBER_FIELDS -> v.toLongOrNull() ?: 0L
+                "genre" -> splitGenres(v).joinToString(", ")     // several genres: "Metalcore, Post-hardcore"
+                else -> v.trim()
+            })
         }
         if (compilation != null && compilation != startCompilation) put("compilation", if (compilation == true) 1L else 0L)
     }
@@ -242,6 +247,7 @@ private fun TagField(value: String, onChange: (String) -> Unit, label: String, m
         placeholder = {
             if (mixed) Text("Mixed", color = Lux.faint)
             else if (label == "Featured Artist") Text("Names, separated by commas", color = Lux.faint)
+            else if (label == "Genre") Text("Genres, separated by commas", color = Lux.faint)
         },
         singleLine = label != "Comments",
         keyboardOptions = if (number) KeyboardOptions(keyboardType = KeyboardType.Number) else KeyboardOptions.Default,

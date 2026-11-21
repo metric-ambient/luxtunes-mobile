@@ -133,8 +133,9 @@ fun NowPlayingScreen(nav: NavHostController) {
                 Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back", tint = Lux.text)
             }
             if (track != null) {
-                IconButton(onClick = { Dialogs.show(DialogRequest.Info(listOf(track.id))) }) {
-                    Icon(Icons.Filled.Info, "Get Info", tint = Lux.icon)
+                // A Radio Mix from this song (it carries on playing, first in the mix).
+                IconButton(onClick = { startRadio(app, nav, "song", track) }) {
+                    Icon(LuxIcons.RadioMix, "Start Radio Mix from Song", tint = Lux.icon)
                 }
             }
             SleepTimerBadge(alwaysShow = true)
@@ -152,6 +153,7 @@ fun NowPlayingScreen(nav: NavHostController) {
             }
             val menu = mutableListOf<Pair<String, () -> Unit>>()
             if (track != null) {
+                menu += "Start Radio Mix from Song" to { startRadio(app, nav, "song", track) }
                 menu += "Get Info" to { Dialogs.show(DialogRequest.Info(listOf(track.id))) }
                 menu += "Go to Album" to { nav.upTo(track, album = true) }
                 menu += "Go to Artist" to { nav.upTo(track, album = false) }

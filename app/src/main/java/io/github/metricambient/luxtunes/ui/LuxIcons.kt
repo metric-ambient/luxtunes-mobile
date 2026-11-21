@@ -44,6 +44,27 @@ object LuxIcons {
     val RepeatOn = lines("RepeatOn", REPEAT, 2.4f)
     val RepeatOneOn = lines("RepeatOneOn", REPEAT + ONE, 2.4f)
 
+    /**
+     * Radio Mix: two beamed notes inside a clockwise circular arrow ("a mix that keeps going").
+     * Drawn on a 64 grid from radio-mix-icon.svg (shared with LuxTunes on the computer).
+     */
+    val RadioMix: ImageVector = ImageVector.Builder(
+        name = "RadioMix", defaultWidth = 24.dp, defaultHeight = 24.dp, viewportWidth = 64f, viewportHeight = 64f,
+    ).apply {
+        fun stroke(path: String, width: Float) = addPath(
+            pathData = addPathNodes(path), fill = null, stroke = SolidColor(Color.Black), strokeLineWidth = width,
+        )
+        fun fill(path: String) = addPath(pathData = addPathNodes(path), fill = SolidColor(Color.Black))
+        fun ellipse(cx: Float, cy: Float, rx: Float, ry: Float) =
+            "M${cx - rx} ${cy}a$rx $ry 0 1 0 ${2 * rx} 0a$rx $ry 0 1 0 ${-2 * rx} 0Z"
+        stroke("M56.43 23.11A26 26 0 1 1 40.89 7.57", 4f)          // the circular arrow
+        stroke("M28.7 40.5L28.7 23.7M44.7 36.5L44.7 19.7", 2.5f)    // the note stems
+        stroke("M28.7 23.7L44.7 19.7", 4.2f)                        // the beam
+        fill("M48.41 10.3L42.94 1.93L38.84 13.21Z")                 // the arrowhead
+        fill(ellipse(24.5f, 40.5f, 4.8f, 3.6f))                     // the note heads
+        fill(ellipse(40.5f, 36.5f, 4.8f, 3.6f))
+    }.build()
+
     /** A tab's icon in the bottom bar and on its play and shuffle buttons. */
     fun tab(name: String): ImageVector = when (name) {
         "Artists", "Album Artists" -> Icons.Filled.Person

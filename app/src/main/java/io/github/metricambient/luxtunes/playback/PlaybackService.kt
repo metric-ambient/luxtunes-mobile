@@ -34,11 +34,14 @@ import io.github.metricambient.luxtunes.LuxTunesApp
 import io.github.metricambient.luxtunes.R
 import io.github.metricambient.luxtunes.data.HeardThisSession
 import io.github.metricambient.luxtunes.data.Shuffle
+import io.github.metricambient.luxtunes.data.RadioMix
 import io.github.metricambient.luxtunes.data.ReplayGain
 import io.github.metricambient.luxtunes.data.Track
 import io.github.metricambient.luxtunes.data.Transition
 import io.github.metricambient.luxtunes.ui.MainActivity
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.MainScope
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.launch
@@ -234,6 +237,31 @@ class PlaybackService : MediaSessionService() {
         exo.addMediaItems(order.mapNotNull { repository.mediaItem(it.id) })
     }
 
+    private var growingRadio = false
+
+    /**
+     * Radio never runs out: while the radio is playing (the song playing is on it and the
+     * list still ends with its last song), within 10 songs of the end 25 more are added.
+     */
+    private fun growRadio() {
+        val radio = app.radio.radio.value ?: return
+        val count = exo.mediaItemCount
+        if (growingRadio || count == 0 || count - 1 - exo.currentMediaItemIndex >= RadioMix.TOP_UP_WHEN) return
+        val library = repository.state.value
+        val onRadio = radio.trackIds.filter { it in library.byId }
+        if (exo.currentMediaItem?.mediaId !in onRadio || exo.getMediaItemAt(count - 1).mediaId != onRadio.lastOrNull()) return
+        growingRadio = true
+        scope.launch {
+            try {
+                val added = app.radio.extend()
+                val items = withContext(Dispatchers.IO) { added.mapNotNull { repository.mediaItem(it.id) } }
+                if (items.isNotEmpty()) exo.addMediaItems(items)
+            } finally {
+                growingRadio = false
+            }
+        }
+    }
+
     private fun noteSkip() {
         val id = exo.currentMediaItem?.mediaId ?: return
         // Positions count from the song's start time (the player clips to it).
@@ -257,6 +285,7 @@ class PlaybackService : MediaSessionService() {
                 getSharedPreferences("shuffle", Context.MODE_PRIVATE).getBoolean("on", false)
             ) handler.post { reshufflePass() }
             lastIndex = index
+            handler.post { growRadio() }
         }
 
         override fun onIsPlayingChanged(isPlaying: Boolean) {

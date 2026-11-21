@@ -473,22 +473,21 @@ class Repository(private val context: Context, private val prefs: Prefs) {
         }.sortedBy { sortText(it.tracks.first().browseSortArtist) }
         val podcasts = albumsOf(all.filter { it.mediaKind == "podcast" }).sortedBy { sortText(it.name) }
         // Artists by the songs' own artist, genres and composers: each a group of (parts of) albums.
-        fun groups(key: (Track) -> String?): List<Artist> =
-            music.mapNotNull { t -> key(t)?.trim()?.ifEmpty { null }?.let { it to t } }
-                .groupBy({ it.first.lowercase() }, { it })
-                .map { (_, pairs) ->
-                    Artist(
-                        name = pairs.first().first,
-                        albums = albumsOf(pairs.map { it.second })
-                            .sortedWith(compareBy({ if (it.year == 0) Int.MAX_VALUE else it.year }, { sortText(it.name) })),
-                    )
-                }
-                .sortedBy { sortText(it.name) }
+        // A song can be in several groups (genres: "Metalcore, Post-hardcore" is in both).
+        fun groupsOfNames(names: (Track) -> List<String>): List<Artist> =
+            groupByNames(music, names).map { (name, songs) ->
+                Artist(
+                    name = name,
+                    albums = albumsOf(songs)
+                        .sortedWith(compareBy({ if (it.year == 0) Int.MAX_VALUE else it.year }, { sortText(it.name) })),
+                )
+            }
+        fun groups(key: (Track) -> String?): List<Artist> = groupsOfNames { t -> listOfNotNull(key(t)?.trim()?.ifEmpty { null }) }
         // Settings → Tabs → Group Compilations: a compilation's songs are listed under the
         // compilation (its Album Artist, or "Various Artists"), not under each song's artist.
         val groupCompilations = prefs.current.groupCompilations
         val trackArtists = groups { if (groupCompilations && it.compilation) it.browseArtist else it.artist }
-        val genres = groups { it.genre }
+        val genres = groupsOfNames { genresOf(it.genre) }
         val composers = groups { it.raw["composer"] as? String }
         val movies = all.filter { it.mediaKind == "movie" }
         val tvShows = all.filter { it.mediaKind == "tvshow" }
