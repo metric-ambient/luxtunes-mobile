@@ -208,7 +208,10 @@ fun HomeScreen(nav: NavHostController) {
     }
 
     val sleep = sleepTimerMenu().map { (label, action) -> MoreItem(label, Icons.Filled.Bedtime, action) }
-    val more = listOf(MoreItem("Search", Icons.Filled.Search) { nav.go(Routes.SEARCH) }) + sleep + listOf(
+    val more = listOf(
+        MoreItem("Search", Icons.Filled.Search) { nav.go(Routes.SEARCH) },
+        MoreItem("Radio Mix", LuxIcons.RadioMix) { nav.go(Routes.RADIO) },
+    ) + sleep + listOf(
         MoreItem("Add Folder to Library…", Icons.Filled.CreateNewFolder) { AddFolder.show() },
         MoreItem("Rescan Device", Icons.Filled.Sync) { Notice.show("Looking for a new sync…"); app.repository.refreshAsync() },
         MoreItem("Change Theme", Icons.Filled.Palette) { nav.go(Routes.SETTINGS_THEME) },
@@ -274,7 +277,7 @@ private fun tabSongs(tabName: String, library: LibraryState, settings: AppSettin
     "Albums" -> sortAlbums(library.albums, settings.albumSort, settings.albumSortReverse).flatMap { it.tracks }
     "Artists" -> sortArtists(library.trackArtists, settings.artistSort, settings.artistSortReverse).flatMap { it.tracks }
     "Album Artists" -> sortArtists(library.artists, settings.artistSort, settings.artistSortReverse).flatMap { it.tracks }
-    "Genres" -> library.genres.flatMap { it.tracks }
+    "Genres" -> library.genres.flatMap { it.tracks }.distinctBy { it.id }     // a song with two genres once
     "Composers" -> library.composers.flatMap { it.tracks }
     else -> null
 }
@@ -552,6 +555,16 @@ private fun PlaylistsTab(nav: NavHostController, library: LibraryState, settings
                 subtitle = plural(playerState.queue.size, "song"),
                 onClick = { nav.go(Routes.QUEUE) },
                 leading = optional(icons) { PlaylistIcon(Icons.AutoMirrored.Filled.PlaylistPlay, Lux.text) },
+            )
+        }
+        item {
+            val radio by app.radio.radio.collectAsState()
+            val songs = radio?.trackIds.orEmpty().count { it in library.byId }
+            ListRow(
+                title = "Radio Mix",
+                subtitle = radio?.let { "${it.title} · ${plural(songs, "song")}" } ?: "Start one from a song's menu",
+                onClick = { nav.go(Routes.RADIO) },
+                leading = optional(icons) { PlaylistIcon(LuxIcons.RadioMix, Lux.text) },
             )
         }
         // Smart playlists, then the others (or the other way round: Settings → Operation),

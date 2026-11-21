@@ -382,7 +382,8 @@ object Smart {
                     S_CONTAINS -> have.contains(want)
                     S_STARTS -> have.startsWith(want)
                     S_ENDS -> have.endsWith(want)
-                    else -> have == want
+                    // "Genre is Metalcore" also for a song with Metalcore among its genres.
+                    else -> have == want || (f.column == "genre" && splitGenres(have).any { it == want })
                 }
             }
             Kind.MEDIA -> {

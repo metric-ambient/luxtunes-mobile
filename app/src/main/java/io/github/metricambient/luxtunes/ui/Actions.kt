@@ -70,6 +70,7 @@ fun songMenu(t: Track, nav: NavHostController, extra: Menu = emptyList()): Menu 
         "Add to End of Queue" to { app.player.addToEnd(listOf(t)) },
         "Add to Playlist…" to { Dialogs.show(DialogRequest.AddToPlaylist(listOf(t.id))) },
         "Set EQ…" to { Dialogs.show(DialogRequest.SetEq(listOf(t.id), t.displayName)) },
+        "Start Radio Mix…" to { chooseRadio(app, nav, t) },
         "Go to Album" to { nav.go(Routes.album(t.albumKey)) },
         "Go to Artist" to { nav.go(Routes.artist(t.browseArtist)) },
         "Get Info" to { Dialogs.show(DialogRequest.Info(listOf(t.id))) },
@@ -80,12 +81,13 @@ fun songMenu(t: Track, nav: NavHostController, extra: Menu = emptyList()): Menu 
 
 /** The ⋮ menu of a group of songs (artist, album). */
 @Composable
-fun groupMenu(tracks: List<Track>, nav: NavHostController, title: String = tracks.firstOrNull()?.album.orEmpty()): Menu {
+fun groupMenu(tracks: List<Track>, nav: NavHostController, title: String = tracks.firstOrNull()?.album.orEmpty(), radio: Boolean = false): Menu {
     val app = app()
     val ids = tracks.map { it.id }
     return listOf(
         "Play" to { playGroup(app, nav, tracks, GroupAction.PLAY) },
         "Shuffle" to { playGroup(app, nav, tracks, GroupAction.SHUFFLE) },
+    ) + (if (radio && tracks.isNotEmpty()) listOf("Start Radio Mix from Album" to { startRadio(app, nav, "album", tracks.first()) }) else emptyList()) + listOf(
         "Add to Queue" to { app.player.addToQueue(tracks) },
         "Add to End of Queue" to { app.player.addToEnd(tracks) },
         "Add to Playlist…" to { Dialogs.show(DialogRequest.AddToPlaylist(ids)) },

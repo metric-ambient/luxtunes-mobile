@@ -296,6 +296,29 @@ class PlayerConnection(private val context: Context) {
         if (shuffled) setShuffle(true, unshuffled + tracks.map { it.id })
     }
 
+    /**
+     * Take these songs out of the play queue. The song playing stays unless `skipIfPlaying`,
+     * when it's skipped first (as pressing Next would).
+     */
+    fun removeFromQueue(ids: Set<String>, skipIfPlaying: Boolean = false) = withController { c ->
+        if (skipIfPlaying && c.currentMediaItem?.mediaId in ids && c.hasNextMediaItem()) c.seekToNext()
+        for (i in c.mediaItemCount - 1 downTo 0) {
+            if (i != c.currentMediaItemIndex && c.getMediaItemAt(i).mediaId in ids) c.removeMediaItem(i)
+        }
+        if (shuffled) setShuffle(true, unshuffled.filter { it !in ids })
+    }
+
+    /**
+     * Play `order` instead of the current list without stopping the song playing (when
+     * it's in `order`; otherwise `order` starts from the top). Shuffle goes off.
+     */
+    fun replaceAround(order: List<Track>) = withController { c ->
+        val currentId = c.currentMediaItem?.mediaId
+        if (currentId == null || order.none { it.id == currentId }) { start(order, 0, null); return@withController }
+        setShuffle(false, emptyList())
+        rearrange(c, order.map { it.id }, currentId, c.currentMediaItemIndex)
+    }
+
     fun pause() = withController { it.pause() }
 
     private var playWhenRestored = false

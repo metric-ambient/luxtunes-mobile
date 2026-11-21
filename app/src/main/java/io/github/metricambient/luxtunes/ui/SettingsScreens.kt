@@ -24,6 +24,7 @@ import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.LibraryMusic
 import androidx.compose.material.icons.filled.Palette
 import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.SystemUpdate
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
@@ -113,6 +114,7 @@ fun SettingsScreen(nav: NavHostController) {
                 "${library.libraryName.ifEmpty { "LuxTunes" }}: ${plural(library.tracks.size, "song")}",
             ) { nav.go(Routes.SETTINGS_LIBRARY) }
         }
+        item { SettingRow(Icons.Filled.Favorite, "Radio Mix Likes & Dislikes", "Songs you liked or turned down on a Radio Mix") { nav.go(Routes.RADIO_LIKES) } }
         item { SettingRow(Icons.Filled.Refresh, "Rescan Device", "Look for a new sync from LuxTunes now") { app.repository.refreshAsync() } }
         item { UpdateRow() }
         item { SettingRow(Icons.AutoMirrored.Filled.HelpOutline, "Help", "How to use the app") { nav.go(Routes.SETTINGS_HELP) } }
@@ -584,7 +586,11 @@ fun AboutScreen(nav: NavHostController) {
                 "The app goes online only when you choose Check for Updates (and it asks first). " +
                 "It then asks github.com for the newest version, and downloads it if you say so. " +
                 "Like any website, GitHub sees your internet address when that happens; nothing " +
-                "about you or your music is sent.",
+                "about you or your music is sent.\n\n" +
+                "Radio Mix is worked out on the phone, with a genre list that comes inside the app. The " +
+                "mix and your Radio Mix likes and dislikes are kept in the app's own private storage, " +
+                "never in the shared LuxTunes folder, and are never sent anywhere or synced.\n\n" +
+                "Genre data: MusicBrainz and Wikidata (CC0).",
             color = Lux.dim, fontSize = 15.sp, modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp),
         )
         Spacer(Modifier.height(24.dp))

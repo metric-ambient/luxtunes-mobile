@@ -41,6 +41,11 @@ next sync.
 - Featured artists shown with each song ("Song (ft. Ann, Bo)"), found by search, and
   listed under Featured On on their artist page. Compilations are listed under the
   compilation (or Various Artists), as in LuxTunes.
+- Radio Mix: start one from a song, album or artist (the Radio Mix button or a ⋮ menu) for an endless mix of related songs
+  from your library, picked by genre closeness (from a built-in genre list), artist, your
+  playlists, plays, ratings and year. Like (♥) or turn down (⊘) songs, Refresh, Discover
+  (songs you rarely play), Save as Playlist. Worked out on the phone; nothing is sent or synced.
+- Songs with several genres ("Metalcore, Post-hardcore") are listed under each genre.
 - Movies and TV shows play full screen.
 - Settings → Sound: LuxTunes' ten-band equalizer with the same presets (synced with the
   computer) and a preset per song, album, artist or playlist (Set EQ…), crossfade or gapless, autoplay, playback speed for music and for
@@ -69,6 +74,14 @@ LuxTunes Mobile collects nothing about you: no accounts, ads, analytics or track
 Your music, ratings, plays and playlists stay on the phone and go only to your own
 computer, over USB, when you sync. The app goes online only when you choose Check for
 Updates (it asks first); GitHub then sees your internet address, as any website would.
+
+Radio Mix is worked out on the phone. The mix and your Radio Mix likes and dislikes are kept in
+the app's private storage (never the shared `LuxTunes` folder), and are never sent or synced.
+
+## Credits
+
+Genre data: MusicBrainz and Wikidata (CC0), in `app/src/main/assets/genres.json`, from the
+LuxTunes desktop app.
 
 ## Installing
 
