@@ -48,7 +48,7 @@ object RadioMix {
     private const val OTHER_ARTIST_SHARE = 0.1
 
     /** How much each thing counts: normal, Discover. */
-    private class Weights(discover: Boolean) {
+    private class Weights(private val discover: Boolean) {
         private fun w(normal: Double, disc: Double) = if (discover) disc else normal
         val genre = w(0.45, 0.60)
         val artist = w(0.15, 0.05)
