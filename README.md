@@ -113,32 +113,6 @@ The folder format is described in the LuxTunes repo
 - LuxTunes decides what's on the phone: a song deleted on the phone comes back at the
   next sync if it's still selected in LuxTunes.
 
-## Building
-
-For the full guide (pushing changes, releases, building and installing on your own
-computer, the signing key, fixing a failed build), see
-[docs/MAINTAINING.md](docs/MAINTAINING.md).
-
-GitHub builds the APK on every push (`.github/workflows/build.yml`); download it from the
-run's **Artifacts**. To publish a release, tag a version:
-
-```bash
-git tag v0.8.6
-git push origin main v0.8.6
-```
-
-APKs are signed with the key stored in the repository secrets `KEYSTORE_BASE64` and
-`KEYSTORE_PASSWORD` (key alias `luxtunes`); the build stops if they're missing. Android
-only installs an update over the app when both are signed with the same key: the build
-log ("Show the signing certificate") and Settings → About / Legal show which key signed a copy.
-
-**Updating:** Settings → Check for Updates looks at this repository's latest release,
-downloads the APK, checks it against the checksum GitHub publishes and hands it to
-Android's installer.
-
-To build on your own computer you need Android Studio (or the Android SDK and JDK 17):
-`./gradlew assembleDebug`.
-
 ## Tech stack
 
 | Part | Library |
