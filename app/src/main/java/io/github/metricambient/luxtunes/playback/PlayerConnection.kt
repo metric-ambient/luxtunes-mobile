@@ -323,7 +323,7 @@ class PlayerConnection(private val context: Context) {
 
     private var playWhenRestored = false
 
-    /** Headphones or Bluetooth connected (Settings → Headset/Bluetooth): carry on playing. */
+    /** Headphones or Bluetooth connected (Settings → Playback): carry on playing. */
     fun playFromDevice() = withController { c ->
         if (c.mediaItemCount == 0) {
             playWhenRestored = true

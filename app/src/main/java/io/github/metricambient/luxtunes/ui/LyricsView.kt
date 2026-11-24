@@ -26,7 +26,7 @@ import androidx.compose.ui.unit.sp
 import io.github.metricambient.luxtunes.data.Lyrics
 
 /**
- * A song's lyrics. Timed ones (with Settings → Operation → Highlight lyrics on) light
+ * A song's lyrics. Timed ones (with Settings → Appearance → Highlight lyrics on) light
  * up the line being sung and keep it in the middle; otherwise just the words, scrolled
  * freely. `bottomSpace` keeps the last lines clear of whatever sits below (the rating).
  */

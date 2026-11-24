@@ -35,7 +35,7 @@ import androidx.compose.ui.unit.sp
 import io.github.metricambient.luxtunes.data.LuxFolder
 import java.io.File
 
-/** Add Folder to Library: opened from Settings → My Library and the ⋮ menus. */
+/** Add Folder to Library: opened from Settings → Library & Sync and the ⋮ menus. */
 object AddFolder {
     internal val open = mutableStateOf(false)
     fun show() {

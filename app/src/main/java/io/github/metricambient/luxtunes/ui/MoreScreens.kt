@@ -32,14 +32,49 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavHostController
 
-// ---- Headset/Bluetooth ----------------------------------------------------------------------
+// ---- Playback ----------------------------------------------------------------------------------
 
+/**
+ * Settings → Playback: what happens when: songs ending and starting, phone calls and other
+ * apps, headset buttons, and plugging in or connecting headphones, speakers and cars.
+ */
 @Composable
-fun HeadsetSettingsScreen(nav: NavHostController) {
+fun PlaybackSettingsScreen(nav: NavHostController) {
     val prefs = app().prefs
     val s by prefs.settings.collectAsState()
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
-        ScreenTitle(nav, "Headset/Bluetooth")
+        ScreenTitle(nav, "Playback")
+        Heading("Playing")
+        ToggleRow(
+            "Autoplay", "Play the next song when one ends. Off: stop after every song.", s.autoplay,
+        ) { on -> prefs.update { it.copy(autoplay = on) } }
+        ToggleRow(
+            "Launch Now Playing View",
+            "Starting a song opens Now Playing. Off: you stay where you are and the bar at the bottom shows the song.",
+            s.launchNowPlaying,
+        ) { on -> prefs.update { it.copy(launchNowPlaying = on) } }
+        HorizontalDivider(color = Lux.panel)
+
+        Heading("Calls and Other Apps")
+        ToggleRow("Pause on Phone Call", "Pause when a call comes in or you make one.", s.pauseOnCall) { on ->
+            prefs.update { it.copy(pauseOnCall = on) }
+        }
+        ToggleRow("Resume on Phone Call", "Carry on playing when the call ends.", s.resumeAfterCall) { on ->
+            prefs.update { it.copy(resumeAfterCall = on) }
+        }
+        ToggleRow(
+            "Pause on Focus Lost",
+            "Pause when another app plays sound (a video, a voice message), and carry on after a short one.",
+            s.pauseOnFocusLoss,
+        ) { on -> prefs.update { it.copy(pauseOnFocusLoss = on) } }
+        ToggleRow(
+            "Ignore Other Apps",
+            "Keep playing whatever other apps do (calls still follow the settings above).",
+            s.ignoreOtherApps,
+        ) { on -> prefs.update { it.copy(ignoreOtherApps = on) } }
+        HorizontalDivider(color = Lux.panel)
+
+        Heading("Headset Buttons")
         ToggleRow(
             "Obey Headset Commands",
             "Play, pause and skip with the buttons on headphones, earbuds and Bluetooth devices.",
@@ -53,7 +88,7 @@ fun HeadsetSettingsScreen(nav: NavHostController) {
         ) { on -> prefs.update { it.copy(highPriority = on) } }
         HorizontalDivider(color = Lux.panel)
 
-        Heading("Wired Connection Settings")
+        Heading("Wired Headphones")
         ToggleRow(
             "Begin Play on Connect",
             "Start playing when headphones are plugged in.",
@@ -61,7 +96,7 @@ fun HeadsetSettingsScreen(nav: NavHostController) {
         ) { on -> prefs.update { it.copy(playOnWired = on) } }
         HorizontalDivider(color = Lux.panel)
 
-        Heading("Bluetooth Connection Settings")
+        Heading("Bluetooth")
         ToggleRow(
             "Begin Play on Bluetooth Connect",
             "Start playing when Bluetooth headphones, a speaker or a car connects.",
@@ -89,7 +124,7 @@ private val HELP: List<Pair<String, String>> = listOf(
         "2. In LuxTunes, pick the phone under Devices, choose what to sync, and sync.\n" +
         "3. Open this app. It finds the LuxTunes folder by itself and shows your library.\n\n" +
         "If the app asks where your library is, choose the phone's storage or the SD card " +
-        "(whichever you synced to). You can change it later in Settings → My Library.",
+        "(whichever you synced to). You can change it later in Settings → Library & Sync.",
     "Plays, ratings and playlists go back to LuxTunes" to
         "Everything you do here is remembered: songs played and skipped, star ratings, " +
         "playlists you make or change, song details you edit, songs you add and equalizer " +
@@ -98,9 +133,9 @@ private val HELP: List<Pair<String, String>> = listOf(
         "A song counts as played when it plays to the end, and as skipped when you press Next " +
         "between 2 and 20 seconds into it (from the app, the notification, headphones or the " +
         "car). Tapping quickly through songs doesn't count as skipping them.\n\n" +
-        "Settings → My Library shows what's waiting to go back.",
+        "Settings → Library & Sync shows what's waiting to go back.",
     "Playing music" to
-        "Tap a song to play it (Settings → Tabs → Default Song Action decides what plays: the " +
+        "Tap a song to play it (Settings → Tabs & Browsing → Default Song Action decides what plays: the " +
         "list from that song, just that song, or the list shuffled).\n\n" +
         "The floating bar near the bottom shows what's playing; tap it for Now Playing. Beside " +
         "it, Play and Shuffle play whatever screen you're on (a tab, an artist, an album or a " +
@@ -108,7 +143,7 @@ private val HELP: List<Pair<String, String>> = listOf(
         "In Now Playing, tap the album art (or the empty space around it) to see the lyrics and " +
         "rate the song: the stars appear under the art when there's room, otherwise on it. " +
         "Tap again to hide them. With timed lyrics from LuxTunes, the " +
-        "line being sung lights up and stays in the middle (Settings → Operation turns this off).\n\n" +
+        "line being sung lights up and stays in the middle (Settings → Appearance turns this off).\n\n" +
         "Shuffle and Repeat are next to the play button. Turning Shuffle off goes back to the " +
         "original order. When they're on, they light up with a dot underneath.\n\n" +
         "Hold down Previous or Next to rewind or fast-forward through the song.\n\n" +
@@ -137,11 +172,11 @@ private val HELP: List<Pair<String, String>> = listOf(
         "Rescan Device, Change Theme, Check for Updates and Settings). When there are more tabs " +
         "than fit, an arrow at the edge shows which way they are; tap it or swipe the tabs.",
     "Adding songs from the phone" to
-        "Settings → My Library → Add Folder to Library (also in the ⋮ menus) moves the songs in " +
+        "Settings → Library & Sync → Add Folder to Library (also in the ⋮ menus) moves the songs in " +
         "a folder on the phone into the LuxTunes folder, sorted into artist and album folders the " +
         "way LuxTunes does, and adds them to the library straight away.\n\n" +
         "To keep the originals where they are, turn on Do not move original files on import " +
-        "(Settings → My Library). The songs are then copied, so each one takes up twice the space.\n\n" +
+        "(Settings → Library & Sync). The songs are then copied, so each one takes up twice the space.\n\n" +
         "At the next sync, LuxTunes on your computer adds them to its library too.",
     "Editing song details" to
         "Get Info (in a song's ⋮ menu, an album's or artist's ⋮ menu, Now Playing's More, or the info " +
@@ -190,11 +225,11 @@ private val HELP: List<Pair<String, String>> = listOf(
         "songs) and the queue. Get Info for the page's songs is in More.\n\n" +
         "Below an artist's albums, Featured On lists songs by other artists that feature them, " +
         "and Play and Shuffle take them in with the artist's own songs " +
-        "(Settings → Operation → Exclude Featured hides them).\n\n" +
+        "(Settings → Tabs & Browsing → Exclude Featured hides them).\n\n" +
         "Songs on a compilation (a soundtrack, a \"Now\" album) are listed under the compilation in " +
         "Artists: its Album Artist, or Various Artists. They also show under each of their artists " +
         "who has songs outside compilations; an artist only ever on compilations gets no entry of " +
-        "their own (Search and Radio Mix still find them). Settings → Tabs → Group Compilations " +
+        "their own (Search and Radio Mix still find them). Settings → Tabs & Browsing → Group Compilations " +
         "turns this off: then compilation songs are listed under each of their artists.",
     "Playlists and smart playlists" to
         "In the Playlists tab, use Create Playlist, or add songs from any ⋮ menu → Add to " +
@@ -216,36 +251,37 @@ private val HELP: List<Pair<String, String>> = listOf(
         "The equalizer button at the bottom of Now Playing switches presets quickly.\n\n" +
         "Set EQ… in a song's, album's, artist's or playlist's ⋮ menu gives those songs their own " +
         "preset (as LuxTunes does). It goes to LuxTunes at the next sync.\n\n" +
-        "Audio Priority, further down Settings → Sound, decides what happens during phone calls and " +
-        "when another app plays sound: pause, carry on afterwards, or ignore other apps.",
+        "What happens during phone calls and when another app plays sound (pause, carry on " +
+        "afterwards, or ignore other apps) is in Settings → Playback → Calls and Other Apps.",
     "Making it look your way" to
-        "Settings → Theme: choose Dark, Material or Light, and your own background, accent and " +
-        "text colors. Auto Accent takes the accent from the album art.\n\n" +
-        "Settings → Tabs: choose which tabs show and what a tap does. In the overview, " +
+        "Settings → Appearance: choose Dark, Material or Light, and your own background, accent and " +
+        "text colors. Auto Accent takes the accent from the album art. Further down: no album " +
+        "art, and highlighting timed lyrics.\n\n" +
+        "Settings → Tabs & Browsing: choose which tabs show and what a tap does. In the overview, " +
         "long-press a tab at the bottom and drag it where you want it (hold it near an edge to " +
-        "scroll the bar).\n\n" +
-        "Settings → Operation: open Now Playing when a song starts or not, smart playlists at " +
-        "the end of the list, no album art, and highlighting timed lyrics.",
+        "scroll the bar). It also has smart playlists at the end of the list, grouping " +
+        "compilations and hiding Featured On.\n\n" +
+        "Settings → Playback: Autoplay, and whether Now Playing opens when a song starts.",
     "Sleep timer" to
         "Tap the moon at the bottom of Now Playing (or choose Sleep Timer… in a ⋮ menu) and pick " +
         "how long: 15 minutes to 8 hours. When the time is up, the music fades out and pauses; " +
         "Play carries on from the same spot.\n\n" +
         "While it runs, the moon shows the time left. Tap it to change the time or turn it off.",
     "Headphones and Bluetooth" to
-        "Settings → Headset/Bluetooth: use headset buttons, start playing when headphones or " +
+        "Settings → Playback: use headset buttons, start playing when headphones or " +
         "Bluetooth connect, and stop a car from starting music by itself.",
     "Movies and TV shows" to
-        "Turn on the Movies and TV Shows tabs in Settings → Tabs. Videos play full screen: tap " +
+        "Turn on the Movies and TV Shows tabs in Settings → Tabs & Browsing. Videos play full screen: tap " +
         "the picture to show or hide the controls.",
     "Updates" to
-        "Check for Updates is in Settings. The app asks before " +
+        "Check for Updates is in the main More menu and in Settings → About. The app asks before " +
         "going online, downloads the new version from the project's GitHub page, and Android " +
         "asks you to confirm installing it.",
     "Something's not right" to
-        "• No music: make sure the sync finished, then use Rescan Device in Settings or the ⋮ menu.\n" +
+        "• No music: make sure the sync finished, then use Rescan Device in the main More menu or Settings → Library & Sync.\n" +
         "• Plays or ratings didn't reach LuxTunes: open the app once after listening, before syncing.\n" +
         "• No album art: art arrives with the sync; until then, the art inside the song file is used.\n" +
-        "• The app can't see the library: Settings → My Library → Change Library Location.",
+        "• The app can't see the library: Settings → Library & Sync → Change Library Location.",
 )
 
 /** Settings → Help: short guides; tap one to open it. */

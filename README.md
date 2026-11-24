@@ -51,22 +51,22 @@ next sync.
 - Search ignores case and accents ("lumen" finds Lümen) and matches every word typed.
 - Movies and TV shows play full screen.
 - Settings → Sound: LuxTunes' ten-band equalizer with the same presets (synced with the
-  computer) and a preset per song, album, artist or playlist (Set EQ…), crossfade or gapless, autoplay, playback speed for music and for
-  audiobooks/podcasts, ReplayGain and mono; what happens during phone calls and when other
-  apps play sound.
+  computer) and a preset per song, album, artist or playlist (Set EQ…), crossfade or gapless, playback speed for music and for
+  audiobooks/podcasts, ReplayGain and mono. Settings → Playback: autoplay, what happens
+  during phone calls and when other apps play sound, headphones and Bluetooth.
 - Sleep timer, from 15 minutes to 8 hours, fading out at the end.
 - Headphone and Bluetooth options: headset buttons, play on connect, and stopping a car
   from starting music by itself.
 - Dark, Material and Light themes with your own colors, or an accent color taken from the
   album art.
 - Tabs for artists, album artists, genres, composers, podcasts, audiobooks, movies and TV
-  shows (choose them in Settings → Tabs, drag to reorder), Edit mode to tick several, Get Info with
+  shows (choose them in Settings → Tabs & Browsing, drag to reorder), Edit mode to tick several, Get Info with
   editing of song details (sent to LuxTunes at the next sync), and deleting songs from the
   phone (LuxTunes puts them back at the next sync if they're still chosen there).
 - Add Folder to Library moves (or copies) songs already on the phone into the library;
   they go to LuxTunes at the next sync (LuxTunes 0.8.2 or newer).
 - Picks up where you left off: the play queue, the song and the position.
-- Goes online only when you ask it to (Settings → Check for Updates), and says so first.
+- Goes online only when you ask it to (Check for Updates), and says so first.
   No Google services, so it also runs on de-Googled phones.
 
 Needs Android 8 or newer.

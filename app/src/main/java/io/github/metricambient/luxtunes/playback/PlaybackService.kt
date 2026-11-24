@@ -371,7 +371,7 @@ class PlaybackService : MediaSessionService() {
         }
     }
 
-    // ---- Settings → Headset/Bluetooth ----------------------------------------------------------
+    // ---- Settings → Playback ----------------------------------------------------------
     // Commands from this app (its screens and its notification) always count. Others are
     // checked: Bluetooth devices send theirs through the system's Bluetooth service.
 

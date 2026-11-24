@@ -59,7 +59,7 @@ private fun choosePreset(eq: EqSettings, set: (EqSettings) -> Unit) {
     Dialogs.show(DialogRequest.Choose("Equalizer Preset", names, selected) { i -> set(eq.copy(chosen = names[i])) })
 }
 
-/** Settings → Sound. */
+/** Settings → Sound: how it sounds (transitions, equalizer, speed, ReplayGain, mono). */
 @Composable
 fun SoundSettingsScreen(nav: NavHostController) {
     val app = app()
@@ -71,9 +71,6 @@ fun SoundSettingsScreen(nav: NavHostController) {
 
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
         ScreenTitle(nav, "Sound")
-        ToggleRow(
-            "Autoplay", "Play the next song when one ends. Off: stop after every song.", s.autoplay,
-        ) { on -> prefs.update { it.copy(autoplay = on) } }
         ChoiceRow("Track Transitions", s.transition.label) {
             Dialogs.show(DialogRequest.Choose("Track Transitions", Transition.entries.map { it.label }, s.transition.ordinal) { i ->
                 prefs.update { it.copy(transition = Transition.entries[i]) }
@@ -122,25 +119,6 @@ fun SoundSettingsScreen(nav: NavHostController) {
         ToggleRow(
             "Force Mono", "Play everything in mono: both sides get the same sound.", s.forceMono,
         ) { on -> prefs.update { it.copy(forceMono = on) } }
-        HorizontalDivider(color = Lux.panel)
-
-        Heading("Audio Priority")
-        ToggleRow("Pause on Phone Call", "Pause when a call comes in or you make one.", s.pauseOnCall) { on ->
-            prefs.update { it.copy(pauseOnCall = on) }
-        }
-        ToggleRow("Resume on Phone Call", "Carry on playing when the call ends.", s.resumeAfterCall) { on ->
-            prefs.update { it.copy(resumeAfterCall = on) }
-        }
-        ToggleRow(
-            "Pause on Focus Lost",
-            "Pause when another app plays sound (a video, a voice message), and carry on after a short one.",
-            s.pauseOnFocusLoss,
-        ) { on -> prefs.update { it.copy(pauseOnFocusLoss = on) } }
-        ToggleRow(
-            "Ignore Other Apps",
-            "Keep playing whatever other apps do (calls still follow the settings above).",
-            s.ignoreOtherApps,
-        ) { on -> prefs.update { it.copy(ignoreOtherApps = on) } }
         Spacer(Modifier.height(24.dp))
     }
 

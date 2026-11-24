@@ -12,7 +12,7 @@ import android.os.SystemClock
 import io.github.metricambient.luxtunes.LuxTunesApp
 
 /**
- * Settings → Headset/Bluetooth: notices headphones and Bluetooth audio being
+ * Settings → Playback: notices headphones and Bluetooth audio being
  * connected (while LuxTunes is running) to start playing, and remembers when
  * Bluetooth connected, for blocking a car's or speaker's own "play".
  */

@@ -15,7 +15,7 @@ import java.net.URL
 import java.security.MessageDigest
 
 /**
- * Settings → Check for Updates: looks at the latest GitHub release of the app.
+ * Settings → About → Check for Updates: looks at the latest GitHub release of the app.
  * Nothing here runs until the user has said yes to going online. It only talks
  * HTTPS to GitHub (checked again after redirects), and a download must match the
  * size and SHA-256 digest GitHub publishes for it before Android is handed it.

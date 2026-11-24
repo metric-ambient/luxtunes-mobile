@@ -96,11 +96,10 @@ object Routes {
     const val SETTINGS_TABS = "settings/tabs"
     const val SETTINGS_ABOUT = "settings/about"
     const val SETTINGS_THEME = "settings/theme"
-    const val SETTINGS_OPERATION = "settings/operation"
     const val SETTINGS_LIBRARY = "settings/library"
     const val SETTINGS_SOUND = "settings/sound"
     const val SETTINGS_EQUALIZER = "settings/equalizer"
-    const val SETTINGS_HEADSET = "settings/headset"
+    const val SETTINGS_PLAYBACK = "settings/playback"
     const val SETTINGS_HELP = "settings/help"
     const val SETTINGS_LICENSES = "settings/licenses"
     fun album(key: String) = "album/${Uri.encode(key)}"
@@ -216,11 +215,10 @@ private fun MainScreens() {
                 }
                 screen(nav, Routes.SETTINGS_ABOUT) { AboutScreen(nav) }
                 screen(nav, Routes.SETTINGS_THEME) { ThemeSettingsScreen(nav) }
-                screen(nav, Routes.SETTINGS_OPERATION) { OperationSettingsScreen(nav) }
                 screen(nav, Routes.SETTINGS_LIBRARY) { LibrarySettingsScreen(nav) }
                 screen(nav, Routes.SETTINGS_SOUND) { SoundSettingsScreen(nav) }
                 screen(nav, Routes.SETTINGS_EQUALIZER) { EqualizerScreen(nav) }
-                screen(nav, Routes.SETTINGS_HEADSET) { HeadsetSettingsScreen(nav) }
+                screen(nav, Routes.SETTINGS_PLAYBACK) { PlaybackSettingsScreen(nav) }
                 screen(nav, Routes.SETTINGS_HELP) { HelpScreen(nav) }
                 screen(nav, Routes.SETTINGS_LICENSES) { LicensesScreen(nav) }
                 screen(nav, Routes.SEARCH) { SearchScreen(nav) }

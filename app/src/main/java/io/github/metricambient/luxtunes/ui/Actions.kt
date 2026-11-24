@@ -14,7 +14,7 @@ import io.github.metricambient.luxtunes.data.shuffleGroups
 typealias Menu = List<Pair<String, () -> Unit>>
 
 /**
- * A tap on a song in `list`: what plays follows Settings → Tabs → Default Song
+ * A tap on a song in `list`: what plays follows Settings → Tabs & Browsing → Default Song
  * Action, and Now Playing always opens.
  */
 fun tapSong(app: LuxTunesApp, nav: NavHostController, list: List<Track>, index: Int) {
@@ -29,7 +29,7 @@ fun tapSong(app: LuxTunesApp, nav: NavHostController, list: List<Track>, index: 
 
 /**
  * After starting playback: Now Playing (or the video screen for movies and TV).
- * With Settings → Operation → Launch Now Playing View off, music stays where you are.
+ * With Settings → Playback → Launch Now Playing View off, music stays where you are.
  */
 fun showPlayer(nav: NavHostController, tracks: List<Track>) {
     val video = tracks.firstOrNull()?.isVideo == true
@@ -55,7 +55,7 @@ fun playGroup(app: LuxTunesApp, nav: NavHostController, tracks: List<Track>, act
     showPlayer(nav, tracks)
 }
 
-/** A tap on an artist, album or playlist: open it, or play it (Settings → Tabs). */
+/** A tap on an artist, album or playlist: open it, or play it (Settings → Tabs & Browsing). */
 fun tapGroup(app: LuxTunesApp, nav: NavHostController, tracks: List<Track>, action: GroupAction, route: String) {
     if (action == GroupAction.VIEW) nav.go(route) else playGroup(app, nav, tracks, action)
 }

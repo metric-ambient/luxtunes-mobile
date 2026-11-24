@@ -18,6 +18,8 @@ import androidx.compose.material.icons.automirrored.filled.HelpOutline
 import androidx.compose.material.icons.filled.Album
 import androidx.compose.material.icons.filled.Build
 import androidx.compose.material.icons.filled.Folder
+import androidx.compose.material.icons.filled.GraphicEq
+import androidx.compose.material.icons.filled.Tab
 import androidx.compose.material.icons.filled.Headphones
 import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.filled.Info
@@ -51,6 +53,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavHostController
@@ -82,13 +85,13 @@ private fun SettingRow(icon: ImageVector, title: String, subtitle: String, onCli
         Modifier
             .fillMaxWidth()
             .let { if (onClick != null) it.clickable(onClick = onClick) else it }
-            .padding(horizontal = 16.dp, vertical = 14.dp),
+            .padding(horizontal = 16.dp, vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Icon(icon, null, tint = if (onClick != null) Lux.icon else Lux.faint, modifier = Modifier.size(48.dp))
+        Icon(icon, null, tint = if (onClick != null) Lux.icon else Lux.faint, modifier = Modifier.size(40.dp))
         Column(Modifier.padding(start = 20.dp)) {
-            Text(title, color = if (onClick != null) Lux.text else Lux.dim, fontSize = 19.sp)
-            Text(subtitle, color = Lux.dim, fontSize = 14.sp)
+            Text(title, color = if (onClick != null) Lux.text else Lux.dim, fontSize = 18.sp)
+            Text(subtitle, color = Lux.dim, fontSize = 14.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
         }
     }
 }
@@ -101,30 +104,27 @@ fun SettingsScreen(nav: NavHostController) {
     val context = LocalContext.current
     val library by app.repository.state.collectAsState()
     val settings by app.prefs.settings.collectAsState()
+    // Seven rows, so the list fits a normal phone without scrolling (it scrolls if it has to).
     LazyColumn(Modifier.fillMaxSize()) {
         item { ScreenTitle(nav, "Settings") }
-        item { SettingRow(Icons.Filled.Album, "Sound", "Equalizer, crossfade, speed, ReplayGain") { nav.go(Routes.SETTINGS_SOUND) } }
-        item { SettingRow(Icons.Filled.Build, "Operation", "Now Playing, playlists, album art, lyrics, Featured On") { nav.go(Routes.SETTINGS_OPERATION) } }
-        item { SettingRow(Icons.Filled.Folder, "Tabs", "Choose which tabs to see, and what a tap does") { nav.go(Routes.SETTINGS_TABS) } }
-        item { SettingRow(Icons.Filled.Palette, "Theme", "${settings.themeStyle.label} · style and colors") { nav.go(Routes.SETTINGS_THEME) } }
-        item { SettingRow(Icons.Filled.Headphones, "Headset/Bluetooth", "Headset buttons, play on connect") { nav.go(Routes.SETTINGS_HEADSET) } }
+        item { SettingRow(Icons.Filled.GraphicEq, "Sound", "Equalizer, crossfade, speed, ReplayGain") { nav.go(Routes.SETTINGS_SOUND) } }
+        item { SettingRow(Icons.Filled.Headphones, "Playback", "Autoplay, calls, headphones, Bluetooth") { nav.go(Routes.SETTINGS_PLAYBACK) } }
+        item { SettingRow(Icons.Filled.Palette, "Appearance", "${settings.themeStyle.label} · colors, album art, lyrics") { nav.go(Routes.SETTINGS_THEME) } }
+        item { SettingRow(Icons.Filled.Tab, "Tabs & Browsing", "Tabs, what a tap does, compilations, Featured On") { nav.go(Routes.SETTINGS_TABS) } }
         item {
             SettingRow(
-                Icons.Filled.LibraryMusic, "My Library",
-                "${library.libraryName.ifEmpty { "LuxTunes" }}: ${plural(library.tracks.size, "song")}",
+                Icons.Filled.LibraryMusic, "Library & Sync",
+                "${library.libraryName.ifEmpty { "LuxTunes" }}: ${plural(library.tracks.size, "song")} · Radio Mix likes",
             ) { nav.go(Routes.SETTINGS_LIBRARY) }
         }
-        item { SettingRow(Icons.Filled.Favorite, "Radio Mix Likes & Dislikes", "Songs you liked or turned down on a Radio Mix") { nav.go(Routes.RADIO_LIKES) } }
-        item { SettingRow(Icons.Filled.Refresh, "Rescan Device", "Look for a new sync from LuxTunes now") { app.repository.refreshAsync() } }
-        item { UpdateRow() }
         item { SettingRow(Icons.AutoMirrored.Filled.HelpOutline, "Help", "How to use the app") { nav.go(Routes.SETTINGS_HELP) } }
-        item { SettingRow(Icons.Filled.Info, "About / Legal", "Version, licenses, privacy") { nav.go(Routes.SETTINGS_ABOUT) } }
+        item { SettingRow(Icons.Filled.Info, "About", "Version ${BuildConfigInfo.versionName(context)} · updates, licenses, privacy") { nav.go(Routes.SETTINGS_ABOUT) } }
     }
 }
 
 // ---- My Library ------------------------------------------------------------------------------
 
-/** Settings → My Library: where the library is, when it was synced, what's waiting to go back. */
+/** Settings → Library & Sync: where the library is, syncing, what's waiting to go back, Radio Mix likes. */
 @Composable
 fun LibrarySettingsScreen(nav: NavHostController) {
     val app = app()
@@ -144,7 +144,7 @@ fun LibrarySettingsScreen(nav: NavHostController) {
     }
     val canChoose = LuxFolder.hasRemovable(context)
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
-        ScreenTitle(nav, "My Library")
+        ScreenTitle(nav, "Library & Sync")
         InfoRow("Library", "${library.libraryName.ifEmpty { "LuxTunes" }}: ${plural(library.tracks.size, "song")}")
         InfoRow("Storage", storage)
         InfoRow("Folder", library.folder?.path ?: "Not found")
@@ -160,6 +160,10 @@ fun LibrarySettingsScreen(nav: NavHostController) {
         InfoRow("changes.json", written)
         if (library.transferMode) InfoRow("USB file transfer", "On")
         Spacer(Modifier.height(16.dp))
+        ButtonWithHelp(
+            "Rescan Device",
+            "Look for a new sync from LuxTunes now. The app also looks whenever it comes to the front.",
+        ) { Notice.show("Looking for a new sync…"); app.repository.refreshAsync() }
         ButtonWithHelp(
             "Change Library Location",
             if (canChoose) "Choose whether the LuxTunes folder is on the phone's own storage or the SD card."
@@ -179,6 +183,12 @@ fun LibrarySettingsScreen(nav: NavHostController) {
                 "each file, so the songs take up twice the space.",
             settings.keepOriginals,
         ) { on -> app.prefs.update { it.copy(keepOriginals = on) } }
+        HorizontalDivider(color = Lux.panel)
+        Heading("Radio Mix")
+        ChoiceRow("Radio Mix Likes & Dislikes", "Songs you liked or turned down on a Radio Mix (kept on this phone only)") {
+            nav.go(Routes.RADIO_LIKES)
+        }
+        Spacer(Modifier.height(16.dp))
     }
 }
 
@@ -239,7 +249,7 @@ object UpdateCheck {
     }
 }
 
-/** Settings → Check for Updates. */
+/** Settings → About → Check for Updates. */
 @Composable
 private fun UpdateRow() {
     val context = LocalContext.current
@@ -363,42 +373,6 @@ fun UpdateDialogs() {
     }
 }
 
-// ---- Operation ------------------------------------------------------------------------------
-
-@Composable
-fun OperationSettingsScreen(nav: NavHostController) {
-    val prefs = app().prefs
-    val s by prefs.settings.collectAsState()
-    Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
-        ScreenTitle(nav, "Operation")
-        ToggleRow(
-            "Launch Now Playing View",
-            "Starting a song opens Now Playing. Off: you stay where you are and the bar at the bottom shows the song.",
-            s.launchNowPlaying,
-        ) { on -> prefs.update { it.copy(launchNowPlaying = on) } }
-        ToggleRow(
-            "Smart Playlists at end of list",
-            "In the Playlists tab, show smart playlists after your other playlists.",
-            s.smartAtEnd,
-        ) { on -> prefs.update { it.copy(smartAtEnd = on) } }
-        ToggleRow(
-            "Disable Album Art",
-            "Show every song, album and artist as if it had no album art (a plain music note).",
-            s.noAlbumArt,
-        ) { on -> prefs.update { it.copy(noAlbumArt = on) } }
-        ToggleRow(
-            "Highlight lyrics as they're sung",
-            "For songs with timed lyrics, the line being sung is lit up and kept in the middle.",
-            s.followLyrics,
-        ) { on -> prefs.update { it.copy(followLyrics = on) } }
-        ToggleRow(
-            "Exclude Featured",
-            "Excludes Featured On section in the Artist view.",
-            s.excludeFeatured,
-        ) { on -> prefs.update { it.copy(excludeFeatured = on) } }
-    }
-}
-
 /** A setting with a title, a line about it and an on/off switch. */
 @Composable
 internal fun ToggleRow(title: String, subtitle: String, checked: Boolean, onChange: (Boolean) -> Unit) {
@@ -449,7 +423,8 @@ fun TabsSettingsScreen(nav: NavHostController) {
     }
 
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
-        ScreenTitle(nav, "Tabs")
+        ScreenTitle(nav, "Tabs & Browsing")
+        Heading("Browsing")
         ToggleRow(
             "Group Compilations",
             "In Artists, a compilation's songs are listed under the compilation (its Album Artist, or " +
@@ -459,6 +434,16 @@ fun TabsSettingsScreen(nav: NavHostController) {
             prefs.update { it.copy(groupCompilations = on) }
             app.repository.refreshAsync()            // the lists are rebuilt with the new setting
         }
+        ToggleRow(
+            "Smart Playlists at end of list",
+            "In the Playlists tab, show smart playlists after your other playlists.",
+            s.smartAtEnd,
+        ) { on -> prefs.update { it.copy(smartAtEnd = on) } }
+        ToggleRow(
+            "Exclude Featured",
+            "Excludes Featured On section in the Artist view.",
+            s.excludeFeatured,
+        ) { on -> prefs.update { it.copy(excludeFeatured = on) } }
         HorizontalDivider(color = Lux.panel)
 
         TabSection("Songs", "Display songs tab", "Songs" in s.tabs, { showTab("Songs", it) }) {
@@ -574,6 +559,7 @@ fun AboutScreen(nav: NavHostController) {
                 color = Lux.dim, fontSize = 15.sp,
             )
         }
+        UpdateRow()
         ChoiceRow("Open-Source Licenses", "The licenses of LuxTunes and the libraries it uses") {
             nav.go(Routes.SETTINGS_LICENSES)
         }

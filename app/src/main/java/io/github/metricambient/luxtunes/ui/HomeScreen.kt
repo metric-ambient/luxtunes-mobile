@@ -567,7 +567,7 @@ private fun PlaylistsTab(nav: NavHostController, library: LibraryState, settings
                 leading = optional(icons) { PlaylistIcon(LuxIcons.RadioMix, Lux.text) },
             )
         }
-        // Smart playlists, then the others (or the other way round: Settings → Operation),
+        // Smart playlists, then the others (or the other way round: Settings → Tabs & Browsing),
         // each group under its own Create button.
         val groups = if (settings.smartAtEnd) listOf(false, true) else listOf(true, false)
         for (smart in groups) {

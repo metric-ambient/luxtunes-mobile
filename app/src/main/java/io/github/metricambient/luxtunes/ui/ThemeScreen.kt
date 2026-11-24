@@ -84,7 +84,7 @@ private val TEXT_SUGGESTIONS = listOf(
 
 private fun hexOf(c: Color) = "%06X".format(c.toArgb() and 0xFFFFFF)
 
-/** Settings → Theme: three styles, then the selected style's three colors. */
+/** Settings → Appearance: three styles, the selected style's three colors, album art and lyrics. */
 @Composable
 fun ThemeSettingsScreen(nav: NavHostController) {
     val prefs = app().prefs
@@ -99,7 +99,7 @@ fun ThemeSettingsScreen(nav: NavHostController) {
     }
 
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
-        ScreenTitle(nav, "Theme")
+        ScreenTitle(nav, "Appearance")
         Heading("Style")
         Row(
             Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 8.dp),
@@ -138,6 +138,19 @@ fun ThemeSettingsScreen(nav: NavHostController) {
                 "your own accent color above is used. Works in all three styles.",
             s.autoAccent,
         ) { on -> prefs.update { it.copy(autoAccent = on) } }
+        HorizontalDivider(color = Lux.panel)
+
+        Heading("Album Art and Lyrics")
+        ToggleRow(
+            "Disable Album Art",
+            "Show every song, album and artist as if it had no album art (a plain music note).",
+            s.noAlbumArt,
+        ) { on -> prefs.update { it.copy(noAlbumArt = on) } }
+        ToggleRow(
+            "Highlight lyrics as they're sung",
+            "For songs with timed lyrics, the line being sung is lit up and kept in the middle.",
+            s.followLyrics,
+        ) { on -> prefs.update { it.copy(followLyrics = on) } }
         Spacer(Modifier.height(24.dp))
     }
 

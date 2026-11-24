@@ -9,7 +9,7 @@ import androidx.media3.common.Player
 import io.github.metricambient.luxtunes.data.AppSettings
 
 /**
- * Settings → Sound → Audio Priority: what to do when another app or a phone call
+ * Settings → Playback → Calls and Other Apps: what to do when another app or a phone call
  * wants the sound. The app asks Android for "audio focus" itself (instead of the
  * player's own handling) so these choices can be followed.
  *

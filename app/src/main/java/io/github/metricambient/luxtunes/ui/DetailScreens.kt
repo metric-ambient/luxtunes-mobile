@@ -245,7 +245,10 @@ fun GroupScreen(nav: NavHostController, kind: String, name: String) {
         "Delete from Phone" to { Dialogs.show(DialogRequest.Delete(tracks.map { it.id })) },
     )
     val info = (if (kind == "tvshow") plural(artist.albums.size, "season") else plural(artist.albums.size, "album")) +
-        " · " + plural(tracks.size, if (kind == "tvshow") "episode" else "song") + "\n" + formatLength(tracks.sumOf { it.totalTime })
+        " · " + plural(tracks.size, if (kind == "tvshow") "episode" else "song") +
+        // Featured On songs, unless Exclude Featured hides them (then the list is empty).
+        (if (featuredOn.isNotEmpty()) " · " + plural(featuredOn.size, "feature") else "") +
+        "\n" + formatLength(tracks.sumOf { it.totalTime })
     // Play and Shuffle take in the Featured On songs too (unless Exclude Featured hides them).
     val all = tracks + featuredOn
     val by = shuffleBy(settings.artistPlay)

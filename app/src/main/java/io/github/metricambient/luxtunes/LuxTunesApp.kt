@@ -39,7 +39,7 @@ class LuxTunesApp : Application(), ImageLoaderFactory {
         radio = RadioStore(this, repository)
         prefs.current.let { Lux.use(LuxPalette(it.themeStyle, it.colors, it.autoAccent)) }
         UsbState.watch(this) { repository.transferMode = it }
-        // Settings → Headset/Bluetooth: play on connect, and High Priority Mode.
+        // Settings → Playback: play on connect, and High Priority Mode.
         DeviceWatch.start(this)
         MainScope().launch {
             prefs.settings.map { it.highPriority }.distinctUntilChanged().collect {

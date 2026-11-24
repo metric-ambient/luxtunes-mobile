@@ -24,7 +24,7 @@ enum class GroupAction(val label: String) {
     SHUFFLE_ARTISTS("Shuffle by artists"),
 }
 
-/** The choices each kind of row offers (Settings → Tabs). */
+/** The choices each kind of row offers (Settings → Tabs & Browsing). */
 object Actions {
     val BASIC = listOf(GroupAction.VIEW, GroupAction.PLAY, GroupAction.SHUFFLE)
     val ALL = GroupAction.entries.toList()
@@ -51,7 +51,7 @@ enum class ArtistPlay(val label: String) {
     SHUFFLE_SONGS("Shuffle By Songs"),
 }
 
-/** The look of the app (Settings → Theme). */
+/** The look of the app (Settings → Appearance). */
 enum class ThemeStyle(val label: String) { DARK("Dark"), MATERIAL("Material"), LIGHT("Light") }
 
 /** A style's three colors (ARGB). */
@@ -110,18 +110,18 @@ data class AppSettings(
     val podcastPitchFix: Boolean = true,
     val replayGain: ReplayGain = ReplayGain.OFF,
     val forceMono: Boolean = false,
-    // Sound → Audio Priority
+    // Playback → Calls and Other Apps
     val pauseOnCall: Boolean = true,
     val resumeAfterCall: Boolean = true,
     val pauseOnFocusLoss: Boolean = true,
     val ignoreOtherApps: Boolean = false,
-    // Headset/Bluetooth
+    // Playback → headset buttons, wired and Bluetooth
     val obeyHeadset: Boolean = true,
     val highPriority: Boolean = false,
     val playOnWired: Boolean = false,
     val playOnBluetooth: Boolean = false,
     val blockReceiverPlay: Boolean = false,
-    // Operation
+    // Playback, Appearance and Tabs & Browsing (once Operation)
     val noAlbumArt: Boolean = false,
     // Tabs
     val hideSearch: Boolean = false,

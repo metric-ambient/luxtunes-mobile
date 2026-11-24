@@ -143,7 +143,7 @@ class Repository(private val context: Context, private val prefs: Prefs) {
                     null -> ""
                 }
                 publish(null, "No music from LuxTunes$where yet. Sync this phone from LuxTunes on your computer " +
-                    "(or change the storage in Settings → My Library), then open the app again.")
+                    "(or change the storage in Settings → Library & Sync), then open the app again.")
                 return@withLock
             }
             settleChangesFile(folder)
@@ -483,7 +483,7 @@ class Repository(private val context: Context, private val prefs: Prefs) {
                 )
             }
         fun groups(key: (Track) -> String?): List<Artist> = groupsOfNames { t -> listOfNotNull(key(t)?.trim()?.ifEmpty { null }) }
-        // Settings → Tabs → Group Compilations: a compilation's songs are listed under the
+        // Settings → Tabs & Browsing → Group Compilations: a compilation's songs are listed under the
         // compilation (its Album Artist, or "Various Artists"), not under each song's artist.
         val groupCompilations = prefs.current.groupCompilations
         // A song with an Artists list ("Lümen; Grayfield") is under each of them; compilation
