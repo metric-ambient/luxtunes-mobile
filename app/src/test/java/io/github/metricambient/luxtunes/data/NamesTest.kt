@@ -94,6 +94,21 @@ class NamesTest {
         assertEquals(setOf(all[2].id, all[3].id), RadioMix.seedTracks(all, "artist", all[2]).map { it.id }.toSet())
     }
 
+    @Test
+    fun theAlbumArtistsTabListsASharedAlbumUnderEachArtist() {
+        val ep = (0 until 3).map { song(mapOf("artist" to "Lümen & Grayfield", "album_artist" to "Lümen & Grayfield",
+            "artists" to "Lümen; Grayfield", "album" to "Paper Tales EP")) }
+        val solo = song(mapOf("artist" to "Lümen", "album" to "Lümen"))
+        val other = song(mapOf("artist" to "Grayfield", "album" to "Own"))
+        val entries = artistEntries(ep + solo + other, groupCompilations = true, byAlbumArtist = true).toMap()
+        assertEquals(setOf("Lümen", "Grayfield"), entries.keys)
+        assertEquals(ep + solo, entries.getValue("Lümen"))
+        assertEquals(ep + other, entries.getValue("Grayfield"))
+        // Without an Artists list, an album stays under its album artist.
+        val plain = song(mapOf("artist" to "Guest", "album_artist" to "Lümen", "album" to "Remixes"))
+        assertEquals(listOf("Lümen"), browseArtists(plain, groupCompilations = true, byAlbumArtist = true))
+    }
+
     // ---- Search ----
 
     @Test

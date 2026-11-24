@@ -66,6 +66,7 @@ import androidx.compose.ui.unit.sp
 import androidx.media3.common.Player
 import androidx.navigation.NavBackStackEntry
 import androidx.navigation.NavHostController
+import io.github.metricambient.luxtunes.LuxTunesApp
 import io.github.metricambient.luxtunes.data.Track
 import kotlinx.coroutines.delay
 import androidx.activity.compose.BackHandler
@@ -164,6 +165,7 @@ fun NowPlayingScreen(nav: NavHostController) {
             menu += sleepTimerMenu()
             menu += "Add Folder to Library…" to { AddFolder.show() }
             menu += "Search" to { nav.goFromNowPlaying(Routes.SEARCH) }
+            menu += "Rescan Device" to { Notice.show("Looking for a new sync…"); app.repository.refreshAsync() }
             // Settings opens over Now Playing, so Back comes back here.
             menu += "Settings" to { nav.go(Routes.SETTINGS) }
             MoreMenu(menu)
@@ -446,7 +448,8 @@ private fun NavHostController.upTo(track: Track, album: Boolean) {
     fun isAlbum(e: NavBackStackEntry) = e.destination.route == "album/{key}" && arg(e, "key") == track.albumKey
     fun isArtist(e: NavBackStackEntry) = e.destination.route == "group/{kind}/{name}" &&
         arg(e, "kind") in listOf("artist", "trackartist") &&
-        (arg(e, "name").equals(track.browseArtist, ignoreCase = true) || arg(e, "name").equals(track.artist, ignoreCase = true))
+        (arg(e, "name").equals(track.browseArtist, ignoreCase = true) || arg(e, "name").equals(track.artist, ignoreCase = true) ||
+            track.artists.any { arg(e, "name").equals(it, ignoreCase = true) })
     fun wanted(e: NavBackStackEntry) = if (album) isAlbum(e) else isArtist(e)
 
     if (currentBackStackEntry?.destination?.route == Routes.NOW) popBackStack()
@@ -457,7 +460,10 @@ private fun NavHostController.upTo(track: Track, album: Boolean) {
     }
     val top = currentBackStackEntry
     if (top != null && wanted(top)) return
-    if (top?.destination?.route == Routes.HOME && track.browseArtist.isNotBlank()) navigate(Routes.artist(track.browseArtist))
+    if (top?.destination?.route == Routes.HOME && track.browseArtist.isNotBlank()) {
+        val library = (context.applicationContext as LuxTunesApp).repository.state.value
+        navigate(Routes.artist(library.artistPageFor(track)))
+    }
     if (album) navigate(Routes.album(track.albumKey))
 }
 

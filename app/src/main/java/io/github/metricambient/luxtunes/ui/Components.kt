@@ -196,7 +196,13 @@ fun SongRow(
 
 @Composable
 private fun TrackNumber(n: Int) {
-    Text("$n", fontSize = 30.sp, color = Lux.text, modifier = Modifier.width(44.dp))
+    // Smaller for three or four digits, so every number keeps the same width (and one line).
+    val size = when {
+        n < 100 -> 30.sp
+        n < 1000 -> 21.sp
+        else -> 16.sp
+    }
+    Text("$n", fontSize = size, color = Lux.text, maxLines = 1, softWrap = false, modifier = Modifier.width(44.dp))
 }
 
 // ---- Search box --------------------------------------------------------------------------

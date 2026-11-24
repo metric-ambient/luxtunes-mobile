@@ -64,10 +64,12 @@ fun whoOf(t: Track): Set<String> {
  * Grayfield). Compilations grouped under the compilation stay there; without an Artists
  * list a song is listed as before (`base`: its artist, or the compilation's).
  */
-fun browseArtists(t: Track, groupCompilations: Boolean): List<String> {
-    val base = (if (groupCompilations && t.compilation) t.browseArtist else t.artist).trim()
+fun browseArtists(t: Track, groupCompilations: Boolean, byAlbumArtist: Boolean = false): List<String> {
+    // The Album Artists tab goes by the album's artist (compilations always under theirs).
+    val grouped = t.compilation && (groupCompilations || byAlbumArtist)
+    val base = (if (byAlbumArtist || grouped) t.browseArtist else t.artist).trim()
     val listed = t.artists
-    if (listed.isEmpty() || (t.compilation && groupCompilations)) return listOfNotNull(base.ifEmpty { null })
+    if (listed.isEmpty() || grouped) return listOfNotNull(base.ifEmpty { null })
     val artist = t.raw["artist"]?.toString()?.trim().orEmpty()
     val albumArtist = t.raw["album_artist"]?.toString()?.trim()?.ifEmpty { null } ?: artist
     val known = listed.map { it.lowercase(Locale.ROOT) }.toSet()
@@ -82,15 +84,16 @@ fun browseArtists(t: Track, groupCompilations: Boolean): List<String> {
  * has a song outside compilations; an artist only ever on compilations gets no entry. Search
  * and Radio Mix still find every song by every artist. (LuxTunes 0.9.2, grid_groups.)
  */
-fun artistEntries(tracks: List<Track>, groupCompilations: Boolean): List<Pair<String, List<Track>>> {
-    if (!groupCompilations) return groupByNames(tracks) { browseArtists(it, false) }
+fun artistEntries(tracks: List<Track>, groupCompilations: Boolean, byAlbumArtist: Boolean = false): List<Pair<String, List<Track>>> {
+    if (!groupCompilations && !byAlbumArtist) return groupByNames(tracks) { browseArtists(it, false) }
     // First: who has a song outside compilations.
     val ownSongs = HashSet<String>()
-    for (t in tracks) if (!t.compilation) for (n in browseArtists(t, true)) ownSongs += n.lowercase(Locale.ROOT)
+    for (t in tracks) if (!t.compilation) for (n in browseArtists(t, true, byAlbumArtist)) ownSongs += n.lowercase(Locale.ROOT)
     // Then each compilation song also goes under those of its artists.
     return groupByNames(tracks) { t ->
-        if (!t.compilation) browseArtists(t, true)
-        else browseArtists(t, true) + t.artists.ifEmpty { listOf(t.artist) }.map { it.trim() }.filter { it.lowercase(Locale.ROOT) in ownSongs }
+        if (!t.compilation) browseArtists(t, true, byAlbumArtist)
+        else browseArtists(t, true, byAlbumArtist) +
+            t.artists.ifEmpty { listOf(t.artist) }.map { it.trim() }.filter { it.lowercase(Locale.ROOT) in ownSongs }
     }
 }
 

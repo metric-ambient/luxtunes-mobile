@@ -72,7 +72,7 @@ fun songMenu(t: Track, nav: NavHostController, extra: Menu = emptyList()): Menu 
         "Set EQ…" to { Dialogs.show(DialogRequest.SetEq(listOf(t.id), t.displayName)) },
         "Start Radio Mix…" to { chooseRadio(app, nav, t) },
         "Go to Album" to { nav.go(Routes.album(t.albumKey)) },
-        "Go to Artist" to { nav.go(Routes.artist(t.browseArtist)) },
+        "Go to Artist" to { nav.go(Routes.artist(app.repository.state.value.artistPageFor(t))) },
         "Get Info" to { Dialogs.show(DialogRequest.Info(listOf(t.id))) },
     ) + extra + listOf(
         "Delete from Phone" to { Dialogs.show(DialogRequest.Delete(listOf(t.id))) },

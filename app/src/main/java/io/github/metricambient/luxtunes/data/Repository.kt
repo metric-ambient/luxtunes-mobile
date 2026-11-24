@@ -61,6 +61,14 @@ data class LibraryState(
     /** A named group of songs for a group page: kind is artist, trackartist, genre, composer or tvshow. */
     fun group(kind: String, name: String): Artist? = groupsOf(kind).firstOrNull { it.name == name }
 
+    /**
+     * The album artist page for a song: its album's artist, or (when that's only a name for
+     * its Artists put together, "Lümen & Grayfield") the first of its Artists that has a page.
+     */
+    fun artistPageFor(t: Track): String =
+        if (group("artist", t.browseArtist) != null) t.browseArtist
+        else t.artists.firstOrNull { group("artist", it) != null } ?: t.browseArtist
+
     /** The group of this kind a song is in now (to follow a group renamed in Edit). */
     fun groupWith(kind: String, trackIds: List<String>): Artist? {
         val id = trackIds.firstOrNull { it in byId } ?: return null
@@ -465,12 +473,17 @@ class Repository(private val context: Context, private val prefs: Prefs) {
             .sortedWith(compareBy({ sortText(it.sortName) }, { sortText(it.sortArtist) }))
         val music = all.filter { it.mediaKind == "music" }
         val albums = albumsOf(music).sortedWith(compareBy({ sortText(it.tracks.first().sortAlbum) }, { sortText(it.artist) }))
-        val artists = albums.groupBy { it.artist.lowercase() }.map { (_, list) ->
+        // Album Artists: by the album's artist; a song with an Artists list ("Lümen; Grayfield")
+        // is also under each of them (as LuxTunes' Grid → Artists), so a shared album shows
+        // under both. Sorted by the album artist's sort name where there is one.
+        val artists = artistEntries(music, prefs.current.groupCompilations, byAlbumArtist = true).map { (name, songs) ->
             Artist(
-                name = list.first().artist,
-                albums = list.sortedWith(compareBy({ if (it.year == 0) Int.MAX_VALUE else it.year }, { sortText(it.name) })),
+                name = name,
+                albums = albumsOf(songs).sortedWith(compareBy({ if (it.year == 0) Int.MAX_VALUE else it.year }, { sortText(it.name) })),
             )
-        }.sortedBy { sortText(it.tracks.first().browseSortArtist) }
+        }.sortedBy { a ->
+            sortText(a.tracks.firstOrNull { it.browseArtist.equals(a.name, ignoreCase = true) }?.browseSortArtist ?: a.name)
+        }
         val podcasts = albumsOf(all.filter { it.mediaKind == "podcast" }).sortedBy { sortText(it.name) }
         // Artists by the songs' own artist, genres and composers: each a group of (parts of) albums.
         // A song can be in several groups (genres: "Metalcore, Post-hardcore" is in both).

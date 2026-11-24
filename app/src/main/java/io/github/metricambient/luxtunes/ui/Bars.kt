@@ -309,11 +309,18 @@ fun PageBottomBar(
         } else {
             Spacer(Modifier.weight(1f))
         }
-        // Every page's More menu ends with Search (the same full search as everywhere).
         // Get Info for the page's songs too, if the page's menu doesn't have it.
         val info: Menu = if (!tracks.isNullOrEmpty() && menu.none { it.first == "Get Info" }) {
             listOf("Get Info" to { Dialogs.show(DialogRequest.Info(tracks.map { it.id })) })
         } else emptyList()
-        if (menu.isNotEmpty() || info.isNotEmpty()) MoreButton((menu + info).asMoreItems() + MoreItem("Search") { nav.go(Routes.SEARCH) }, title, named = false)
+        // Every page's More menu ends with Search (not on Search itself), Rescan Device and Settings.
+        val labels = (menu + info).map { it.first }.toSet()
+        val onSearch = nav.currentDestination?.route == Routes.SEARCH
+        val end = listOfNotNull(
+            MoreItem("Search") { nav.go(Routes.SEARCH) }.takeIf { !onSearch && "Search" !in labels },
+            MoreItem("Rescan Device") { Notice.show("Looking for a new sync…"); app.repository.refreshAsync() }.takeIf { "Rescan Device" !in labels },
+            MoreItem("Settings") { nav.go(Routes.SETTINGS) }.takeIf { "Settings" !in labels },
+        )
+        MoreButton((menu + info).asMoreItems() + end, title, named = false)
     }
 }

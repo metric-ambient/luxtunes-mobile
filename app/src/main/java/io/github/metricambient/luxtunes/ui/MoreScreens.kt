@@ -274,11 +274,11 @@ private val HELP: List<Pair<String, String>> = listOf(
         "Turn on the Movies and TV Shows tabs in Settings → Tabs & Browsing. Videos play full screen: tap " +
         "the picture to show or hide the controls.",
     "Updates" to
-        "Check for Updates is in the main More menu and in Settings → About. The app asks before " +
+        "Check for Updates is in the main More menu and in Settings. The app asks before " +
         "going online, downloads the new version from the project's GitHub page, and Android " +
         "asks you to confirm installing it.",
     "Something's not right" to
-        "• No music: make sure the sync finished, then use Rescan Device in the main More menu or Settings → Library & Sync.\n" +
+        "• No music: make sure the sync finished, then use Rescan Device in the main More menu or Settings.\n" +
         "• Plays or ratings didn't reach LuxTunes: open the app once after listening, before syncing.\n" +
         "• No album art: art arrives with the sync; until then, the art inside the song file is used.\n" +
         "• The app can't see the library: Settings → Library & Sync → Change Library Location.",

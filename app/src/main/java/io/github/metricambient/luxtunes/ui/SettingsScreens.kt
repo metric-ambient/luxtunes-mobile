@@ -19,6 +19,7 @@ import androidx.compose.material.icons.filled.Album
 import androidx.compose.material.icons.filled.Build
 import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.GraphicEq
+import androidx.compose.material.icons.filled.Sync
 import androidx.compose.material.icons.filled.Tab
 import androidx.compose.material.icons.filled.Headphones
 import androidx.compose.material.icons.filled.Image
@@ -85,7 +86,7 @@ private fun SettingRow(icon: ImageVector, title: String, subtitle: String, onCli
         Modifier
             .fillMaxWidth()
             .let { if (onClick != null) it.clickable(onClick = onClick) else it }
-            .padding(horizontal = 16.dp, vertical = 12.dp),
+            .padding(horizontal = 16.dp, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Icon(icon, null, tint = if (onClick != null) Lux.icon else Lux.faint, modifier = Modifier.size(40.dp))
@@ -104,7 +105,7 @@ fun SettingsScreen(nav: NavHostController) {
     val context = LocalContext.current
     val library by app.repository.state.collectAsState()
     val settings by app.prefs.settings.collectAsState()
-    // Seven rows, so the list fits a normal phone without scrolling (it scrolls if it has to).
+    // Nine rows, so the list fits a normal phone without scrolling (it scrolls if it has to).
     LazyColumn(Modifier.fillMaxSize()) {
         item { ScreenTitle(nav, "Settings") }
         item { SettingRow(Icons.Filled.GraphicEq, "Sound", "Equalizer, crossfade, speed, ReplayGain") { nav.go(Routes.SETTINGS_SOUND) } }
@@ -117,8 +118,15 @@ fun SettingsScreen(nav: NavHostController) {
                 "${library.libraryName.ifEmpty { "LuxTunes" }}: ${plural(library.tracks.size, "song")} · Radio Mix likes",
             ) { nav.go(Routes.SETTINGS_LIBRARY) }
         }
+        item {
+            SettingRow(Icons.Filled.Sync, "Rescan Device", "Look for a new sync from LuxTunes now") {
+                Notice.show("Looking for a new sync…")
+                app.repository.refreshAsync()
+            }
+        }
+        item { UpdateRow() }
         item { SettingRow(Icons.AutoMirrored.Filled.HelpOutline, "Help", "How to use the app") { nav.go(Routes.SETTINGS_HELP) } }
-        item { SettingRow(Icons.Filled.Info, "About", "Version ${BuildConfigInfo.versionName(context)} · updates, licenses, privacy") { nav.go(Routes.SETTINGS_ABOUT) } }
+        item { SettingRow(Icons.Filled.Info, "About", "Version ${BuildConfigInfo.versionName(context)} · licenses, privacy") { nav.go(Routes.SETTINGS_ABOUT) } }
     }
 }
 
@@ -160,10 +168,6 @@ fun LibrarySettingsScreen(nav: NavHostController) {
         InfoRow("changes.json", written)
         if (library.transferMode) InfoRow("USB file transfer", "On")
         Spacer(Modifier.height(16.dp))
-        ButtonWithHelp(
-            "Rescan Device",
-            "Look for a new sync from LuxTunes now. The app also looks whenever it comes to the front.",
-        ) { Notice.show("Looking for a new sync…"); app.repository.refreshAsync() }
         ButtonWithHelp(
             "Change Library Location",
             if (canChoose) "Choose whether the LuxTunes folder is on the phone's own storage or the SD card."
@@ -249,7 +253,7 @@ object UpdateCheck {
     }
 }
 
-/** Settings → About → Check for Updates. */
+/** Settings → Check for Updates. */
 @Composable
 private fun UpdateRow() {
     val context = LocalContext.current
@@ -559,7 +563,6 @@ fun AboutScreen(nav: NavHostController) {
                 color = Lux.dim, fontSize = 15.sp,
             )
         }
-        UpdateRow()
         ChoiceRow("Open-Source Licenses", "The licenses of LuxTunes and the libraries it uses") {
             nav.go(Routes.SETTINGS_LICENSES)
         }
