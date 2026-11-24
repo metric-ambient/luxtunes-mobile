@@ -84,9 +84,15 @@ fun SearchScreen(nav: NavHostController) {
     var scope by rememberSaveable { mutableStateOf("All") }
     val q = query.trim()
     fun wants(kind: String) = q.isNotEmpty() && (scope == "All" || scope == kind)
-    val artists = if (!wants("Artists")) emptyList() else library.artists.filter { matches(q, it.name) }.take(if (scope == "All") 20 else 200)
+    // Album artists, then artists with songs of their own (also each name in a song's Artists).
+    val artists = if (!wants("Artists")) emptyList() else {
+        val albumArtists = library.artists.map { it to "artist" }
+        val own = albumArtists.map { it.first.name.lowercase() }.toSet()
+        (albumArtists + library.trackArtists.filter { it.name.lowercase() !in own }.map { it to "trackartist" })
+            .filter { matches(q, it.first.name) }.take(if (scope == "All") 20 else 200)
+    }
     val albums = if (!wants("Albums")) emptyList() else library.albums.filter { matches(q, it.name, it.artist) }.take(if (scope == "All") 30 else 300)
-    val songs = if (!wants("Songs")) emptyList() else library.tracks.filter { matches(q, it.name, it.artist, it.album, it.featuredArtist.orEmpty()) }.take(if (scope == "All") 100 else 500)
+    val songs = if (!wants("Songs")) emptyList() else library.tracks.filter { matchesSong(q, it) }.take(if (scope == "All") 100 else 500)
     val playlists = if (!wants("Playlists")) emptyList() else library.playlists.filter { matches(q, it.name) }
     val focus = remember { FocusRequester() }
     LaunchedEffect(Unit) { runCatching { focus.requestFocus() } }
@@ -127,8 +133,8 @@ fun SearchScreen(nav: NavHostController) {
         }
         LazyColumn(Modifier.weight(1f).fillMaxWidth(), contentPadding = PaddingValues(bottom = LocalMiniSpace.current)) {
             if (artists.isNotEmpty() && scope == "All") item { Heading("Artists") }
-            items(artists, key = { "ar:" + it.name }) { a ->
-                ListRow(a.name, plural(a.albums.size, "album"), onClick = { nav.go(Routes.artist(a.name)) },
+            items(artists, key = { (a, kind) -> "ar:$kind:" + a.name }) { (a, kind) ->
+                ListRow(a.name, plural(a.albums.size, "album"), onClick = { nav.go(Routes.group(kind, a.name)) },
                     leading = { Artwork(artTrackOf(a.tracks), Modifier.size(48.dp).clip(RoundedCornerShape(24.dp)), noteSize = 24.dp, note = Icons.Filled.Person) })
             }
             if (albums.isNotEmpty() && scope == "All") item { Heading("Albums") }

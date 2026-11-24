@@ -45,7 +45,10 @@ next sync.
   from your library, picked by genre closeness (from a built-in genre list), artist, your
   playlists, plays, ratings and year. Like (♥) or turn down (⊘) songs, Refresh, Discover
   (songs you rarely play), Save as Playlist. Worked out on the phone; nothing is sent or synced.
-- Songs with several genres ("Metalcore, Post-hardcore") are listed under each genre.
+- Songs with several genres ("Metalcore, Post-hardcore") are listed under each genre, and
+  songs by several artists (LuxTunes 0.9.2's Artists, "Lümen; Grayfield") under each artist.
+  Get Info edits Genre, Artists and Featured Artist as pills.
+- Search ignores case and accents ("lumen" finds Lümen) and matches every word typed.
 - Movies and TV shows play full screen.
 - Settings → Sound: LuxTunes' ten-band equalizer with the same presets (synced with the
   computer) and a preset per song, album, artist or playlist (Set EQ…), crossfade or gapless, autoplay, playback speed for music and for

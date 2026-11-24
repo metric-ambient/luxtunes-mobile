@@ -77,6 +77,7 @@ import androidx.navigation.NavHostController
 import io.github.metricambient.luxtunes.data.Track
 import io.github.metricambient.luxtunes.data.artTrackOf
 import io.github.metricambient.luxtunes.data.sortText
+import io.github.metricambient.luxtunes.data.whoOf
 
 /**
  * An album, artist or playlist page: the list, with the bottom bar (back, and the page's
@@ -231,7 +232,8 @@ fun GroupScreen(nav: NavHostController, kind: String, name: String) {
     // An artist's page starts a Radio Mix from the artist (genre and composer pages don't).
     val radioSeed = if (kind == "artist" || kind == "trackartist") {
         // One of the artist's own songs, so the mix is named after them.
-        tracks.firstOrNull { it.artist.equals(artist.name, true) } ?: tracks.firstOrNull()
+        tracks.firstOrNull { it.artist.equals(artist.name, true) }
+            ?: tracks.firstOrNull { artist.name.lowercase() in whoOf(it) } ?: tracks.firstOrNull()
     } else null
     val startArtistRadio: (() -> Unit)? = radioSeed?.let { s -> { startRadio(app, nav, "artist", s) } }
     val menu: Menu = startArtistRadio?.let { listOf("Start Radio Mix from Artist" to it) }.orEmpty() + listOf(

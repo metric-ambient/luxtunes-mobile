@@ -128,7 +128,8 @@ private val HELP: List<Pair<String, String>> = listOf(
         "rating or plays, depending on how the list is sorted).\n\n" +
         "At the top of each tab: Search and Sort. Search covers the whole library (the buttons " +
         "along its top narrow it to artists, albums, songs or playlists); it's also in every More " +
-        "menu. Sort " +
+        "menu. It ignores case and accents (\"lumen\" finds Lümen, \"sigur ros\" finds Sigur Rós), " +
+        "and finds songs with every word you type, in any of their details. Sort " +
         "has Inverse sort, to turn any order around: least played first, oldest first, Z to A. " +
         "Each tab remembers where you were in it.\n\n" +
         "The Albums tab has quick filters along the top: All, Recently Added and Compilations.\n\n" +
@@ -144,10 +145,16 @@ private val HELP: List<Pair<String, String>> = listOf(
         "At the next sync, LuxTunes on your computer adds them to its library too.",
     "Editing song details" to
         "Get Info (in a song's ⋮ menu, an album's or artist's ⋮ menu, Now Playing's More, or the info " +
-        "button in select mode) has an Edit button. Change the name, artist, featured artists " +
-        "(names separated by commas), album, genres (separated by commas, as in \"Metalcore, " +
-        "Post-hardcore\": the song is then listed under each in the Genres tab), year, " +
-        "track and disc numbers and more.\n\n" +
+        "button in select mode) has an Edit button. Change the name, artist, album, year, track " +
+        "and disc numbers and more.\n\n" +
+        "Genre, Artists and Featured Artist are pills: type a name and press Enter (or pick a " +
+        "suggestion, or choose one from the library with ▾); typing ; (and , for genres) also " +
+        "makes a pill, and pasting \"A; B\" makes two. ✕ removes a pill; tapping it puts it back " +
+        "in the box to change. A song with several genres is listed under each in the Genres tab.\n\n" +
+        "Artists is only for a song by several artists: a song by \"Lümen & Grayfield\" with " +
+        "Artists Lümen and Grayfield is listed under each of them in the Artists tab, and Radio Mix " +
+        "From This Artist takes it in. When each part of the Artist is already an artist of its " +
+        "own, Edit suggests them.\n\n" +
         "With several songs, only the details you change are changed; a box showing Mixed means " +
         "the songs differ there.\n\n" +
         "The changes show straight away and go to LuxTunes at the next sync, which writes them " +
@@ -185,8 +192,10 @@ private val HELP: List<Pair<String, String>> = listOf(
         "and Play and Shuffle take them in with the artist's own songs " +
         "(Settings → Operation → Exclude Featured hides them).\n\n" +
         "Songs on a compilation (a soundtrack, a \"Now\" album) are listed under the compilation in " +
-        "Artists: its Album Artist, or Various Artists. Settings → Tabs → Group Compilations " +
-        "turns this off.",
+        "Artists: its Album Artist, or Various Artists. They also show under each of their artists " +
+        "who has songs outside compilations; an artist only ever on compilations gets no entry of " +
+        "their own (Search and Radio Mix still find them). Settings → Tabs → Group Compilations " +
+        "turns this off: then compilation songs are listed under each of their artists.",
     "Playlists and smart playlists" to
         "In the Playlists tab, use Create Playlist, or add songs from any ⋮ menu → Add to " +
         "playlist. When the list of playlists is longer than the window, an arrow at its top or " +

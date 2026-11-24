@@ -48,4 +48,15 @@ class TagEditsTest {
         assertTrue(t.raw["album"] == "New")
         assertNull(trackOf(mapOf("name" to "no id")))
     }
+
+    @Test
+    fun artistsGoToChangesJsonAndEmptyClearsThem() {
+        fun sent(value: String): JSONObject {
+            val entry = TagFields.entry(TagEdit(id, mapOf("artists" to value)))
+            val text = ChangesJson.build(emptyList(), "0123456789ABCDEF", emptyList(), null, null, listOf(entry))
+            return JSONObject(text).getJSONArray("edited_tracks").getJSONObject(0)
+        }
+        assertEquals("Lümen; Grayfield", sent("Lümen; Grayfield").getString("artists"))
+        assertEquals("", sent("").getString("artists"))
+    }
 }

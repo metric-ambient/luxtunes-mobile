@@ -127,6 +127,18 @@ class RadioTest {
     }
 
     @Test
+    fun fromThisArtistTakesInDuets() {
+        val lumen = (0 until 3).map { song("Lümen", "Metalcore") }
+        val grayfield = (0 until 3).map { song("Grayfield", "Metalcore") }
+        val duet = song("Lümen & Grayfield", "Metalcore", mapOf("artists" to "Lümen; Grayfield"))
+        val music = heavy + lumen + grayfield + duet
+        // From Lümen: their songs and the duet.
+        assertEquals((lumen + duet).map { it.id }.toSet(), RadioMix.seedTracks(music, "artist", lumen[0]).map { it.id }.toSet())
+        // From the duet: both artists' songs.
+        assertEquals((lumen + grayfield + duet).map { it.id }.toSet(), RadioMix.seedTracks(music, "artist", duet).map { it.id }.toSet())
+    }
+
+    @Test
     fun radioIsKeptPrivateAndNeverSynced() {
         // The radio and likes go only to the app's private files, never to the LuxTunes folder or changes.json.
         fun source(name: String) = listOf("src/main/java", "app/src/main/java").map { java.io.File(it, "io/github/metricambient/luxtunes/data/$name") }

@@ -77,9 +77,10 @@ object RadioMix {
         val found = when (kind) {
             "album" -> music.filter { it.albumKey == seed.albumKey }
             "artist" -> {
-                val name = seed.artist.ifBlank { seed.albumArtist }.lowercase()
-                if (name.isEmpty()) emptyList()
-                else music.filter { it.artist.lowercase() == name || it.albumArtist.lowercase() == name }
+                // Everyone the song is by: Artist, Album Artist and each of its Artists
+                // (a song by "Lümen; Grayfield" starts from both).
+                val wanted = whoOf(seed)
+                if (wanted.isEmpty()) emptyList() else music.filter { t -> whoOf(t).any { it in wanted } }
             }
             else -> listOf(seed)
         }
@@ -156,7 +157,7 @@ object RadioMix {
         }
 
         val seedIds = seeds.map { it.id }.toSet()
-        val seedArtists = (seeds.map { Shuffle.artistKey(it) } + seeds.map { it.artist.lowercase() }).toMutableSet().apply { remove("") }
+        val seedArtists = (seeds.map { Shuffle.artistKey(it) } + seeds.flatMap { whoOf(it) }).toMutableSet().apply { remove("") }
         val years = seeds.map { it.year }.filter { it > 0 }.sorted()
         val seedYear = if (years.isEmpty()) null else years[years.size / 2]
         val together = playlistCloseness(input.playlists, seeds)
@@ -166,7 +167,7 @@ object RadioMix {
         for (t in input.music) {
             if (!eligible(t)) continue
             val genre = genreScore(t.genre)
-            var artist = if (Shuffle.artistKey(t) in seedArtists || t.artist.lowercase() in seedArtists) 1.0 else 0.0
+            var artist = if (Shuffle.artistKey(t) in seedArtists || whoOf(t).any { it in seedArtists }) 1.0 else 0.0
             val shared = together[t.id] ?: 0.0
             if (radio.kind == "artist" && t.id in seedIds) artist = 1.0
             // Not related at all (no genre link, artist or playlist): not on this radio.

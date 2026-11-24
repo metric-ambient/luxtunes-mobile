@@ -31,7 +31,7 @@ data class Track(
     val startTime: Long,            // ms, 0 = from the start
     val stopTime: Long,             // ms, 0 = to the end
     val mediaKind: String = "music",   // music, podcast, audiobook, movie, tvshow
-    val featuredArtist: String? = null,  // as typed in LuxTunes: "Ann, Bo & Cy; Dee"
+    val featuredArtist: String? = null,  // names separated by semicolons: "Ann; Bo & Cy"
     val compilation: Boolean = false,    // part of a compilation album
     // Who the song is listed under when browsing, and the artist shown under its album:
     // a compilation's Album Artist (or "Various Artists"), else the Album Artist or Artist.
@@ -44,6 +44,15 @@ data class Track(
 
     /** The featured artists, one name each. */
     val featured: List<String> get() = featuredNames(featuredArtist)
+
+    /** LuxTunes 0.9.2: each artist of a song by several ("Lümen; Grayfield"); empty when it's just by `artist`. */
+    val artists: List<String> by lazy { splitNames(raw["artists"]?.toString()) }
+
+    /** What search looks in, folded (no case or accents): name, artists, album, composer, genre. */
+    val searchText: String by lazy {
+        fold(listOf(name, raw["artist"], raw["album_artist"], raw["album"], raw["composer"], genre, featuredArtist, raw["artists"])
+            .joinToString(" ") { it?.toString().orEmpty() })
+    }
 
     /** The name as shown: "Song (ft. Ann, Bo & Cy, Dee)". Sorting and editing use `name`. */
     val displayName: String get() = nameWithFeatured(name, featuredArtist)
@@ -125,9 +134,11 @@ fun trackOf(raw: Map<String, Any?>): Track? {
 /** Where compilations without an Album Artist are listed (as in LuxTunes). */
 const val VARIOUS_ARTISTS = "Various Artists"
 
-/** "Ann, Bo & Cy; Dee" -> [Ann, Bo & Cy, Dee]: split at commas and semicolons only. */
-fun featuredNames(raw: String?): List<String> =
-    raw.orEmpty().replace(';', ',').split(',').map { it.trim() }.filter { it.isNotEmpty() }
+/**
+ * "Ann; Bo & Cy" -> [Ann, Bo & Cy]: split at semicolons only (from LuxTunes 0.9.2; a comma
+ * or "&" can be part of a name, as in "Tyler, the Creator").
+ */
+fun featuredNames(raw: String?): List<String> = splitNames(raw)
 
 /** "Song (ft. Ann, Bo & Cy, Dee)", or just the name without featured artists. */
 fun nameWithFeatured(name: String, featured: String?): String {

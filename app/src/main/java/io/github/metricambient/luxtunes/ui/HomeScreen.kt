@@ -518,7 +518,7 @@ private fun SongsTab(
 ) {
     val app = app()
     val playerState by app.player.state.collectAsState()
-    val songs = sortSongs(library.tracks.filter { matches(query, it.name, it.artist, it.album, it.featuredArtist.orEmpty()) }, settings.songSort, settings.songSortReverse)
+    val songs = sortSongs(library.tracks.filter { matchesSong(query, it) }, settings.songSort, settings.songSortReverse)
     val listState = rememberLazyListState()
     FastScroll(listState, songs.size, { i -> songs.getOrNull(i)?.let { songLabel(it, settings.songSort) } }) {
     LazyColumn(Modifier.fillMaxSize(), state = listState, contentPadding = PaddingValues(bottom = LocalMiniSpace.current)) {

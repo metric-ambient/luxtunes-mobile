@@ -59,6 +59,9 @@ import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import io.github.metricambient.luxtunes.LuxTunesApp
 import io.github.metricambient.luxtunes.data.Track
+import io.github.metricambient.luxtunes.data.fold
+import io.github.metricambient.luxtunes.data.matchesWords
+import io.github.metricambient.luxtunes.data.searchWords
 
 @Composable
 fun app(): LuxTunesApp = LocalContext.current.applicationContext as LuxTunesApp
@@ -217,10 +220,19 @@ fun SearchField(value: String, onChange: (String) -> Unit, modifier: Modifier = 
     }
 }
 
-/** Case-insensitive "contains" on any of the texts. */
+/**
+ * Search: every word typed appears somewhere in the texts, ignoring case and accents
+ * ("lumen" finds Lümen, "sigur ros" finds Sigur Rós). Each word may be part of a word.
+ */
 fun matches(query: String, vararg texts: String): Boolean {
-    val q = query.trim()
-    return q.isEmpty() || texts.any { it.contains(q, ignoreCase = true) }
+    val words = searchWords(query)
+    return words.isEmpty() || matchesWords(fold(texts.joinToString(" ")), words)
+}
+
+/** Search on a song: its name, artist, album artist, album, composer, genre, featured artists and Artists. */
+fun matchesSong(query: String, t: Track): Boolean {
+    val words = searchWords(query)
+    return words.isEmpty() || matchesWords(t.searchText, words)
 }
 
 // ---- Stars -------------------------------------------------------------------------------------

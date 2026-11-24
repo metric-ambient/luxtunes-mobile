@@ -15,7 +15,7 @@ data class TagEdit(
 
 object TagFields {
     /** The details Edit can change. */
-    val TEXT = listOf("name", "artist", "featured_artist", "album_artist", "album", "genre", "composer", "grouping", "comments", "equalizer")
+    val TEXT = listOf("name", "artist", "artists", "featured_artist", "album_artist", "album", "genre", "composer", "grouping", "comments", "equalizer")
     val NUMBERS = listOf("year", "track_number", "track_count", "disc_number", "disc_count", "compilation")
     val ALL = TEXT + NUMBERS
 

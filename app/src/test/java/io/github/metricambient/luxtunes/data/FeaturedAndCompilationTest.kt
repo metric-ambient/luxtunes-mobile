@@ -13,21 +13,24 @@ class FeaturedAndCompilationTest {
     fun featuredNames() {
         assertTrue(featuredNames(null).isEmpty())
         assertTrue(featuredNames("").isEmpty())
-        assertTrue(featuredNames(" , ;").isEmpty())
-        assertEquals(listOf("Ann", "Bo & Cy", "Dee"), featuredNames("Ann, Bo & Cy; Dee"))
+        assertTrue(featuredNames(" ; ;").isEmpty())
+        // From LuxTunes 0.9.2 only semicolons separate: a comma can be part of a name.
+        assertEquals(listOf("Ann, Bo & Cy", "Dee"), featuredNames("Ann, Bo & Cy; Dee"))
+        assertEquals(listOf("Tyler, the Creator", "Bo"), featuredNames("Tyler, the Creator; Bo"))
+        assertEquals(listOf("Earth, Wind & Fire"), featuredNames("Earth, Wind & Fire"))
     }
 
     @Test
     fun nameWithFeatured() {
-        assertEquals("Song (ft. Ann, Bo & Cy, Dee)", nameWithFeatured("Song", "Ann, Bo & Cy; Dee"))
+        assertEquals("Song (ft. Ann, Bo & Cy)", nameWithFeatured("Song", "Ann; Bo & Cy"))
         assertEquals("Song (ft. Ann, Bo)", nameWithFeatured("Song", "Ann;Bo"))
-        assertEquals("Song", nameWithFeatured("Song", " , ;"))
+        assertEquals("Song", nameWithFeatured("Song", " ; "))
         assertEquals("Song", nameWithFeatured("Song", null))
     }
 
     @Test
     fun aSongShowsItsFeaturedArtistsButKeepsItsName() {
-        val t = song(mapOf("featured_artist" to "Ann, Bo"))
+        val t = song(mapOf("featured_artist" to "Ann; Bo"))
         assertEquals("Song (ft. Ann, Bo)", t.displayName)
         assertEquals("Song", t.name)
         assertEquals("Song", t.sortName)              // sorting ignores the "(ft. …)" part

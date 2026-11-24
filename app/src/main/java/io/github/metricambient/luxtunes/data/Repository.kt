@@ -486,7 +486,14 @@ class Repository(private val context: Context, private val prefs: Prefs) {
         // Settings → Tabs → Group Compilations: a compilation's songs are listed under the
         // compilation (its Album Artist, or "Various Artists"), not under each song's artist.
         val groupCompilations = prefs.current.groupCompilations
-        val trackArtists = groups { if (groupCompilations && it.compilation) it.browseArtist else it.artist }
+        // A song with an Artists list ("Lümen; Grayfield") is under each of them; compilation
+        // songs also under their artists who have songs of their own (artistEntries).
+        val trackArtists = artistEntries(music, groupCompilations).map { (name, songs) ->
+            Artist(
+                name = name,
+                albums = albumsOf(songs).sortedWith(compareBy({ if (it.year == 0) Int.MAX_VALUE else it.year }, { sortText(it.name) })),
+            )
+        }
         val genres = groupsOfNames { genresOf(it.genre) }
         val composers = groups { it.raw["composer"] as? String }
         val movies = all.filter { it.mediaKind == "movie" }

@@ -1,6 +1,27 @@
 package io.github.metricambient.luxtunes.ui
 
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ArrowDropDown
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.InputChip
+import androidx.compose.material3.SuggestionChip
+import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.onPreviewKeyEvent
+import androidx.compose.ui.input.key.type
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -29,7 +50,16 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import io.github.metricambient.luxtunes.data.Track
+import io.github.metricambient.luxtunes.data.UNKNOWN_GENRE
+import io.github.metricambient.luxtunes.data.addPills
+import io.github.metricambient.luxtunes.data.joinGenres
+import io.github.metricambient.luxtunes.data.joinNames
+import io.github.metricambient.luxtunes.data.pillInput
+import io.github.metricambient.luxtunes.data.sortText
 import io.github.metricambient.luxtunes.data.splitGenres
+import io.github.metricambient.luxtunes.data.splitNames
+import io.github.metricambient.luxtunes.data.suggestNames
+import io.github.metricambient.luxtunes.data.suggestSplit
 import java.io.File
 
 // ---- Get Info ------------------------------------------------------------------------------
@@ -69,7 +99,8 @@ internal fun InfoDialog(ids: List<String>) {
         listOf(
             "Name" to t.name,
             "Artist" to t.artist,
-            "Featured Artist" to t.featured.joinToString(", "),
+            "Artists" to t.artists.joinToString("; "),
+            "Featured Artist" to t.featured.joinToString("; "),
             "Album Artist" to t.albumArtist,
             "Album" to t.album,
             "Genre" to t.genre,
@@ -155,19 +186,54 @@ internal fun EditTagsDialog(ids: List<String>) {
             for (c in NUMBER_FIELDS) put(c, common { num(it, c) })
         }
     }
-    val values = remember(tracks) { mutableStateMapOf<String, String>().apply { start.forEach { (k, v) -> put(k, v ?: "") } } }
+    val values = remember(tracks) {
+        mutableStateMapOf<String, String>().apply { start.forEach { (k, v) -> put(k, if (k in PILL_FIELDS) "" else v ?: "") } }
+    }
+    // Names already in the library, for suggestions.
+    val artistNames = remember(library) {
+        (library.trackArtists.map { it.name } + library.artists.map { it.name } + library.tracks.flatMap { it.featured })
+            .distinctBy { it.lowercase() }.sortedBy { sortText(it) }
+    }
+    val genreNames = remember(library) { library.genres.map { it.name }.filter { it != UNKNOWN_GENRE } }
+    // One song by "Lümen & Grayfield" without Artists, both artists of their own: suggest them.
+    val suggested = remember(tracks) {
+        if (!single || !start["artists"].isNullOrBlank()) emptyList()
+        else suggestSplit(start["artist"], (library.trackArtists.map { it.name } + library.artists.map { it.name }).map { it.lowercase() }.toSet())
+    }
+    // Genre, Artists and Featured Artist as pills; what's typed in their boxes stays in `values`.
+    val pills = remember(tracks) {
+        mutableStateMapOf<String, List<String>>().apply {
+            for (c in PILL_FIELDS) put(c, when {
+                c == "artists" && suggested.isNotEmpty() -> suggested
+                c == "genre" -> splitGenres(start[c])
+                else -> splitNames(start[c])
+            })
+        }
+    }
+    val edited = remember(tracks) { mutableStateMapOf<String, Boolean>() }      // several songs: pill boxes changed
+    /** A pill box's value as saved: its pills and whatever is still typed in the box. */
+    fun pillValue(c: String): String {
+        val all = addPills(pills[c].orEmpty(), listOf(values[c].orEmpty()), c == "genre")
+        return if (c == "genre") joinGenres(all) else joinNames(all)
+    }
     val startCompilation = remember(tracks) { tracks.map { numberOf(it, "compilation") != 0L }.distinct().singleOrNull() }
     var compilation by remember(tracks) { mutableStateOf(startCompilation) }
 
     /** Only what was changed: a field the songs differ on changes once something is typed in it. */
     fun changes(): Map<String, Any?> = buildMap<String, Any?> {
+        for (c in PILL_FIELDS) {
+            val now = pillValue(c)
+            val was = start[c]?.let { if (c == "genre") joinGenres(splitGenres(it)) else joinNames(splitNames(it)) }
+            val changed = if (single) now != was.orEmpty() else edited[c] == true || values[c].orEmpty().isNotBlank()
+            if (changed) put(c, now)
+        }
         for ((c, v) in values) {
+            if (c in PILL_FIELDS) continue
             if (!single && (c == "name" || c == "track_number")) continue
             val was = start[c]
             val changed = if (was == null) v.isNotEmpty() else v != was
             if (changed) put(c, when (c) {
                 in NUMBER_FIELDS -> v.toLongOrNull() ?: 0L
-                "genre" -> splitGenres(v).joinToString(", ")     // several genres: "Metalcore, Post-hardcore"
                 else -> v.trim()
             })
         }
@@ -190,7 +256,27 @@ internal fun EditTagsDialog(ids: List<String>) {
                 for ((c, label) in TEXT_FIELDS) {
                     if (!single && c == "name") continue
                     if (c == "comments") continue
-                    field(c, label, Modifier.fillMaxWidth(), number = false)
+                    if (c in PILL_FIELDS) {
+                        val genre = c == "genre"
+                        val shownSuggested = c == "artists" && suggested.isNotEmpty() && pills[c] == suggested && values[c].isNullOrEmpty()
+                        PillField(
+                            label = label,
+                            pills = pills[c].orEmpty(),
+                            text = values[c].orEmpty(),
+                            genre = genre,
+                            mixed = start[c] == null && edited[c] != true,
+                            hint = if (c == "artists") "Only for a song by several artists" else null,
+                            note = if (shownSuggested) "Suggested from the Artist (${if (suggested.size == 2) "both have" else "each has"} songs " +
+                                "of their own). Save keeps it; remove the names to leave them out." else null,
+                            choices = if (genre) genreNames else artistNames,
+                        ) { newPills, newText ->
+                            if (newPills != pills[c]) edited[c] = true
+                            pills[c] = newPills
+                            values[c] = newText
+                        }
+                    } else {
+                        field(c, label, Modifier.fillMaxWidth(), number = false)
+                    }
                 }
                 field("year", "Year", Modifier.fillMaxWidth(0.5f), number = true)
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -244,11 +330,7 @@ private fun TagField(value: String, onChange: (String) -> Unit, label: String, m
         value = value,
         onValueChange = onChange,
         label = { Text(label) },
-        placeholder = {
-            if (mixed) Text("Mixed", color = Lux.faint)
-            else if (label == "Featured Artist") Text("Names, separated by commas", color = Lux.faint)
-            else if (label == "Genre") Text("Genres, separated by commas", color = Lux.faint)
-        },
+        placeholder = { if (mixed) Text("Mixed", color = Lux.faint) },
         singleLine = label != "Comments",
         keyboardOptions = if (number) KeyboardOptions(keyboardType = KeyboardType.Number) else KeyboardOptions.Default,
         modifier = modifier.padding(vertical = 2.dp),
@@ -259,6 +341,7 @@ private fun TagField(value: String, onChange: (String) -> Unit, label: String, m
 private val TEXT_FIELDS = listOf(
     "name" to "Name",
     "artist" to "Artist",
+    "artists" to "Artists",
     "featured_artist" to "Featured Artist",
     "album_artist" to "Album Artist",
     "album" to "Album",
@@ -267,5 +350,86 @@ private val TEXT_FIELDS = listOf(
     "grouping" to "Grouping",
     "comments" to "Comments",
 )
+
+/** Shown as pills: names (split at ";") and genres (at "," and ";"). */
+private val PILL_FIELDS = setOf("artists", "featured_artist", "genre")
+
+/**
+ * A pill box (Genre, Artists, Featured Artist): each name a pill with ✕ to remove it. Type a
+ * name and press Enter, pick a suggestion or choose from the library (▾); typing ";" (or ","
+ * for genres) also makes a pill, and pasting "A; B" makes two. Tapping a pill puts it back in
+ * the box to change; Backspace in an empty box does that with the last one.
+ */
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun PillField(
+    label: String,
+    pills: List<String>,
+    text: String,
+    genre: Boolean,
+    mixed: Boolean,
+    hint: String?,
+    note: String?,
+    choices: List<String>,
+    onChange: (pills: List<String>, text: String) -> Unit,
+) {
+    var choosing by remember { mutableStateOf(false) }
+    fun add(names: List<String>, rest: String = "") = onChange(addPills(pills, names, genre), rest)
+    Column(Modifier.fillMaxWidth().padding(vertical = 2.dp)) {
+        if (pills.isNotEmpty()) {
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                pills.forEachIndexed { i, p ->
+                    val others = pills.filterIndexed { j, _ -> j != i }
+                    InputChip(
+                        selected = false,
+                        // Back into the box to change (what was typed there becomes a pill first).
+                        onClick = { onChange(addPills(others, listOf(text), genre), p) },
+                        label = { Text(p) },
+                        trailingIcon = {
+                            Icon(Icons.Filled.Close, "Remove $p", Modifier.size(18.dp).clickable { onChange(others, text) })
+                        },
+                    )
+                }
+            }
+        }
+        OutlinedTextField(
+            value = text,
+            onValueChange = { new ->
+                val (done, rest) = pillInput(text, new, genre)
+                if (done.isEmpty()) onChange(pills, rest) else add(done, rest)
+            },
+            label = { Text(label) },
+            placeholder = { if (mixed) Text("Mixed", color = Lux.faint) else if (hint != null) Text(hint, color = Lux.faint) },
+            singleLine = true,
+            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
+            keyboardActions = KeyboardActions(onDone = { if (text.isNotBlank()) add(listOf(text)) }),
+            trailingIcon = {
+                Box {
+                    IconButton(onClick = { choosing = true }) { Icon(Icons.Filled.ArrowDropDown, "Choose from the library") }
+                    DropdownMenu(expanded = choosing, onDismissRequest = { choosing = false }, modifier = Modifier.heightIn(max = 320.dp)) {
+                        val taken = pills.map { it.lowercase() }.toSet()
+                        val listed = if (text.isNotBlank()) suggestNames(text, choices, taken, limit = 150)
+                            else choices.filter { it.lowercase() !in taken }.take(150)
+                        if (listed.isEmpty()) DropdownMenuItem(text = { Text("Nothing to add", color = Lux.dim) }, onClick = { choosing = false })
+                        for (name in listed) DropdownMenuItem(text = { Text(name) }, onClick = { add(listOf(name)); choosing = false })
+                    }
+                }
+            },
+            modifier = Modifier.fillMaxWidth().onPreviewKeyEvent { e ->
+                // Backspace in an empty box: the last pill back in it, to change.
+                if (e.key == Key.Backspace && e.type == KeyEventType.KeyDown && text.isEmpty() && pills.isNotEmpty()) {
+                    onChange(pills.dropLast(1), pills.last()); true
+                } else false
+            },
+        )
+        val suggestions = if (text.isBlank()) emptyList() else suggestNames(text, choices, pills.map { it.lowercase() }.toSet(), limit = 6)
+        if (suggestions.isNotEmpty()) {
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                for (name in suggestions) SuggestionChip(onClick = { add(listOf(name)) }, label = { Text(name) })
+            }
+        }
+        if (note != null) Text(note, color = Lux.dim, fontSize = 12.sp, modifier = Modifier.padding(top = 2.dp))
+    }
+}
 
 private val NUMBER_FIELDS = listOf("year", "track_number", "track_count", "disc_number", "disc_count")
