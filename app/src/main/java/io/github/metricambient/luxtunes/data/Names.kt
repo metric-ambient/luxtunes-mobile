@@ -120,7 +120,7 @@ fun matchesWords(folded: String, words: List<String>): Boolean = words.all { fol
 
 /**
  * Names for a box being typed in (Get Info's suggestions): those that start with it, or
- * have a later word that does, ignoring case and accents ("tul" -> Lümen).
+ * have a later word that does, ignoring case and accents ("lum" -> Lümen).
  */
 fun suggestNames(typed: String, names: List<String>, leaveOut: Set<String> = emptySet(), limit: Int = 8): List<String> {
     val want = fold(typed.trim())

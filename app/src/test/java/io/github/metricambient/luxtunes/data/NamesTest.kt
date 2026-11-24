@@ -119,7 +119,7 @@ class NamesTest {
         assertTrue(matchesWords(fold("Straße"), searchWords("strasse")))
         assertTrue(matchesWords(fold("Beyoncé"), searchWords("beyonce")))
         assertTrue(matchesWords(fold("Motörhead"), searchWords("motorhead")))
-        assertTrue(matchesWords(fold("Røyksopp"), searchWords("royksopp")))
+        assertTrue(matchesWords(fold("Fjørdlys"), searchWords("fjordlys")))
         assertFalse(matchesWords(fold("Lümen"), searchWords("lumen grayfield")))
     }
 
@@ -133,9 +133,9 @@ class NamesTest {
 
     @Test
     fun suggestionsIgnoreAccentsAndMatchLaterWords() {
-        val names = listOf("Lümen", "Grayfield", "The Tull Band")
-        assertEquals(listOf("Lümen", "The Tull Band"), suggestNames("tul", names))
-        assertEquals(listOf("The Tull Band"), suggestNames("tul", names, leaveOut = setOf("lümen")))
+        val names = listOf("Lümen", "Grayfield", "The Lumber Band")
+        assertEquals(listOf("Lümen", "The Lumber Band"), suggestNames("lum", names))
+        assertEquals(listOf("The Lumber Band"), suggestNames("lum", names, leaveOut = setOf("lümen")))
     }
 
     // ---- Pills ----
