@@ -9,6 +9,7 @@ import io.github.metricambient.luxtunes.data.Track
 import io.github.metricambient.luxtunes.data.fold
 import io.github.metricambient.luxtunes.data.matchesWords
 import io.github.metricambient.luxtunes.data.searchWords
+import io.github.metricambient.luxtunes.data.shuffleGroups
 
 /**
  * What a car (Android Auto) shows: four tabs (Playlists, Artists, Albums, Radio Mix), each
@@ -17,7 +18,7 @@ import io.github.metricambient.luxtunes.data.searchWords
  * Every list and song has an ID. Lists: "playlist:<id>", "artist:<name>", "album:<key>",
  * "radio", "search:<words>". A song in a list: "<list>␟<position>␟<song ID>", so playing it
  * plays that list from there. "radio:start" starts a Radio Mix from the song playing, and
- * "artist:<name>␟shuffle" shuffles an artist. (␟ is the unit separator, \u001F, which no
+ * "artist:<name>␟shuffle" / "artist:<name>␟shuffle-albums" shuffle an artist by song / by album. (␟ is the unit separator, \u001F, which no
  * name contains.)
  */
 object CarLibrary {
@@ -63,7 +64,10 @@ object CarLibrary {
             listOf(start) + songs("radio", songsOf("radio", library, radio))
         }
         id.startsWith("artist:") -> library.group("artist", id.removePrefix("artist:"))?.let { artist ->
-            listOf(playable("$id${SEP}shuffle", "Shuffle ${artist.name}", plural(artist.tracks.size, "song"))) +
+            listOf(
+                playable("$id${SEP}shuffle", "Shuffle by Song", "${artist.name} · ${plural(artist.tracks.size, "song")}"),
+                playable("$id${SEP}shuffle-albums", "Shuffle by Album", "${artist.name} · ${plural(artist.albums.size, "album")}"),
+            ) +
                 artist.albums.map { a -> folder("album:${a.key}", a.name, if (a.year > 0) "${a.year}" else null, MediaMetadata.MEDIA_TYPE_ALBUM) }
         }.orEmpty()
         else -> songs(id, songsOf(id, library, radio))
@@ -93,9 +97,14 @@ object CarLibrary {
      */
     fun resolve(id: String, library: LibraryState, radio: Radio?): Pair<List<Track>, Int>? {
         val parts = id.split(SEP)
-        if (parts.size == 2 && parts[1] == "shuffle" && parts[0].startsWith("artist:")) {
+        if (parts.size == 2 && parts[0].startsWith("artist:")) {
             val songs = songsOf(parts[0], library, radio)
-            return Shuffle.order(songs, library.allTracks).ifEmpty { songs } to 0
+            when (parts[1]) {
+                "shuffle" -> return Shuffle.order(songs, library.allTracks).ifEmpty { songs } to 0
+                // Albums in random order, each album's songs in its own order.
+                "shuffle-albums" -> return shuffleGroups(songs) { it.albumKey } to 0
+            }
+            return null
         }
         if (parts.size != 3) return null
         val songs = songsOf(parts[0], library, radio)

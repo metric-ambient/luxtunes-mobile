@@ -68,6 +68,19 @@ class CarLibraryTest {
     }
 
     @Test
+    fun shufflingAnArtistByAlbumKeepsEachAlbumTogether() {
+        val more = (6..7).map { song(it, "Lümen", "Second") }
+        val lib = library.copy(
+            tracks = all + more, allTracks = all + more,
+            artists = listOf(Artist("Lümen", listOf(albums[0], Album(more[0].albumKey, "Second", "Lümen", 2022, null, more)))),
+        )
+        val (songs, at) = CarLibrary.resolve("artist:Lümen\u001Fshuffle-albums", lib, null)!!
+        assertEquals(0, at)
+        assertTrue(songs == first + more || songs == more + first)       // each album whole, in its own order
+        assertNull(CarLibrary.resolve("artist:Lümen\u001Fsomething", lib, null))
+    }
+
+    @Test
     fun playingByVoice() {
         assertEquals(second.toSet(), CarLibrary.playFromSearch("grayfield", library).toSet())   // an artist
         assertEquals(first, CarLibrary.playFromSearch("paper tales", library))                  // an album, in order

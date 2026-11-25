@@ -329,6 +329,21 @@ class PlaybackService : MediaLibraryService() {
      * LuxTunes play a web address or a file outside the LuxTunes folder.
      */
     private val callback = object : MediaLibrarySession.Callback {
+        /**
+         * Everyone but the app's own screens gets Previous and Next, not "back 10 s" and
+         * "forward 10 s": without these two commands the car (and the system's media
+         * controls, which follow the notification's controller) show skip buttons.
+         */
+        override fun onConnect(session: MediaSession, controller: MediaSession.ControllerInfo): MediaSession.ConnectionResult {
+            val result = super.onConnect(session, controller)
+            if (controller.packageName == packageName && !session.isMediaNotificationController(controller)) return result
+            val commands = result.availablePlayerCommands.buildUpon()
+                .remove(Player.COMMAND_SEEK_BACK)
+                .remove(Player.COMMAND_SEEK_FORWARD)
+                .build()
+            return MediaSession.ConnectionResult.accept(result.availableSessionCommands, commands)
+        }
+
         override fun onAddMediaItems(
             mediaSession: MediaSession,
             controller: MediaSession.ControllerInfo,

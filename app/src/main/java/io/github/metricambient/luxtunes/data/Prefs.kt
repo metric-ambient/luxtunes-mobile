@@ -137,7 +137,7 @@ data class AppSettings(
     val playlistPlay: ArtistPlay = ArtistPlay.FROM_TOP,   // … and on playlist pages
     val artistSongs: Boolean = false,            // artist pages: one list of songs, not albums
     val themeStyle: ThemeStyle = ThemeStyle.DARK,
-    val autoAccent: Boolean = false,             // accent from the album art, in every style
+    val autoAccent: Boolean = true,              // accent from the album art, in every style (on for a new install)
     // Each style keeps its own colors, so switching back and forth loses nothing.
     val themeColors: Map<ThemeStyle, ThemeColors> = ThemeStyle.entries.associateWith { ThemeColors.defaults(it) },
 ) {
@@ -216,7 +216,13 @@ class Prefs(context: Context) {
             artistSongs = sp.getBoolean("artistSongs", d.artistSongs),
             themeStyle = enumOf(sp.getString("themeStyle", null), d.themeStyle),
             // (Before, each style had its own Auto: on if any was.)
-            autoAccent = sp.getBoolean("autoAccent", ThemeStyle.entries.any { sp.getBoolean("theme.${it.name}.auto", false) }),
+            // Saved: as saved. From an older version's per-style switches: on if any was. New install: on.
+            autoAccent = when {
+                sp.contains("autoAccent") -> sp.getBoolean("autoAccent", d.autoAccent)
+                ThemeStyle.entries.any { sp.contains("theme.${it.name}.auto") } ->
+                    ThemeStyle.entries.any { sp.getBoolean("theme.${it.name}.auto", false) }
+                else -> d.autoAccent
+            },
             themeColors = ThemeStyle.entries.associateWith { style ->
                 val def = ThemeColors.defaults(style)
                 ThemeColors(
