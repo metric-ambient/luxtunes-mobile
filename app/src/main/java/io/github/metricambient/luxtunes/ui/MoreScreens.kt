@@ -138,8 +138,9 @@ private val HELP: List<Pair<String, String>> = listOf(
         "Tap a song to play it (Settings → Tabs & Browsing → Default Song Action decides what plays: the " +
         "list from that song, just that song, or the list shuffled).\n\n" +
         "The floating bar near the bottom shows what's playing; tap it for Now Playing. Beside " +
-        "it, Play and Shuffle play whatever screen you're on (a tab, an artist, an album or a " +
-        "playlist). Tapping the bar grows it into Now Playing, art and all; Back shrinks it back.\n\n" +
+        "it, Play plays whatever screen you're on (a tab, an artist, an album, a playlist or the " +
+        "Radio Mix). The Shuffle switch next to it (lit while on) makes Play shuffle; each screen " +
+        "remembers whether you had it on. Tapping the bar grows it into Now Playing, art and all; Back shrinks it back.\n\n" +
         "In Now Playing, tap the album art (or the empty space around it) to see the lyrics and " +
         "rate the song: the stars appear under the art when there's room, otherwise on it. " +
         "Tap again to hide them. With timed lyrics from LuxTunes, the " +
@@ -217,14 +218,15 @@ private val HELP: List<Pair<String, String>> = listOf(
         "returns to Now Playing.",
     "Artists, albums and playlists" to
         "On an artist page, two buttons beside the picture switch with one tap: shuffling by " +
-        "songs or by albums (the Shuffle button beside the floating bar shows which), and " +
-        "Song View (all the songs in one list) or Album View. Both are kept for next time.\n\n" +
+        "songs or by albums (also a long press on the Shuffle switch beside the floating bar, which " +
+        "shows which), and Song View (all the songs in one list) or Album View. Each artist " +
+        "remembers its own shuffle choices; Song View or Album View is kept for next time.\n\n" +
         "Back (the arrow) is at the bottom left of every page, and More (⋮) at the bottom right. " +
         "Between them, as in Now Playing: Radio Mix (a mix from the album or artist; on a playlist " +
         "it opens the Radio Mix), the sleep timer, the equalizer, Add to Playlist (for the page's " +
         "songs) and the queue. Get Info for the page's songs is in More.\n\n" +
         "Below an artist's albums, Featured On lists songs by other artists that feature them, " +
-        "and Play and Shuffle take them in with the artist's own songs " +
+        "and Play takes them in with the artist's own songs " +
         "(Settings → Tabs & Browsing → Exclude Featured hides them).\n\n" +
         "Songs on a compilation (a soundtrack, a \"Now\" album) are listed under the compilation in " +
         "Artists: its Album Artist, or Various Artists. They also show under each of their artists " +

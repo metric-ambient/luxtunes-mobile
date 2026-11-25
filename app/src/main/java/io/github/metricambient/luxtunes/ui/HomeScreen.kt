@@ -202,6 +202,7 @@ fun HomeScreen(nav: NavHostController) {
     // Play and Shuffle beside the floating player play this tab, in its order.
     if (library.allTracks.isNotEmpty() && tabName in listOf("Songs", "Albums", "Artists", "Album Artists", "Genres", "Composers")) {
         PlayCardFor(
+            key = "tab:$tabName",
             play = { tabSongs(tabName, library, settings)?.takeIf { it.isNotEmpty() }?.let { s -> app.player.play(s) { showPlayer(nav, s) } } },
             shuffle = { tabSongs(tabName, library, settings)?.takeIf { it.isNotEmpty() }?.let { s -> app.player.shuffle(s) { showPlayer(nav, s) } } },
         )

@@ -188,6 +188,7 @@ fun AlbumScreen(nav: NavHostController, key: String) {
     val info = album.artist + "\n" +
         (listOf(if (album.year > 0) "${album.year}" else "") + lengthOf(album.tracks)).filter { it.isNotBlank() }.joinToString(" · ")
     PlayCardFor(
+        key = "album:${album.key}",
         play = { playWith(app, nav, album.tracks, ArtistPlay.FROM_TOP) },
         shuffle = { playWith(app, nav, album.tracks, ArtistPlay.SHUFFLE_SONGS) },
     )
@@ -251,12 +252,20 @@ fun GroupScreen(nav: NavHostController, kind: String, name: String) {
         "\n" + formatLength(tracks.sumOf { it.totalTime })
     // Play and Shuffle take in the Featured On songs too (unless Exclude Featured hides them).
     val all = tracks + featuredOn
-    val by = shuffleBy(settings.artistPlay)
-    val other = if (by == ArtistPlay.SHUFFLE_ALBUMS) ArtistPlay.SHUFFLE_SONGS else ArtistPlay.SHUFFLE_ALBUMS
+    // Shuffle on or off, and by songs or by albums, are remembered for each artist (PlayChoices);
+    // an artist without its own by-albums choice yet takes the one last made for all artists.
+    val choiceKey = "group:$kind:${artist.name.lowercase()}"
+    val byAlbums = PlayChoices.byAlbums(choiceKey, default = shuffleBy(settings.artistPlay) == ArtistPlay.SHUFFLE_ALBUMS)
+    val by = if (byAlbums) ArtistPlay.SHUFFLE_ALBUMS else ArtistPlay.SHUFFLE_SONGS
+    val other = if (byAlbums) ArtistPlay.SHUFFLE_SONGS else ArtistPlay.SHUFFLE_ALBUMS
+    val switchBy = { PlayChoices.setByAlbums(choiceKey, !byAlbums) }
     PlayCardFor(
+        key = choiceKey,
         play = { playWith(app, nav, all, ArtistPlay.FROM_TOP) },
         shuffle = { playWith(app, nav, all, by) },
-        label = if (by == ArtistPlay.SHUFFLE_ALBUMS) "By Albums" else "By Songs",
+        label = if (byAlbums) "By Albums" else "By Songs",
+        // Long-press: switch between shuffling by songs and by albums (as the chip at the top does).
+        shuffleLong = switchBy,
     )
     Page(nav, menu, artist.name, tracks, radio = startArtistRadio) {
         pageTop(artTrackOf(tracks), artist.name, info, maxArt = 140.dp) {
@@ -264,7 +273,7 @@ fun GroupScreen(nav: NavHostController, kind: String, name: String) {
             ToggleChip(
                 LuxIcons.Shuffle, if (other == ArtistPlay.SHUFFLE_ALBUMS) "by Albums" else "by Songs",
                 if (other == ArtistPlay.SHUFFLE_ALBUMS) "Shuffle by albums" else "Shuffle by songs",
-            ) { app.prefs.update { it.copy(artistPlay = other) } }
+            ) { switchBy() }
             ToggleChip(
                 if (settings.artistSongs) Icons.Filled.Album else Icons.AutoMirrored.Filled.ViewList,
                 if (settings.artistSongs) "Album View" else "Song View",
@@ -349,6 +358,7 @@ fun PlaylistScreen(nav: NavHostController, id: String) {
         else -> "Playlist"
     }
     PlayCardFor(
+        key = "playlist:${playlist.id}",
         play = { playWith(app, nav, tracks, ArtistPlay.FROM_TOP) },
         shuffle = { playWith(app, nav, tracks, ArtistPlay.SHUFFLE_SONGS) },
     )

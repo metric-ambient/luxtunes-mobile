@@ -1,7 +1,11 @@
 package io.github.metricambient.luxtunes.ui
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -14,6 +18,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -47,6 +52,9 @@ import androidx.compose.ui.layout.boundsInRoot
 import androidx.compose.ui.layout.findRootCoordinates
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.role
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -88,12 +96,16 @@ fun miniLift(route: String?): Dp = when {
 // ---- Play and Shuffle beside the floating player -------------------------------------------
 
 /**
- * What the Play and Shuffle card plays: the screen showing. `label` is shown under the
- * shuffle icon (an artist's By Songs / By Albums), or nothing.
+ * What the Shuffle and Play card plays: the screen showing. Shuffle is a switch,
+ * remembered for that screen (`key`, see PlayChoices); Play plays from the top, or
+ * shuffled while it's on. `label` is shown under the shuffle icon (an artist's By Songs /
+ * By Albums), or nothing.
  */
 class PlayCard(val owner: String) {
-    var play: () -> Unit = {}
-    var shuffle: () -> Unit = {}
+    var key by mutableStateOf("")
+    var play: () -> Unit = {}                    // from the top
+    var shuffle: () -> Unit = {}                 // shuffled
+    var shuffleLong: (() -> Unit)? = null        // long-press on Shuffle (an artist: by songs / by albums)
     var label by mutableStateOf<String?>(null)
 }
 
@@ -101,14 +113,19 @@ object PlayCards {
     var current by mutableStateOf<PlayCard?>(null)
 }
 
-/** This screen has songs to play: show Play and Shuffle for them beside the floating player. */
+/**
+ * This screen has songs to play: show Shuffle and Play for them beside the floating player.
+ * `key` names the screen for remembering its Shuffle switch ("album:…", "playlist:…").
+ */
 @Composable
-fun PlayCardFor(play: () -> Unit, shuffle: () -> Unit, label: String? = null) {
+fun PlayCardFor(key: String, play: () -> Unit, shuffle: () -> Unit, label: String? = null, shuffleLong: (() -> Unit)? = null) {
     val id = LocalEntryId.current
     val card = remember(id) { PlayCard(id) }
     SideEffect {
+        card.key = key
         card.play = play
         card.shuffle = shuffle
+        card.shuffleLong = shuffleLong
         card.label = label
     }
     DisposableEffect(card) {
@@ -121,6 +138,7 @@ fun PlayCardFor(play: () -> Unit, shuffle: () -> Unit, label: String? = null) {
  * The floating player: what's playing (tap it for Now Playing) with pause and next, and
  * beside it the screen's Play and Shuffle card when it has one.
  */
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun FloatingPlayer(nav: NavHostController, entryId: String?, modifier: Modifier = Modifier) {
     val app = app()
@@ -136,6 +154,7 @@ fun FloatingPlayer(nav: NavHostController, entryId: String?, modifier: Modifier 
         }
     }
     val card = PlayCards.current?.takeIf { it.owner == entryId }
+    val haptics = LocalHapticFeedback.current
     val shape = RoundedCornerShape(16.dp)
     Row(modifier.fillMaxWidth().height(62.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         Box(
@@ -193,24 +212,50 @@ fun FloatingPlayer(nav: NavHostController, entryId: String?, modifier: Modifier 
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.SpaceBetween,
             ) {
-                Box(
-                    Modifier.size(42.dp, 48.dp).clip(RoundedCornerShape(13.dp)).clickable(onClickLabel = "Play from the top") { card.play() },
-                    contentAlignment = Alignment.Center,
-                ) {
-                    Icon(Icons.Filled.PlayArrow, "Play from the top", tint = Lux.accent, modifier = Modifier.size(32.dp))
-                }
+                // Shuffle: a switch for this screen, accent while on (as in Now Playing).
+                val shuffleOn = PlayChoices.shuffleOn(card.key)
+                val label = card.label
                 Column(
+                    Modifier
+                        .size(44.dp, 50.dp)
+                        .clip(RoundedCornerShape(13.dp))
+                        .combinedClickable(
+                            onClickLabel = if (shuffleOn) "Turn Shuffle off" else "Turn Shuffle on",
+                            onLongClickLabel = if (card.shuffleLong != null) "Switch between shuffling by songs and by albums" else null,
+                            onLongClick = card.shuffleLong?.let { switch ->
+                                {
+                                    haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                                    switch()
+                                }
+                            },
+                        ) { PlayChoices.setShuffle(card.key, !shuffleOn) }
+                        .semantics { role = Role.Switch; contentDescription = "Shuffle" + if (shuffleOn) ", on" else ", off" },
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.Center,
+                ) {
+                    val tint = if (shuffleOn) Lux.accent else Lux.icon
+                    Icon(
+                        if (shuffleOn) LuxIcons.ShuffleOn else LuxIcons.Shuffle, null, tint = tint,
+                        modifier = Modifier.size(if (label == null) 26.dp else 22.dp),
+                    )
+                    if (label != null) {
+                        Text(label, color = tint, fontSize = 10.sp, lineHeight = 11.sp, maxLines = 1)
+                    } else if (shuffleOn) {
+                        Box(Modifier.padding(top = 3.dp).size(5.dp).clip(CircleShape).background(Lux.accent))
+                    }
+                }
+                // Play: the screen's songs, shuffled while Shuffle is on.
+                Box(
                     Modifier
                         .size(52.dp, 50.dp)
                         .clip(RoundedCornerShape(14.dp))
                         .background(Lux.accent)
-                        .clickable(onClickLabel = "Shuffle") { card.shuffle() },
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.Center,
+                        .clickable(onClickLabel = if (shuffleOn) "Play shuffled" else "Play from the top") {
+                            if (shuffleOn) card.shuffle() else card.play()
+                        },
+                    contentAlignment = Alignment.Center,
                 ) {
-                    val label = card.label
-                    Icon(LuxIcons.ShuffleOn, "Shuffle", tint = Lux.onAccent, modifier = Modifier.size(if (label == null) 26.dp else 22.dp))
-                    if (label != null) Text(label, color = Lux.onAccent, fontSize = 10.sp, lineHeight = 11.sp, maxLines = 1)
+                    Icon(Icons.Filled.PlayArrow, if (shuffleOn) "Play shuffled" else "Play from the top", tint = Lux.onAccent, modifier = Modifier.size(32.dp))
                 }
             }
         }

@@ -24,7 +24,7 @@ next sync.
 - Plays what LuxTunes put in the `LuxTunes` folder on the phone (internal storage or SD
   card), with LuxTunes' own song details, ratings, play counts, lyrics and playlists.
 - Browse by artist, album, song and playlist, with the tabs along the bottom (drag to
-  reorder), a floating player with Play and Shuffle for the screen you're on, a full
+  reorder), a floating player with Play and a Shuffle switch for the screen you're on (remembered per screen), a full
   library search, an album grid with quick filters, long-press to tick several, a
   fast-scroll handle with letters, and sorting (also in reverse).
 - Now Playing with album art, star ratings and lyrics; timed lyrics (LuxTunes 0.8.5+)

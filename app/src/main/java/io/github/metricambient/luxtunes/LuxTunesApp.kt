@@ -19,6 +19,7 @@ import kotlinx.coroutines.launch
 import io.github.metricambient.luxtunes.ui.ArtFetcher
 import io.github.metricambient.luxtunes.ui.ArtKeyer
 import io.github.metricambient.luxtunes.ui.Lux
+import io.github.metricambient.luxtunes.ui.PlayChoices
 import io.github.metricambient.luxtunes.ui.LuxPalette
 
 class LuxTunesApp : Application(), ImageLoaderFactory {
@@ -34,6 +35,7 @@ class LuxTunesApp : Application(), ImageLoaderFactory {
     override fun onCreate() {
         super.onCreate()
         prefs = Prefs(this)
+        PlayChoices.load(this)       // each screen's Shuffle switch and shuffle-by choice
         repository = Repository(this, prefs)
         player = PlayerConnection(this)
         radio = RadioStore(this, repository)

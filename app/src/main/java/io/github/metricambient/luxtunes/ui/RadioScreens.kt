@@ -118,6 +118,7 @@ fun RadioScreen(nav: NavHostController) {
         "Likes & Dislikes" to { nav.go(Routes.RADIO_LIKES) },
     )
     if (r != null && tracks.isNotEmpty()) PlayCardFor(
+        key = "radio",
         play = { play(0) },
         shuffle = { app.player.shuffle(tracks) { showPlayer(nav, tracks) } },
     )
