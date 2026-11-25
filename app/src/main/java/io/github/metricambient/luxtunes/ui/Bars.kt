@@ -56,7 +56,15 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.unit.IntRect
+import androidx.compose.ui.unit.IntSize
+import androidx.compose.ui.unit.LayoutDirection
+import androidx.compose.ui.window.Popup
+import androidx.compose.ui.window.PopupPositionProvider
+import androidx.compose.ui.window.PopupProperties
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavHostController
@@ -98,15 +106,15 @@ fun miniLift(route: String?): Dp = when {
 /**
  * What the Shuffle and Play card plays: the screen showing. Shuffle is a switch,
  * remembered for that screen (`key`, see PlayChoices); Play plays from the top, or
- * shuffled while it's on. `label` is shown under the shuffle icon (an artist's By Songs /
- * By Albums), or nothing.
+ * shuffled while it's on. An artist's card also shuffles by songs or by albums
+ * (`byAlbums`): shown under the icon while Shuffle is on, and chosen with a long press.
  */
 class PlayCard(val owner: String) {
     var key by mutableStateOf("")
     var play: () -> Unit = {}                    // from the top
     var shuffle: () -> Unit = {}                 // shuffled
-    var shuffleLong: (() -> Unit)? = null        // long-press on Shuffle (an artist: by songs / by albums)
-    var label by mutableStateOf<String?>(null)
+    var byAlbums by mutableStateOf<Boolean?>(null)        // an artist: shuffle by albums (else songs); null: neither
+    var setByAlbums: ((Boolean) -> Unit)? = null
 }
 
 object PlayCards {
@@ -118,15 +126,21 @@ object PlayCards {
  * `key` names the screen for remembering its Shuffle switch ("album:…", "playlist:…").
  */
 @Composable
-fun PlayCardFor(key: String, play: () -> Unit, shuffle: () -> Unit, label: String? = null, shuffleLong: (() -> Unit)? = null) {
+fun PlayCardFor(
+    key: String,
+    play: () -> Unit,
+    shuffle: () -> Unit,
+    byAlbums: Boolean? = null,
+    setByAlbums: ((Boolean) -> Unit)? = null,
+) {
     val id = LocalEntryId.current
     val card = remember(id) { PlayCard(id) }
     SideEffect {
         card.key = key
         card.play = play
         card.shuffle = shuffle
-        card.shuffleLong = shuffleLong
-        card.label = label
+        card.byAlbums = byAlbums
+        card.setByAlbums = setByAlbums
     }
     DisposableEffect(card) {
         PlayCards.current = card
@@ -214,20 +228,23 @@ fun FloatingPlayer(nav: NavHostController, entryId: String?, modifier: Modifier 
             ) {
                 // Shuffle: a switch for this screen, accent while on (as in Now Playing).
                 val shuffleOn = PlayChoices.shuffleOn(card.key)
-                val label = card.label
+                // An artist's choice, under the icon while Shuffle is on: "Album" or "Song".
+                val label = card.byAlbums?.takeIf { shuffleOn }?.let { if (it) "Album" else "Song" }
+                val setBy = card.setByAlbums
+                var choosing by remember { mutableStateOf(false) }
                 Column(
                     Modifier
                         .size(44.dp, 50.dp)
                         .clip(RoundedCornerShape(13.dp))
                         .combinedClickable(
                             onClickLabel = if (shuffleOn) "Turn Shuffle off" else "Turn Shuffle on",
-                            onLongClickLabel = if (card.shuffleLong != null) "Switch between shuffling by songs and by albums" else null,
-                            onLongClick = card.shuffleLong?.let { switch ->
+                            onLongClickLabel = if (setBy != null) "Choose shuffling by song or by album" else null,
+                            onLongClick = if (setBy != null) {
                                 {
                                     haptics.performHapticFeedback(HapticFeedbackType.LongPress)
-                                    switch()
+                                    choosing = true
                                 }
-                            },
+                            } else null,
                         ) { PlayChoices.setShuffle(card.key, !shuffleOn) }
                         .semantics { role = Role.Switch; contentDescription = "Shuffle" + if (shuffleOn) ", on" else ", off" },
                     horizontalAlignment = Alignment.CenterHorizontally,
@@ -242,6 +259,21 @@ fun FloatingPlayer(nav: NavHostController, entryId: String?, modifier: Modifier 
                         Text(label, color = tint, fontSize = 10.sp, lineHeight = 11.sp, maxLines = 1)
                     } else if (shuffleOn) {
                         Box(Modifier.padding(top = 3.dp).size(5.dp).clip(CircleShape).background(Lux.accent))
+                    }
+                    // Long press: a small bubble above the button to pick song or album
+                    // (picking one also turns Shuffle on). A tap elsewhere closes it.
+                    if (choosing && setBy != null) {
+                        Popup(
+                            popupPositionProvider = remember { AboveAnchor(gapPx = 24) },
+                            onDismissRequest = { choosing = false },
+                            properties = PopupProperties(focusable = true),
+                        ) {
+                            ShuffleByBubble(card.byAlbums == true) { albums ->
+                                choosing = false
+                                setBy(albums)
+                                PlayChoices.setShuffle(card.key, true)
+                            }
+                        }
                     }
                 }
                 // Play: the screen's songs, shuffled while Shuffle is on.
@@ -258,6 +290,36 @@ fun FloatingPlayer(nav: NavHostController, entryId: String?, modifier: Modifier 
                     Icon(Icons.Filled.PlayArrow, if (shuffleOn) "Play shuffled" else "Play from the top", tint = Lux.onAccent, modifier = Modifier.size(32.dp))
                 }
             }
+        }
+    }
+}
+
+/** Places a popup just above what it's attached to, kept inside the window. */
+private class AboveAnchor(private val gapPx: Int) : PopupPositionProvider {
+    override fun calculatePosition(
+        anchorBounds: IntRect, windowSize: IntSize, layoutDirection: LayoutDirection, popupContentSize: IntSize,
+    ): IntOffset {
+        val x = (anchorBounds.center.x - popupContentSize.width / 2)
+            .coerceIn(0, maxOf(0, windowSize.width - popupContentSize.width))
+        val y = (anchorBounds.top - popupContentSize.height - gapPx).coerceAtLeast(0)
+        return IntOffset(x, y)
+    }
+}
+
+/** The bubble from a long press on an artist's Shuffle: Shuffle by Song or by Album (the current one lit). */
+@Composable
+private fun ShuffleByBubble(byAlbums: Boolean, onPick: (Boolean) -> Unit) {
+    val shape = RoundedCornerShape(14.dp)
+    Column(Modifier.shadow(10.dp, shape).clip(shape).background(Lux.raised).padding(vertical = 4.dp)) {
+        for ((albums, text) in listOf(false to "Shuffle by Song", true to "Shuffle by Album")) {
+            val chosen = albums == byAlbums
+            Text(
+                text,
+                color = if (chosen) Lux.accent else Lux.text,
+                fontSize = 15.sp,
+                fontWeight = if (chosen) FontWeight.Bold else FontWeight.Normal,
+                modifier = Modifier.clickable { onPick(albums) }.padding(horizontal = 16.dp, vertical = 10.dp),
+            )
         }
     }
 }

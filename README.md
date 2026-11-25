@@ -49,6 +49,9 @@ next sync.
   songs by several artists (LuxTunes 0.9.2's Artists, "Lümen; Grayfield") under each artist.
   Get Info edits Genre, Artists and Featured Artist as pills.
 - Search ignores case and accents ("lumen" finds Lümen) and matches every word typed.
+- Android Auto: Playlists, Artists, Albums and Radio Mix tabs on the car's screen, search and
+  "play …" by voice. (Android Auto lists apps not from the Play Store only after you turn on
+  Unknown sources in its developer settings.)
 - Movies and TV shows play full screen.
 - Settings → Sound: LuxTunes' ten-band equalizer with the same presets (synced with the
   computer) and a preset per song, album, artist or playlist (Set EQ…), crossfade or gapless, playback speed for music and for

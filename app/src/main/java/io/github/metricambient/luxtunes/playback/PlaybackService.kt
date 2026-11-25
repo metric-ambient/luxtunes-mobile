@@ -21,7 +21,12 @@ import androidx.media3.exoplayer.audio.AudioSink
 import androidx.media3.exoplayer.audio.DefaultAudioSink
 import androidx.media3.session.DefaultMediaNotificationProvider
 import androidx.media3.session.MediaSession
-import androidx.media3.session.MediaSessionService
+import androidx.media3.session.LibraryResult
+import androidx.media3.session.MediaLibraryService
+import androidx.media3.session.MediaLibraryService.LibraryParams
+import androidx.media3.session.MediaLibraryService.MediaLibrarySession
+import com.google.common.collect.ImmutableList
+import com.google.common.util.concurrent.Futures
 import com.google.common.util.concurrent.MoreExecutors
 import java.util.concurrent.Callable
 import java.util.concurrent.Executors
@@ -57,8 +62,8 @@ import kotlin.math.min
  * audio processor), speed, autoplay, and crossfades between songs.
  */
 @androidx.annotation.OptIn(UnstableApi::class)
-class PlaybackService : MediaSessionService() {
-    private var session: MediaSession? = null
+class PlaybackService : MediaLibraryService() {
+    private var session: MediaLibrarySession? = null
     private lateinit var exo: ExoPlayer
     private var currentId: String? = null
     private lateinit var memory: PlaybackMemory
@@ -171,13 +176,12 @@ class PlaybackService : MediaSessionService() {
             this, 0, Intent(this, MainActivity::class.java),
             PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
         )
-        session = MediaSession.Builder(this, player)
-            .setCallback(callback)
+        session = MediaLibrarySession.Builder(this, player, callback)
             .setSessionActivity(open)
             .build()
     }
 
-    override fun onGetSession(controllerInfo: MediaSession.ControllerInfo): MediaSession? = session
+    override fun onGetSession(controllerInfo: MediaSession.ControllerInfo): MediaLibrarySession? = session
 
     override fun onTaskRemoved(rootIntent: Intent?) {
         savePosition()
@@ -324,7 +328,7 @@ class PlaybackService : MediaSessionService() {
      * (the system's media controls, Bluetooth, car displays), and none of them may make
      * LuxTunes play a web address or a file outside the LuxTunes folder.
      */
-    private val callback = object : MediaSession.Callback {
+    private val callback = object : MediaLibrarySession.Callback {
         override fun onAddMediaItems(
             mediaSession: MediaSession,
             controller: MediaSession.ControllerInfo,
@@ -332,7 +336,89 @@ class PlaybackService : MediaSessionService() {
         ): ListenableFuture<MutableList<MediaItem>> =
             // Off the main thread: a whole library (thousands of songs) takes a moment,
             // and the screens must keep responding meanwhile. The session waits for it.
-            loader.submit(Callable { mediaItems.mapNotNull { repository.mediaItem(it.mediaId) }.toMutableList() })
+            // (A car sends its own IDs for songs in a list: CarLibrary.songId finds the song.)
+            loader.submit(Callable { mediaItems.mapNotNull { repository.mediaItem(CarLibrary.songId(it.mediaId)) }.toMutableList() })
+
+        /**
+         * A car playing something: a song in a list plays that list from the song; "play …"
+         * by voice plays what it names; "Start Radio Mix" makes a mix from the song playing.
+         * Anything else (the app's own screens) goes as before.
+         */
+        override fun onSetMediaItems(
+            mediaSession: MediaSession,
+            controller: MediaSession.ControllerInfo,
+            mediaItems: MutableList<MediaItem>,
+            startIndex: Int,
+            startPositionMs: Long,
+        ): ListenableFuture<MediaSession.MediaItemsWithStartPosition> {
+            val only = mediaItems.singleOrNull()
+            if (only != null) {
+                val library = repository.state.value
+                val query = only.requestMetadata.searchQuery
+                if (only.mediaId.isEmpty() && query != null) return itemsFor(CarLibrary.playFromSearch(query, library), 0)
+                if (only.mediaId == CarLibrary.RADIO_START) return radioFromPlaying()
+                CarLibrary.resolve(only.mediaId, library, app.radio.radio.value)?.let { (songs, at) -> return itemsFor(songs, at) }
+            }
+            return super.onSetMediaItems(mediaSession, controller, mediaItems, startIndex, startPositionMs)
+        }
+
+        // ---- What a car can browse (CarLibrary) ----
+
+        override fun onGetLibraryRoot(
+            session: MediaLibrarySession,
+            browser: MediaSession.ControllerInfo,
+            params: LibraryParams?,
+        ): ListenableFuture<LibraryResult<MediaItem>> =
+            if (!mayBrowse(browser)) Futures.immediateFuture(LibraryResult.ofError<MediaItem>(LibraryResult.RESULT_ERROR_PERMISSION_DENIED))
+            else Futures.immediateFuture(LibraryResult.ofItem(CarLibrary.root(), params))
+
+        override fun onGetChildren(
+            session: MediaLibrarySession,
+            browser: MediaSession.ControllerInfo,
+            parentId: String,
+            page: Int,
+            pageSize: Int,
+            params: LibraryParams?,
+        ): ListenableFuture<LibraryResult<ImmutableList<MediaItem>>> {
+            if (!mayBrowse(browser)) return Futures.immediateFuture(LibraryResult.ofError<ImmutableList<MediaItem>>(LibraryResult.RESULT_ERROR_PERMISSION_DENIED))
+            val all = CarLibrary.children(parentId, repository.state.value, app.radio.radio.value)
+            return Futures.immediateFuture(LibraryResult.ofItemList(paged(all, page, pageSize), params))
+        }
+
+        override fun onGetItem(
+            session: MediaLibrarySession,
+            browser: MediaSession.ControllerInfo,
+            mediaId: String,
+        ): ListenableFuture<LibraryResult<MediaItem>> {
+            val item = if (mayBrowse(browser)) CarLibrary.item(mediaId, repository.state.value) else null
+            return Futures.immediateFuture(
+                if (item != null) LibraryResult.ofItem(item, null) else LibraryResult.ofError<MediaItem>(LibraryResult.RESULT_ERROR_BAD_VALUE)
+            )
+        }
+
+        override fun onSearch(
+            session: MediaLibrarySession,
+            browser: MediaSession.ControllerInfo,
+            query: String,
+            params: LibraryParams?,
+        ): ListenableFuture<LibraryResult<Void>> {
+            if (!mayBrowse(browser)) return Futures.immediateFuture(LibraryResult.ofError<Void>(LibraryResult.RESULT_ERROR_PERMISSION_DENIED))
+            session.notifySearchResultChanged(browser, query, CarLibrary.search(query, repository.state.value).size, params)
+            return Futures.immediateFuture(LibraryResult.ofVoid())
+        }
+
+        override fun onGetSearchResult(
+            session: MediaLibrarySession,
+            browser: MediaSession.ControllerInfo,
+            query: String,
+            page: Int,
+            pageSize: Int,
+            params: LibraryParams?,
+        ): ListenableFuture<LibraryResult<ImmutableList<MediaItem>>> {
+            if (!mayBrowse(browser)) return Futures.immediateFuture(LibraryResult.ofError<ImmutableList<MediaItem>>(LibraryResult.RESULT_ERROR_PERMISSION_DENIED))
+            val all = CarLibrary.children("search:$query", repository.state.value, app.radio.radio.value)
+            return Futures.immediateFuture(LibraryResult.ofItemList(paged(all, page, pageSize), params))
+        }
 
         @Suppress("DEPRECATION")
         override fun onMediaButtonEvent(
@@ -369,6 +455,54 @@ class PlaybackService : MediaSessionService() {
             }
             return result
         }
+    }
+
+    // ---- Cars (Android Auto) ------------------------------------------------------------
+
+    /** Only car apps, the system's media controls and LuxTunes itself may list the library. */
+    private fun mayBrowse(browser: MediaSession.ControllerInfo): Boolean =
+        browser.packageName == packageName || browser.packageName in CarLibrary.ALLOWED_BROWSERS
+
+    /** One page of a list (a car asks for long lists a page at a time). */
+    private fun <T> paged(all: List<T>, page: Int, pageSize: Int): List<T> =
+        if (pageSize <= 0 || pageSize == Int.MAX_VALUE) all
+        else all.drop((page.toLong() * pageSize).coerceAtMost(Int.MAX_VALUE.toLong()).toInt()).take(pageSize)
+
+    /** These songs as playable items, starting at `start` (songs whose file is missing are left out). */
+    private fun itemsFor(
+        tracks: List<Track>,
+        start: Int,
+        positionMs: Long = C.TIME_UNSET,
+    ): ListenableFuture<MediaSession.MediaItemsWithStartPosition> {
+        if (tracks.isEmpty()) return Futures.immediateFailedFuture(IllegalStateException("nothing to play"))
+        return loader.submit(Callable {
+            val items = ArrayList<MediaItem>(tracks.size)
+            var at = 0
+            tracks.forEachIndexed { i, t ->
+                val item = repository.mediaItem(t.id) ?: return@forEachIndexed
+                if (i < start) at++
+                items += item
+            }
+            if (items.isEmpty()) throw IllegalStateException("nothing to play")
+            MediaSession.MediaItemsWithStartPosition(items, at.coerceAtMost(items.lastIndex), positionMs)
+        })
+    }
+
+    /** The car's "Start Radio Mix": a new mix from the song playing, which carries on where it was. */
+    private fun radioFromPlaying(): ListenableFuture<MediaSession.MediaItemsWithStartPosition> {
+        val seed = exo.currentMediaItem?.mediaId?.let { repository.track(it) }
+            ?: return Futures.immediateFailedFuture(IllegalStateException("nothing playing"))
+        val position = exo.currentPosition
+        val result = SettableFuture.create<MediaSession.MediaItemsWithStartPosition>()
+        scope.launch {
+            try {
+                val tracks = app.radio.start("song", seed)
+                result.setFuture(itemsFor(tracks, 0, if (tracks.firstOrNull()?.id == seed.id) position else C.TIME_UNSET))
+            } catch (e: Exception) {
+                result.setException(e)
+            }
+        }
+        return result
     }
 
     // ---- Settings → Playback ----------------------------------------------------------

@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Android Auto: LuxTunes is a media app (see playback/CarLibrary.kt). -->
+<automotiveApp>
+    <uses name="media" />
+</automotiveApp>

@@ -218,8 +218,8 @@ private val HELP: List<Pair<String, String>> = listOf(
         "returns to Now Playing.",
     "Artists, albums and playlists" to
         "On an artist page, two buttons beside the picture switch with one tap: shuffling by " +
-        "songs or by albums (also a long press on the Shuffle switch beside the floating bar, which " +
-        "shows which), and Song View (all the songs in one list) or Album View. Each artist " +
+        "songs or by albums (or long-press the Shuffle switch beside the floating bar and pick " +
+        "Shuffle by Song or Shuffle by Album; while Shuffle is on, it shows Song or Album), and Song View (all the songs in one list) or Album View. Each artist " +
         "remembers its own shuffle choices; Song View or Album View is kept for next time.\n\n" +
         "Back (the arrow) is at the bottom left of every page, and More (⋮) at the bottom right. " +
         "Between them, as in Now Playing: Radio Mix (a mix from the album or artist; on a playlist " +
@@ -272,6 +272,16 @@ private val HELP: List<Pair<String, String>> = listOf(
     "Headphones and Bluetooth" to
         "Settings → Playback: use headset buttons, start playing when headphones or " +
         "Bluetooth connect, and stop a car from starting music by itself.",
+    "Android Auto" to
+        "With the phone connected to a car (or Android Auto on the phone), LuxTunes shows on the " +
+        "car's screen with four tabs: Playlists, Artists, Albums and Radio Mix. Pick a song in a " +
+        "list and the list plays from there; an artist has Shuffle at the top; the Radio Mix tab " +
+        "can start a new mix from the song playing. Search, and \"play …\" by voice, find artists, " +
+        "albums and songs.\n\n" +
+        "Android Auto only lists apps from the Play Store unless you allow others: in the Android " +
+        "Auto settings on the phone, tap Version several times to turn on developer settings, " +
+        "then in its ⋮ menu choose Developer settings and turn on Unknown sources.\n\n" +
+        "Only car apps and the phone's own media controls can browse your library this way.",
     "Movies and TV shows" to
         "Turn on the Movies and TV Shows tabs in Settings → Tabs & Browsing. Videos play full screen: tap " +
         "the picture to show or hide the controls.",

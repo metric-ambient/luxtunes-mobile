@@ -263,9 +263,9 @@ fun GroupScreen(nav: NavHostController, kind: String, name: String) {
         key = choiceKey,
         play = { playWith(app, nav, all, ArtistPlay.FROM_TOP) },
         shuffle = { playWith(app, nav, all, by) },
-        label = if (byAlbums) "By Albums" else "By Songs",
-        // Long-press: switch between shuffling by songs and by albums (as the chip at the top does).
-        shuffleLong = switchBy,
+        // A long press on Shuffle picks song or album (as the chip at the top does).
+        byAlbums = byAlbums,
+        setByAlbums = { albums -> PlayChoices.setByAlbums(choiceKey, albums) },
     )
     Page(nav, menu, artist.name, tracks, radio = startArtistRadio) {
         pageTop(artTrackOf(tracks), artist.name, info, maxArt = 140.dp) {

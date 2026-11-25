@@ -57,11 +57,21 @@
             android:exported="true"
             android:foregroundServiceType="mediaPlayback">
             <intent-filter>
+                <action android:name="androidx.media3.session.MediaLibraryService" />
                 <action android:name="androidx.media3.session.MediaSessionService" />
+                <!-- Android Auto finds media apps by this. -->
+                <action android:name="android.media.browse.MediaBrowserService" />
                 <action android:name="android.intent.action.MEDIA_BUTTON" />
             </intent-filter>
         </service>
-        <!-- Settings > Headset/Bluetooth > High Priority Mode turns this on: headset
+        <!-- Android Auto: LuxTunes shows in the car as a media app (no Google services needed). -->
+        <meta-data
+            android:name="com.google.android.gms.car.application"
+            android:resource="@xml/automotive_app_desc" />
+        <meta-data
+            android:name="com.google.android.gms.car.notification.SmallIcon"
+            android:resource="@drawable/ic_stat_luxtunes" />
+        <!-- Settings > Playback > High Priority Mode turns this on: headset
              buttons can start LuxTunes even when it isn't playing. -->
         <receiver
             android:name="androidx.media3.session.MediaButtonReceiver"
