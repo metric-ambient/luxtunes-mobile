@@ -139,8 +139,9 @@ fun LibrarySettingsScreen(nav: NavHostController) {
     val context = LocalContext.current
     val library by app.repository.state.collectAsState()
     val settings by app.prefs.settings.collectAsState()
+    val canChoose = LuxFolder.hasRemovable(context)
     val storage = when (settings.storage) {
-        StorageChoice.REMOVABLE -> "SD card"
+        StorageChoice.REMOVABLE -> if (canChoose) "SD card" else "SD card (not in the phone)"
         StorageChoice.INTERNAL -> "Internal storage"
         null -> "Any"
     }
@@ -150,10 +151,13 @@ fun LibrarySettingsScreen(nav: NavHostController) {
             .format(java.util.Date(library.changesWritten))
         else -> "Not written since the app started"
     }
-    val canChoose = LuxFolder.hasRemovable(context)
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
         ScreenTitle(nav, "Library & Sync")
-        InfoRow("Library", "${library.libraryName.ifEmpty { "LuxTunes" }}: ${plural(library.tracks.size, "song")}")
+        InfoRow(
+            "Library",
+            "${library.libraryName.ifEmpty { "LuxTunes" }}: ${plural(library.tracks.size, "song")}" +
+                if (library.libraryNamePending) "\nNew name waiting to go to LuxTunes" else "",
+        )
         InfoRow("Storage", storage)
         InfoRow("Folder", library.folder?.path ?: "Not found")
         InfoRow("Last synced", library.syncedAt?.let { niceDate(it) } ?: "Never")
@@ -169,10 +173,16 @@ fun LibrarySettingsScreen(nav: NavHostController) {
         if (library.transferMode) InfoRow("USB file transfer", "On")
         Spacer(Modifier.height(16.dp))
         ButtonWithHelp(
+            "Rename Library…",
+            "Gives the library a new name. It shows here at once and goes to LuxTunes on your " +
+                "computer at the next sync. LuxTunes (0.9.4 or later) asks there whether to use it or keep its own name.",
+        ) { Dialogs.show(DialogRequest.RenameLibrary(library.libraryName.ifEmpty { "LuxTunes" })) }
+        ButtonWithHelp(
             "Change Library Location",
-            if (canChoose) "Choose whether the LuxTunes folder is on the phone's own storage or the SD card."
-            else "There's no SD card in the phone, so the library can only be on its own storage.",
-            enabled = canChoose,
+            if (canChoose) "Choose whether the LuxTunes folder is on the phone's own storage or the SD card. " +
+                "Choosing one looks for the library there again."
+            else "There's no SD card in the phone, so the library is on its own storage. Choosing it looks for " +
+                "the library there again (for example after LuxTunes switched to syncing to internal storage).",
         ) { Dialogs.show(DialogRequest.ChooseStorage(firstTime = false)) }
         ButtonWithHelp(
             "Add Folder to Library…",

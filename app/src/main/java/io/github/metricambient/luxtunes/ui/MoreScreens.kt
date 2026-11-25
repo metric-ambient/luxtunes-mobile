@@ -133,7 +133,8 @@ private val HELP: List<Pair<String, String>> = listOf(
         "A song counts as played when it plays to the end, and as skipped when you press Next " +
         "between 2 and 20 seconds into it (from the app, the notification, headphones or the " +
         "car). Tapping quickly through songs doesn't count as skipping them.\n\n" +
-        "Settings → Library & Sync shows what's waiting to go back.",
+        "Settings → Library & Sync shows what's waiting to go back. Rename Library there gives " +
+        "the library a new name, which goes to LuxTunes at the next sync too.",
     "Playing music" to
         "Tap a song to play it (Settings → Tabs & Browsing → Default Song Action decides what plays: the " +
         "list from that song, just that song, or the list shuffled).\n\n" +
@@ -293,7 +294,9 @@ private val HELP: List<Pair<String, String>> = listOf(
         "• No music: make sure the sync finished, then use Rescan Device in the main More menu or Settings.\n" +
         "• Plays or ratings didn't reach LuxTunes: open the app once after listening, before syncing.\n" +
         "• No album art: art arrives with the sync; until then, the art inside the song file is used.\n" +
-        "• The app can't see the library: Settings → Library & Sync → Change Library Location.",
+        "• The app can't see the library: Settings → Library & Sync → Change Library Location.\n" +
+        "• Took the SD card out and now sync to internal storage: the app switches to the library there by " +
+        "itself, and offers the card again if you put it back.",
 )
 
 /** Settings → Help: short guides; tap one to open it. */

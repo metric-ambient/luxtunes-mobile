@@ -67,20 +67,42 @@ object LuxFolder {
     fun hasRemovable(context: Context): Boolean = storageRoots(context).size > 1
 
     /**
-     * The LuxTunes folder holding a library.db, on the storage the user chose
-     * (internal storage or the SD card). With no choice yet, the one synced most
-     * recently.
+     * Where the library is. `folder`: the LuxTunes folder to use (null: none found).
+     * `cardMissing`: the user chose the SD card but it isn't in the phone; `folder` is
+     * then the library on internal storage, if there is one (the app switches to it).
      */
-    fun find(context: Context, choice: StorageChoice?): File? {
-        val roots = storageRoots(context)
-        val allowed = when (choice) {
-            StorageChoice.INTERNAL -> roots.take(1)
-            StorageChoice.REMOVABLE -> roots.drop(1)
+    data class Found(val folder: File?, val cardMissing: Boolean)
+
+    /** The library on the storage the user chose (see [locateIn]). */
+    fun locate(context: Context, choice: StorageChoice?): Found = locateIn(storageRoots(context), choice)
+
+    /** The LuxTunes folder to use (as [locate] finds it), or null. */
+    fun find(context: Context, choice: StorageChoice?): File? = locate(context, choice).folder
+
+    /**
+     * `roots`: internal storage first, then SD cards. The LuxTunes folder with a library.db
+     * on the chosen storage (with no choice yet, on any: the most recently synced). If the
+     * chosen SD card isn't in the phone, the library on internal storage instead.
+     */
+    fun locateIn(roots: List<File>, choice: StorageChoice?): Found {
+        val internal = roots.take(1)
+        val removable = roots.drop(1)
+        val chosen = when (choice) {
+            StorageChoice.INTERNAL -> internal
+            StorageChoice.REMOVABLE -> removable
             null -> roots
         }
-        return allowed
-            .map { File(it, FOLDER) }
-            .filter { File(it, DATABASE).isFile }
-            .maxByOrNull { File(it, DATABASE).lastModified() }
+        libraryOn(chosen)?.let { return Found(it, cardMissing = false) }
+        if (choice == StorageChoice.REMOVABLE && removable.isEmpty()) return Found(libraryOn(internal), cardMissing = true)
+        return Found(null, cardMissing = false)
     }
+
+    /** The LuxTunes folder with a library.db on these storages (the newest library.db if several). */
+    fun libraryOn(roots: List<File>): File? = roots
+        .map { File(it, FOLDER) }
+        .filter { File(it, DATABASE).isFile }
+        .maxByOrNull { File(it, DATABASE).lastModified() }
+
+    /** An SD card with a LuxTunes library on it is in the phone. */
+    fun libraryOnCard(context: Context): Boolean = libraryOn(storageRoots(context).drop(1)) != null
 }

@@ -27,6 +27,7 @@ data class LibraryState(
     val loaded: Boolean = false,
     val folder: File? = null,
     val libraryName: String = "",
+    val libraryNamePending: Boolean = false,        // renamed on the phone, not yet taken by LuxTunes
     val syncedAt: String? = null,
     val tracks: List<Track> = emptyList(),          // music, name order
     val albums: List<Album> = emptyList(),          // name order
@@ -110,6 +111,17 @@ class Repository(private val context: Context, private val prefs: Prefs) {
     private val _state = MutableStateFlow(LibraryState())
     val state: StateFlow<LibraryState> = _state.asStateFlow()
 
+    /** Something to tell about where the library is (a removed or returned SD card); the screens show it once. */
+    enum class StorageNews { SWITCHED, CARD_BACK }
+    private val _storageNews = MutableStateFlow<StorageNews?>(null)
+    val storageNews: StateFlow<StorageNews?> = _storageNews.asStateFlow()
+    fun storageNewsShown() { _storageNews.value = null }
+
+    /** The computer kept its own library name instead of the phone's (its name): say so once. */
+    private val _nameKept = MutableStateFlow<String?>(null)
+    val nameKept: StateFlow<String?> = _nameKept.asStateFlow()
+    fun nameKeptShown() { _nameKept.value = null }
+
     /** LuxTunes' own values; pending changes are added on top for showing. */
     private var libraryTracks: List<Track> = emptyList()
     private var pending: MutableMap<String, PendingEntry> = mutableMapOf()
@@ -143,21 +155,40 @@ class Repository(private val context: Context, private val prefs: Prefs) {
                 return@withLock
             }
             ensureLoaded()
-            val folder = LuxFolder.find(context, prefs.current.storage)
+            val found = LuxFolder.locate(context, prefs.current.storage)
+            val folder = found.folder
+            if (found.cardMissing && folder != null) {
+                // The SD card was taken out (LuxTunes now syncs to internal storage): use that,
+                // and offer the card again if it comes back.
+                prefs.update { it.copy(storage = StorageChoice.INTERNAL, leftSdCard = true) }
+                _storageNews.value = StorageNews.SWITCHED
+            }
             if (folder == null) {
-                val where = when (prefs.current.storage) {
-                    StorageChoice.REMOVABLE -> " on the SD card"
-                    StorageChoice.INTERNAL -> " in internal storage"
-                    null -> ""
+                val message = if (found.cardMissing) {
+                    "The SD card with your LuxTunes library isn't in the phone, and there's no LuxTunes library " +
+                        "in internal storage either. Put the card back, or sync this phone from LuxTunes to " +
+                        "internal storage (\"Sync to\" on the phone's page), then rescan."
+                } else {
+                    val where = when (prefs.current.storage) {
+                        StorageChoice.REMOVABLE -> " on the SD card"
+                        StorageChoice.INTERNAL -> " in internal storage"
+                        null -> ""
+                    }
+                    "No LuxTunes library found$where. Sync this phone from LuxTunes on your computer " +
+                        "(or change the storage in Settings → Library & Sync), then rescan."
                 }
-                publish(null, "No music from LuxTunes$where yet. Sync this phone from LuxTunes on your computer " +
-                    "(or change the storage in Settings → Library & Sync), then open the app again.")
+                publish(null, message)
                 return@withLock
             }
             settleChangesFile(folder)
             importIfNew(folder)
             writeChangesFileSafely(folder)
             publish(folder, null)
+            // Moved off a removed SD card, and now it's back with its library: offer it again.
+            val s = prefs.current
+            if (s.leftSdCard && s.storage == StorageChoice.INTERNAL && LuxFolder.libraryOnCard(context)) {
+                _storageNews.value = StorageNews.CARD_BACK
+            }
         } catch (e: Exception) {
             Log.e(TAG, "refresh failed", e)
             publish(_state.value.folder, "Couldn't read the LuxTunes folder: ${e.message}")
@@ -350,6 +381,16 @@ class Repository(private val context: Context, private val prefs: Prefs) {
             refreshEqualizer()
             db.setMeta("format_version", info["format_version"])
             db.setMeta("library_id", newId)
+            // A name chosen on the phone: done once LuxTunes sends it back, or turned down
+            // there (LuxTunes 0.9.4 asks); either way the computer's name shows from now on.
+            val phoneName = db.meta("library_name_phone")
+            if (phoneName != null) {
+                if (info["library_name"] == phoneName) db.setMeta("library_name_phone", null)
+                else if (info["library_name_declined"] == phoneName) {
+                    db.setMeta("library_name_phone", null)
+                    _nameKept.value = info["library_name"].orEmpty().ifEmpty { "LuxTunes" }
+                }
+            }
             db.setMeta("library_name", info["library_name"])
             db.setMeta("synced_at", info["synced_at"])
             db.setMeta("imported_stamp", stamp)
@@ -427,13 +468,15 @@ class Repository(private val context: Context, private val prefs: Prefs) {
         val eqJson = if (v2 && (eqState == "new" || eqState == "written")) db.meta("eq_phone") else null
         val added = if (v2) db.loadPhoneTrackRows().filter { it.second != PlaylistEdit.DELIVERED } else emptyList()
         val edited = if (v2) tagEdits.values.filter { it.state != PlaylistEdit.DELIVERED }.sortedBy { it.id } else emptyList()
+        val newName = if (v2) db.meta("library_name_phone") else null
         val text = ChangesJson.build(
             entries, db.meta("library_id"), if (v2) waiting.map { ChangesJson.playlistEntry(it) } else null, eqJson,
             if (v2) added.map { ChangesJson.addedTrackEntry(it.first) } else null,
             if (v2) edited.map { TagFields.entry(it) } else null,
+            newName,
         )
         val current = if (file.isFile) runCatching { file.readText() }.getOrNull() else null
-        if (entries.isEmpty() && waiting.isEmpty() && eqJson == null && added.isEmpty() && edited.isEmpty() &&
+        if (entries.isEmpty() && waiting.isEmpty() && eqJson == null && added.isEmpty() && edited.isEmpty() && newName == null &&
             (current == null || ChangesJson.isEmptied(current))
         ) return
         if (text != current) {
@@ -533,7 +576,8 @@ class Repository(private val context: Context, private val prefs: Prefs) {
         _state.value = LibraryState(
             loaded = true,
             folder = folder,
-            libraryName = db.meta("library_name").orEmpty(),
+            libraryName = db.meta("library_name_phone") ?: db.meta("library_name").orEmpty(),
+            libraryNamePending = db.meta("library_name_phone") != null,
             syncedAt = db.meta("synced_at"),
             tracks = music,
             albums = albums,
@@ -711,6 +755,25 @@ class Repository(private val context: Context, private val prefs: Prefs) {
     fun renamePlaylist(playlistId: String, name: String) {
         val p = editable(playlistId) ?: return
         editPlaylist(p.copy(name = name.trim().ifEmpty { p.name }))
+    }
+
+    /**
+     * A new name for the library, shown at once and sent to LuxTunes in changes.json.
+     * It stays the phone's name until a sync brings it back from LuxTunes (or LuxTunes
+     * says it kept its own). The library's current name again cancels the rename.
+     */
+    fun renameLibrary(name: String) {
+        val n = name.trim().split(Regex("\\s+")).filter { it.isNotEmpty() }.joinToString(" ")
+        if (n.isEmpty()) return
+        scope.launch {
+            lock.withLock {
+                ensureLoaded()
+                db.setMeta("library_name_phone", if (n == db.meta("library_name")) null else n)
+                val folder = _state.value.folder
+                if (folder != null) writeChangesFileSafely(folder)
+                publish(folder, _state.value.message)
+            }
+        }
     }
 
     /** Remove the song at this position (positions, since a song can be in a list twice). */

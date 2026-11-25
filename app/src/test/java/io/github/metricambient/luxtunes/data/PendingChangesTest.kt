@@ -101,4 +101,14 @@ class PendingChangesTest {
         assertTrue(text.contains("\"smart_info\": \"AQI=\", \"smart_criteria\": \"Aw==\""))
         assertTrue(ChangesJson.isEmptied("{\"version\": 2, \"tracks\": [], \"playlists\": []}"))
     }
+
+    @Test
+    fun version2CarriesANewLibraryName() {
+        val text = ChangesJson.build(emptyList(), "ABCDEF0123456789", emptyList(), libraryName = "  Lantern \"Valley\" ")
+        assertTrue(text.contains(", \"library_name\": \"Lantern \\\"Valley\\\"\""))
+        assertEquals("Lantern \"Valley\"", org.json.JSONObject(text).getString("library_name"))
+        // Version 1 (an older LuxTunes) never gets it, and no name means no key.
+        assertFalse(ChangesJson.build(emptyList(), null, null, libraryName = "Lantern Valley").contains("library_name"))
+        assertFalse(ChangesJson.build(emptyList(), null, emptyList()).contains("library_name"))
+    }
 }

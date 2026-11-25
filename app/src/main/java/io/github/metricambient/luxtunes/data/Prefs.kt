@@ -75,6 +75,7 @@ val ALL_TABS = listOf(
 
 data class AppSettings(
     val storage: StorageChoice? = null,          // null: not chosen yet
+    val leftSdCard: Boolean = false,             // switched to internal storage because the SD card was taken out
     val tabs: List<String> = listOf("Artists", "Playlists", "Songs", "Albums"),   // shown
     val songArt: Boolean = false,                // album art in the Songs tab
     val playlistIcons: Boolean = true,
@@ -156,6 +157,7 @@ class Prefs(context: Context) {
         val saved = sp.getString("tabs", null)?.split(',')
         return AppSettings(
             storage = sp.getString("storage", null)?.let { name -> StorageChoice.entries.firstOrNull { it.name == name } },
+            leftSdCard = sp.getBoolean("leftSdCard", d.leftSdCard),
             tabs = saved?.filter { it in ALL_TABS }?.distinct() ?: d.tabs,       // in the user's order
             songArt = sp.getBoolean("songArt", d.songArt),
             playlistIcons = sp.getBoolean("playlistIcons", d.playlistIcons),
@@ -239,6 +241,7 @@ class Prefs(context: Context) {
         _settings.value = s
         sp.edit()
             .putString("storage", s.storage?.name)
+            .putBoolean("leftSdCard", s.leftSdCard)
             .putString("tabs", s.tabs.joinToString(","))
             .putBoolean("songArt", s.songArt)
             .putBoolean("playlistIcons", s.playlistIcons)

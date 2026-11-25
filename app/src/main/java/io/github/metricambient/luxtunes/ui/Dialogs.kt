@@ -37,7 +37,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import io.github.metricambient.luxtunes.data.LuxFolder
 import io.github.metricambient.luxtunes.data.StorageChoice
+import androidx.compose.ui.platform.LocalContext
 
 /** The pop-ups any screen can ask for. Only one shows at a time. */
 sealed interface DialogRequest {
@@ -45,6 +47,7 @@ sealed interface DialogRequest {
     data class Duplicates(val playlistId: String, val name: String, val ids: List<String>, val count: Int) : DialogRequest
     data class NewPlaylist(val ids: List<String>) : DialogRequest
     data class RenamePlaylist(val id: String, val name: String) : DialogRequest
+    data class RenameLibrary(val name: String) : DialogRequest
     data class DeletePlaylist(val id: String, val name: String) : DialogRequest
     data class Info(val ids: List<String>) : DialogRequest
     data class EditTags(val ids: List<String>) : DialogRequest
@@ -79,6 +82,9 @@ fun DialogHost() {
         }
         is DialogRequest.RenamePlaylist -> NameDialog("Rename Playlist", r.name, "Rename") { name ->
             app.repository.renamePlaylist(r.id, name)
+        }
+        is DialogRequest.RenameLibrary -> NameDialog("Rename Library", r.name, "Rename") { name ->
+            app.repository.renameLibrary(name)
         }
         is DialogRequest.DeletePlaylist -> DeletePlaylistDialog(r)
         is DialogRequest.Info -> InfoDialog(r.ids)
@@ -314,8 +320,16 @@ fun niceDate(iso: String?): String =
 @Composable
 private fun StorageDialog(firstTime: Boolean) {
     val app = app()
+    val context = LocalContext.current
     val settings by app.prefs.settings.collectAsState()
-    var choice by remember { mutableStateOf(settings.storage ?: StorageChoice.INTERNAL) }
+    // Each storage, whether it's in the phone, and whether it has a LuxTunes library.
+    val roots = remember { LuxFolder.storageRoots(context) }
+    val cardIn = roots.size > 1
+    fun libraryHere(option: StorageChoice) =
+        LuxFolder.libraryOn(if (option == StorageChoice.INTERNAL) roots.take(1) else roots.drop(1)) != null
+    var choice by remember {
+        mutableStateOf(settings.storage?.takeIf { it == StorageChoice.INTERNAL || cardIn } ?: StorageChoice.INTERNAL)
+    }
     AlertDialog(
         onDismissRequest = { if (!firstTime) Dialogs.close() },
         title = { Text("Where is your LuxTunes music?") },
@@ -326,19 +340,31 @@ private fun StorageDialog(firstTime: Boolean) {
                     color = Lux.dim, fontSize = 14.sp,
                 )
                 for ((option, label) in listOf(StorageChoice.INTERNAL to "Internal storage", StorageChoice.REMOVABLE to "SD card")) {
+                    val present = option == StorageChoice.INTERNAL || cardIn
                     Row(
-                        Modifier.fillMaxWidth().clickable { choice = option }.padding(vertical = 4.dp),
+                        Modifier.fillMaxWidth().clickable(enabled = present) { choice = option }.padding(vertical = 4.dp),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
-                        RadioButton(selected = choice == option, onClick = { choice = option })
-                        Text(label, fontSize = 18.sp)
+                        RadioButton(selected = choice == option, onClick = { choice = option }, enabled = present)
+                        Column {
+                            Text(label, fontSize = 18.sp, color = if (present) Lux.text else Lux.dim)
+                            Text(
+                                when {
+                                    !present -> "Not in the phone"
+                                    libraryHere(option) -> "LuxTunes library found"
+                                    else -> "No LuxTunes library here yet"
+                                },
+                                fontSize = 13.sp, color = Lux.dim,
+                            )
+                        }
                     }
                 }
             }
         },
         confirmButton = {
             TextButton(onClick = {
-                app.prefs.update { it.copy(storage = choice) }
+                // Choosing the same one again just looks for the library again.
+                app.prefs.update { it.copy(storage = choice, leftSdCard = false) }
                 app.repository.refreshAsync()
                 Dialogs.close()
             }) { Text("OK") }

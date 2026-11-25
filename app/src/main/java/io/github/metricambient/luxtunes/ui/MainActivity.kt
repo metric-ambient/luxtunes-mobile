@@ -1,5 +1,7 @@
 package io.github.metricambient.luxtunes.ui
 
+import androidx.compose.runtime.collectAsState
+import io.github.metricambient.luxtunes.data.Repository
 import android.Manifest
 import android.content.Intent
 import android.net.Uri
@@ -139,6 +141,36 @@ private fun Root() {
                 app.prefs.update { it.copy(storage = StorageChoice.INTERNAL) }
                 app.repository.refreshAsync()
             }
+        }
+    }
+
+    // The library moved off a removed SD card, or the card is back: say so once.
+    val storageNews by app.repository.storageNews.collectAsState()
+    LaunchedEffect(storageNews) {
+        when (storageNews) {
+            Repository.StorageNews.SWITCHED ->
+                Notice.show("Your library's SD card isn't in the phone. Showing the library on internal storage.")
+            Repository.StorageNews.CARD_BACK -> Dialogs.show(
+                DialogRequest.Choose(
+                    "Your SD card is back", listOf("Use the library on the SD card", "Keep using internal storage"), -1,
+                ) { i ->
+                    app.prefs.update {
+                        it.copy(storage = if (i == 0) StorageChoice.REMOVABLE else StorageChoice.INTERNAL, leftSdCard = false)
+                    }
+                    if (i == 0) app.repository.refreshAsync()
+                }
+            )
+            null -> {}
+        }
+        if (storageNews != null) app.repository.storageNewsShown()
+    }
+
+    // The computer turned down the phone's library name.
+    val nameKept by app.repository.nameKept.collectAsState()
+    LaunchedEffect(nameKept) {
+        nameKept?.let {
+            Notice.show("The computer kept the name \u201c$it\u201d.")
+            app.repository.nameKeptShown()
         }
     }
 

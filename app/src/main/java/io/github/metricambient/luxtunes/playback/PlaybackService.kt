@@ -33,6 +33,7 @@ import java.util.concurrent.Executors
 import com.google.common.util.concurrent.ListenableFuture
 import com.google.common.util.concurrent.SettableFuture
 import android.view.KeyEvent
+import androidx.core.content.IntentCompat
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.withTimeoutOrNull
 import io.github.metricambient.luxtunes.LuxTunesApp
@@ -543,7 +544,7 @@ class PlaybackService : MediaLibraryService() {
         if (controller.packageName == packageName) return false          // our own notification
         val s = app.prefs.current
         if (!s.obeyHeadset) return true
-        val key = intent.getParcelableExtra<KeyEvent>(Intent.EXTRA_KEY_EVENT) ?: return false
+        val key = IntentCompat.getParcelableExtra(intent, Intent.EXTRA_KEY_EVENT, KeyEvent::class.java) ?: return false
         val isPlay = key.keyCode == KeyEvent.KEYCODE_MEDIA_PLAY || key.keyCode == KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE
         return isPlay && !exo.playWhenReady && s.blockReceiverPlay && DeviceWatch.justConnectedBluetooth()
     }
